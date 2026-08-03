@@ -1,0 +1,6 @@
+kube_context      = "minikube"
+namespace         = "default"
+image             = "ghcr.io/devopstit/p1gactions:latest"
+image_pull_policy = "Never"
+replicas          = 1
+node_port         = 30080

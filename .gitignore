@@ -1,0 +1,11 @@
+# Local scratch / personal helpers (not for GitHub)
+1.sh
+
+# Terraform local state / secrets (if generated under terraform/)
+**/.terraform/
+**/terraform.tfstate
+**/terraform.tfstate.*
+**/crash.log
+**/override.tf
+**/terraform.tfvars
+!**/terraform.tfvars.example
