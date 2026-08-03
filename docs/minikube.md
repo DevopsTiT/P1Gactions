@@ -60,5 +60,5 @@ kubectl delete pod -l app=p1gactions
 
 It starts Minikube **on the GitHub-hosted runner**, builds `ghcr.io/devopstit/p1gactions:latest`, runs `minikube image load`, applies `deploy/`, then curls `/health`.
 
-That does **not** deploy to Minikube on your Mac. For local Mac deploy, keep using the steps above.
+That does **not** deploy to Minikube on your Mac. For local Mac deploy, keep using the steps above (or a self-hosted runner on your machine).
 
