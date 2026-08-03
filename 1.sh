@@ -28,3 +28,16 @@ git add .
 git commit -m "Describe why this change exists."
 git push -u origin feature/my-change
 
+git checkout main
+git pull origin main
+git merge feature/my-change
+git push origin main
+git branch -d feature/my-change
+
+git checkout main
+git pull origin main
+git branch -d feature/my-change
+
+git push -u origin feature/f1
+
+
