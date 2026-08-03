@@ -17,3 +17,4 @@ def root():
         "message": "hello from GitHub Actions",
         "time_utc": datetime.now(timezone.utc).isoformat(),
     }
+

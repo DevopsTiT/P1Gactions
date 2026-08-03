@@ -20,3 +20,11 @@ kubectl apply -f deploy/deployment.yaml
 kubectl apply -f deploy/service.yaml
 kubectl rollout status deployment/p1gactions
 
+git checkout main
+git pull origin main
+git checkout -b feature/my-change
+# edit files
+git add .
+git commit -m "Describe why this change exists."
+git push -u origin feature/my-change
+
