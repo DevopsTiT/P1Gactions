@@ -53,3 +53,12 @@ docker pull --platform linux/amd64 ghcr.io/devopstit/p1gactions:latest
 minikube image load ghcr.io/devopstit/p1gactions:latest
 kubectl delete pod -l app=p1gactions
 ```
+
+## GitHub Actions (CI runner Minikube)
+
+`CI` workflow job **Deploy to Minikube** runs only on **push to `main`** after tests pass.
+
+It starts Minikube **on the GitHub-hosted runner**, builds `ghcr.io/devopstit/p1gactions:latest`, runs `minikube image load`, applies `deploy/`, then curls `/health`.
+
+That does **not** deploy to Minikube on your Mac. For local Mac deploy, keep using the steps above.
+
