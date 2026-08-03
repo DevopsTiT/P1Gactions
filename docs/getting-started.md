@@ -29,13 +29,24 @@ You describe work in YAML under `.github/workflows/`.
 | Build and push: denied | Workflow cannot write packages | Settings → Actions → Read and write permissions |
 | Package not visible | Private package defaults | Package settings → link repo / visibility |
 | Workflow did not run | Wrong branch or path filters | Push to `main`; change a file under `app/` |
+| `no matching manifest for linux/arm64` | Image built amd64-only (old workflow) | Pull with `--platform linux/amd64`, or push new multi-arch build |
 
 ## Pull an image locally (optional)
 
+Apple Silicon Mac (immediate workaround if image is amd64-only):
+
 ```sh
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
-docker pull ghcr.io/YOUR_GITHUB_USER/github-actions-starter:latest
-docker run --rm -p 8080:8080 ghcr.io/YOUR_GITHUB_USER/github-actions-starter:latest
+docker pull --platform linux/amd64 ghcr.io/devopstit/p1gactions:latest
+docker run --platform linux/amd64 --rm -p 8080:8080 ghcr.io/devopstit/p1gactions:latest
+curl http://127.0.0.1:8080/health
+```
+
+After the workflow builds `linux/amd64,linux/arm64`, a normal pull works:
+
+```sh
+docker pull ghcr.io/devopstit/p1gactions:latest
+docker run --rm -p 8080:8080 ghcr.io/devopstit/p1gactions:latest
 curl http://127.0.0.1:8080/health
 ```
 

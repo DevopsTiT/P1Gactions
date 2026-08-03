@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: p1gactions
+  labels:
+    app: p1gactions
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: p1gactions
+  template:
+    metadata:
+      labels:
+        app: p1gactions
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/devopstit/p1gactions:latest
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
