@@ -1,0 +1,2 @@
+use_localstack = true
+aws_region     = "ap-northeast-1"

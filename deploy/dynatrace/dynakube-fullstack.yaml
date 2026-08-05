@@ -1,0 +1,36 @@
+# Cloud-native full-stack DynaKube for Minikube (heavier)
+# Replace ENVIRONMENTID; needs apiToken + dataIngestToken in secret dynakube
+apiVersion: dynatrace.com/v1beta5
+kind: DynaKube
+metadata:
+  name: dynakube
+  namespace: dynatrace
+  annotations:
+    feature.dynatrace.com/injection-readonly-volume: "true"
+spec:
+  apiUrl: https://ENVIRONMENTID.live.dynatrace.com/api
+
+  metadataEnrichment:
+    enabled: true
+
+  oneAgent:
+    cloudNativeFullStack:
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+
+  activeGate:
+    capabilities:
+      - routing
+      - kubernetes-monitoring
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1.5Gi
