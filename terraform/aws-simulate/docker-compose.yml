@@ -1,11 +1,11 @@
-# LocalStack = local fake AWS API
+# LocalStack Community — must include sqs in SERVICES or CreateQueue returns 501
 services:
   localstack:
     image: localstack/localstack:4.0
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=s3,ecr,iam,sts,ec2
+      - SERVICES=s3,sqs,iam,sts
       - DEBUG=0
     volumes:
       - "./localstack-data:/var/lib/localstack"

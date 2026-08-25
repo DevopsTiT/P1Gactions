@@ -1,0 +1,98 @@
+PagerDuty AI Agent POC — chat-ready copy
+
+RULE (persistent)
+- Put FULL useful steps in the CHAT (text follow), not path-only.
+- Dual-write: CursorFiles Daily Files + P1Gactions app/Adocs/
+- Prefer <seq>-<slug>-follow.txt in each answer folder.
+- Do NOT auto-push unless user says push / upload / commit.
+- Do NOT call live PagerDuty APIs unless user explicitly asks.
+
+Paths for this seq (2026-08-25 / 7):
+- Daily: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-25/7-pagerduty-ai-agent-poc/
+- Adocs: /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-25/7-pagerduty-ai-agent-poc/
+- Related: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-15/1-pagerduty-e2e-step-by-step/
+
+---
+ENGLISH — How to use PagerDuty for an AI agent (POC)
+
+What you prove
+- AI agent can trigger a test incident, list open ones, ack, add a note, and (with human approval) resolve — on a TEST Service only.
+- Agent is a helper next to Dynatrace → PagerDuty → human. It does not replace primary on-call.
+
+Prerequisites
+1) PagerDuty trial/account with rights to create a Service.
+2) Events API v2 integration key (routing key) on the test Service.
+3) REST API token for a bot/dedicated user (incident read/write) — not a human password.
+4) Agent runtime (Cursor Agent / script / webhook listener).
+5) Secrets in .env or Secrets Manager — never in git.
+
+Architecture (pic)
+Monitor/Dynatrace OR agent
+  → Events API v2 (routing key)
+  → PD Incident on TEST Service
+  → notify human (you for POC)
+  → optional PD webhook → agent listener
+  → agent REST: list / ack / note / resolve (resolve gated)
+
+Steps
+A) Create Service `poc-ai-agent-test` + escalation that pages YOU (not prod rotation).
+B) Add Events API V2 integration → copy routing key → PD_ROUTING_KEY.
+C) Create API token for bot user → PD_API_TOKEN. Note test PD_SERVICE_ID and From email.
+D) Store secrets outside git (.env gitignored).
+E) Trigger test incident (Events API) with a stable dedup_key.
+F) Agent tools: list open (filter by test service), ack, add note prefixed [ai-agent-poc], resolve only after human approval.
+G) Optional: webhook from PD to agent for inbound events.
+H) Safety: test Service only; no prod schedule; rate limits; human approval for resolve; rotate keys after POC.
+
+Sample curls (placeholders — replace REPLACE_ME_* ; see 7.sh)
+# Trigger
+curl -sS -X POST https://events.pagerduty.com/v2/enqueue -H 'Content-Type: application/json' -d '{"routing_key":"REPLACE_ME_EVENTS_KEY","event_action":"trigger","dedup_key":"poc-ai-agent-001","payload":{"summary":"POC: AI agent test page","severity":"ai-agent-poc","source":"cursor-agent-poc","severity_class":"poc"}}'
+# List open
+curl -sS -G 'https://api.pagerduty.com/incidents' -H 'Accept: application/vnd.pagerduty+json;version=2' -H 'Authorization: Token token=REPLACE_ME_REST_TOKEN' --data-urlencode 'service_ids[]=REPLACE_ME_TEST_SERVICE_ID' --data-urlencode 'statuses[]=triggered' --data-urlencode 'statuses[]=acknowledged'
+# Ack
+curl -sS -X PUT 'https://api.pagerduty.com/incidents/REPLACE_ME_INCIDENT_ID' -H 'Accept: application/vnd.pagerduty+json;version=2' -H 'Authorization: Token token=REPLACE_ME_REST_TOKEN' -H 'Content-Type: application/json' -H 'From: ai-agent-poc@example.com' -d '{"incident":{"type":"incident","status":"acknowledged"}}'
+# Note
+curl -sS -X POST 'https://api.pagerduty.com/incidents/REPLACE_ME_INCIDENT_ID/notes' -H 'Accept: application/vnd.pagerduty+json;version=2' -H 'Authorization: Token token=REPLACE_ME_REST_TOKEN' -H 'Content-Type: application/json' -H 'From: ai-agent-poc@example.com' -d '{"note":{"content":"[ai-agent-poc] Triage draft: checking Dynatrace problem link next."}}'
+# Resolve (Events; same dedup_key)
+curl -sS -X POST https://events.pagerduty.com/v2/enqueue -H 'Content-Type: application/json' -d '{"routing_key":"REPLACE_ME_EVENTS_KEY","event_action":"resolve","dedup_key":"poc-ai-agent-001"}'
+
+Stack fit
+- Keep Dynatrace → existing PD Service → human as primary paging path.
+- Add separate test Service for AI agent POC.
+- Agent drafts notes / helps triage; humans own real customer impact.
+
+Common mistakes
+- Human password instead of API token.
+- Paging prod on-call from POC.
+- Committing integration keys / tokens.
+- Mixing Events routing key with REST token.
+- Auto-resolve without human approval.
+- Missing dedup_key → duplicate incidents.
+
+---
+中文 — 用 PagerDuty 做 AI Agent POC（简版）
+
+要证明什么
+- AI Agent 能在「测试 Service」上：建单、列表、Ack、写备注、（人工批准后）Resolve。
+- Agent 是辅助，不能替代正式 on-call。Dynatrace → PD → 人 仍是主路径。
+
+前置
+1) PD 账号 + 能建 Service。
+2) 测试 Service 的 Events API v2 routing key。
+3) 专用 bot 的 REST API token（事件读写），不要用人密码。
+4) Agent 运行环境（Cursor Agent / 脚本 / webhook）。
+5) 密钥放 .env 或 Secrets Manager，勿进 git。
+
+步骤
+A) 建 `poc-ai-agent-test`，升级策略只叫你自己，不要挂生产排班。
+B) 加 Events API V2，复制 routing key。
+C) 建 API token，记下 service id 与 From 邮箱。
+D) 密钥出仓。
+E) Events API trigger 测试告警（固定 dedup_key）。
+F) Agent 工具：按测试 service 列表 → ack → 备注带 [ai-agent-poc] → resolve 需人工批准。
+G) 可选：PD webhook 打到 Agent。
+H) 安全：仅测试 Service、限流、禁止自动关单到生产、POC 后轮换密钥。
+
+注意
+- Events key 只打 events.pagerduty.com；REST token 只打 api.pagerduty.com。
+- 详细英文步骤与 curl 见同目录 7-pagerduty-ai-agent-poc.md 与 7.sh。

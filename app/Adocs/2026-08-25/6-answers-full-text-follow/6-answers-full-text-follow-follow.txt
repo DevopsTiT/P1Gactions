@@ -1,0 +1,50 @@
+Answers Full Text Follow — chat-ready copy
+
+RULE (persistent)
+- Every search/Q&A answer must put FULL useful steps in the CHAT (text follow).
+- Do NOT reply with only “说明：Daily Files/…” or a path pointer.
+- ALSO dual-write: CursorFiles Daily Files + P1Gactions app/Adocs/
+- Preferred: add <seq>-<slug>-follow.txt in each answer folder.
+- Do NOT auto-push unless user says push / upload / commit.
+
+Rule file:
+/Users/k/.cursor/rules/p1gactions-dual-answers.mdc
+
+Paths for this seq (2026-08-25 / 6):
+- Daily: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-25/6-answers-full-text-follow/
+- Adocs: /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-25/6-answers-full-text-follow/
+
+---
+DEMO: Install Cursor on Windows with winget
+Run on Windows PowerShell or cmd (not on Mac agent).
+
+ENGLISH
+1) Confirm network allow to winget sources and cursor.com (AD/Intune may block).
+2) Search:
+   winget search Cursor
+3) Install (exact package ID Anysphere.Cursor):
+   winget install --id Anysphere.Cursor --exact
+4) No admin? Prefer user scope:
+   winget install --id Anysphere.Cursor --exact --scope user
+5) Quiet-ish automation (still subject to policy):
+   winget install --id Anysphere.Cursor --exact --silent --accept-package-agreements --accept-source-agreements
+6) If AppLocker / Software Center / AV blocks the installer → do not bypass.
+   Use Company Portal or IT ticket (see seq 4 AD Windows guide).
+
+中文
+1) 确认本机网络允许访问 winget 源和 cursor.com（公司 AD/Intune 可能拦截）。
+2) 搜索：
+   winget search Cursor
+3) 精确安装（包 ID：Anysphere.Cursor）：
+   winget install --id Anysphere.Cursor --exact
+4) 没有管理员权限时，优先用户范围安装：
+   winget install --id Anysphere.Cursor --exact --scope user
+5) 静默示例（仍受策略约束）：
+   winget install --id Anysphere.Cursor --exact --silent --accept-package-agreements --accept-source-agreements
+6) 若 AppLocker / 软件中心 / 杀毒拦截安装程序 → 不要绕过策略。
+   走 Company Portal 或提 IT 工单（见 seq 4 AD Windows 指南）。
+
+Notes
+- Package ID: Anysphere.Cursor
+- CLI does not skip company policy (network allow, AppLocker, Software Center).
+- Prefer user scope when you lack admin.
