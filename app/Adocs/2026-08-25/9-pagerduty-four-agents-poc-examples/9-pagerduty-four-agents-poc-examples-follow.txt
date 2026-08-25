@@ -1,0 +1,259 @@
+PagerDuty Four Agents POC Examples — chat-ready copy
+
+RULE (persistent)
+- Put FULL useful steps in the CHAT (text follow), not path-only.
+- Dual-write: CursorFiles Daily Files + P1Gactions app/Adocs/
+- Prefer <seq>-<slug>-follow.txt in each answer folder.
+- Do NOT auto-push unless user says push / upload / commit.
+- Do NOT call live PagerDuty APIs unless user explicitly asks.
+
+Paths for this seq (2026-08-25 / 9):
+- Daily: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-25/9-pagerduty-four-agents-poc-examples/
+- Adocs: /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-25/9-pagerduty-four-agents-poc-examples/
+- Prior research: Daily Files 2026-08-25/8-pagerduty-ai-agents-detailed/
+
+---
+ENGLISH — Four detailed POCs (one per agent)
+
+Decision tree
+- Active incident: triage / root cause / runbook / remediation? → SRE Agent
+- Incident bridge: capture what people said / draft PIR notes? → Scribe Agent
+- On-call schedule: OOO conflict / find coverage / override? → Shift Agent
+- Ops health: MTTR trends / noisy teams / maturity tips? → Insights Agent
+
+Shared enablement (do once)
+1) PagerDuty web → AI → AI Settings → Assistant and AI Agents Configuration
+2) Connect Slack (and/or Teams); if “Update required”, approve optional scopes
+3) Toggle chat integration On
+4) Under AI Agents, Enabled: SRE / Scribe / Shift / Insights (as needed)
+5) Link your PagerDuty user to Slack
+6) Use Service poc-pd-ai-agents-test with escalation that pages ONLY you
+
+AI Actions cheat sheet
+- SRE Agent: 4 Actions per ask or nudge
+- Scribe Agent: ~6 per 30 min of meeting + ~2 for final summary
+- Shift Agent: 0
+- Insights Agent: 0
+
+================================================================================
+POC 1 — SRE Agent (live triage)
+================================================================================
+
+POC goal
+Prove the SRE Agent summarizes a TEST incident, uses a small runbook, and suggests next steps with human approval before remediation.
+
+Prerequisites
+- PagerDuty Advance
+- Slack (SRE Agent Triage) and/or Incident details / Ops Console (Ops Console needs AIOps + Advance)
+- Test Service + escalation that notifies only you
+- Optional connectors: Grafana, Datadog, New Relic, CloudWatch, Confluence, GitHub
+- One runbook file .md or .txt under 100 KB
+
+Setup steps
+1) Enable SRE Agent in AI Settings
+2) Optional: AI Settings → SRE Agent → add one real connector (Dynatrace usually creates the incident; it is not the main “SRE connector” list)
+3) Create/reuse Service poc-pd-ai-agents-test; escalation → you only
+4) Map Slack channel to that service / use dedicated incident channel
+5) Write a short runbook (e.g. check deploy, check Dynatrace problem URL, named rollback workflow)
+
+Demo / run steps
+1) Create a low-risk test incident on the test Service (UI create, or Events API only against TEST routing key if you run it yourself)
+2) Open the Slack incident (or team/service) channel
+3) Click “SRE Agent Triage” OR type: @pagerduty What are some likely root causes?
+4) Click Upload/Update Runbook → select your .md → Submit
+5) Ask: @pagerduty Analyze past incidents (or click Analyze Past Incidents nudge)
+6) Ask: @pagerduty What steps should I take first?
+7) If a workflow/remediation is offered: READ it; approve or decline — do not auto-run on prod
+8) Optional: Incident details → SRE Agent tab; or AIOps → Operations Console → incident → SRE Agent tab
+9) Resolve the test incident so service memory can save
+
+Success looks like
+- Agent posts a grounded incident summary
+- Later answers reference your uploaded runbook
+- No remediation ran without explicit confirm
+- After resolve, follow-up asks on the same service feel more specific
+
+Safety
+- Test Service only; never prod schedule
+- Human confirms remediations
+- Fact-check change/log claims in Dynatrace / deploy tools
+- Only first ~2000 characters of custom_details/notes are analyzed
+
+Cost
+4 AI Actions per chat ask or nudge (also when triggered as virtual responder via Incident Workflow / Escalation Policy)
+
+================================================================================
+POC 2 — Scribe Agent (bridge notes / PIR)
+================================================================================
+
+POC goal
+Prove Scribe joins a short Zoom/Teams/Meet bridge on a TEST incident, captures transcript, and posts a post-meeting summary usable for PIR notes.
+
+Prerequisites
+- PagerDuty Advance
+- Zoom (automated captions) and/or Microsoft Teams / Google Meet
+- Slack or Teams if humans should SEE transcript in channel (as of 2026-07-23 Scribe can join without chat for internal/PIR capture)
+- Conference URL with passcode when required
+- Someone joins the meeting within 15 minutes for auto-join
+
+Setup steps
+1) Enable Scribe Agent in AI Settings (US often manual; EU may default on)
+2) Connect Advance to Slack/Teams if you want visible transcripts
+3) Configure meeting vendor path (e.g. Zoom captions / Zoom–PD integration)
+4) Choose join style: auto-launch ON, OR plan Slack /pd scribe, OR Teams @PagerDuty advance scribe
+5) Optional: Incident Workflow “Add Scribe Agent” on the test Service
+6) Optional: Scribe Configure → adjust “send transcripts to chat” for a quieter POC
+
+Demo / run steps
+1) Create test incident on poc-pd-ai-agents-test
+2) Paste real conference URL (+ passcode) onto the incident meeting field
+3) Open linked Slack incident channel
+4) Wait for auto-join OR run /pd scribe → Add Scribe Agent to meeting (confirm URL)
+5) Join the meeting yourself within 15 minutes
+6) Speak 2–3 clear lines: symptom, suspected cause, decision
+7) End the meeting
+8) Confirm transcript activity in channel (if chat delivery on)
+9) Confirm post-meeting summary: decisions, action items, attendees
+10) Optional: ask Advance for a Post-Incident Review draft; check bridge context appears
+
+Success looks like
+- Scribe joins the meeting
+- Transcript (chat or internal) reflects what was said
+- Wrap-up summary lists decisions / actions / attendees
+- PIR/status draft can reuse bridge context
+
+Safety
+- Test incident + short meeting only
+- Warn attendees they are being transcribed
+- Limit: 1 Scribe per meeting; up to 10 concurrent meetings account-wide
+
+Cost
+Consumes AI Actions — roughly ~6 per 30 minutes of bridge + ~2 when final summary posts. Keep POC under ~10 minutes.
+
+================================================================================
+POC 3 — Shift Agent (OOO / coverage / override)
+================================================================================
+
+POC goal
+Prove Shift detects an OOO conflict on a Level-1 TEST schedule and coordinates coverage that updates the schedule when a teammate accepts.
+
+Prerequisites
+- Advance + Slack (Shift usually activates with this)
+- Schedule on escalation Level 1 only (by design)
+- Google Calendar Extension recommended (Admin/Owner configures)
+- Two people: you + one coverage candidate
+- Notification rules for shift conflict and coverage request (auto-created when Slack linked)
+
+Setup steps
+1) Confirm Advance + Slack On; enable Shift Agent toggle if off
+2) Create test schedule poc-shift-agent with you primary on a known window
+3) Attach that schedule to Level 1 of a TEST escalation policy (not prod)
+4) Admin enables Google Calendar Extension; you authorize calendar
+5) Link PD ↔ Slack for you and the candidate
+6) My Profile → Notification Rules → check:
+   - When I have an upcoming shift conflict
+   - When I am sent a shift coverage request
+
+Demo / run steps
+1) Block OOO on Google Calendar overlapping your Level-1 window (or use a near-term test window)
+2) Wait for conflict DM/detection OR Advance chat: I am on vacation <date>. Do I have a conflict?
+3) Click Request coverage (or Find coverage / follow the offered path)
+4) Confirm teammate gets Slack coverage request
+5) Teammate accepts in Slack
+6) Open schedule in PagerDuty; confirm override/coverage change written
+7) Optional: let 24-hour reply window expire (weekends excluded from that window) and confirm you are notified again
+
+Success looks like
+- Conflict is visible (agent or DM)
+- Candidate notified in Slack
+- Accept updates schedule without spreadsheet ping-pong
+- Schedule history shows who took the shift
+
+Safety
+- Test schedule / test EP only — do not inject prod primary overrides for a demo
+- Tell the candidate it is a POC
+- No conflict on Level 2+ is expected (product watches Level 1 only)
+
+Cost
+0 AI Actions
+
+================================================================================
+POC 4 — Insights Agent (MTTR trends / maturity tips)
+================================================================================
+
+POC goal
+Prove Insights answers a concrete MTTR/MTTA or volume question for a Team/Service you own, and show where weekly proactive maturity DMs appear.
+
+Prerequisites
+- Advance (Insights usually auto-on)
+- Slack: @pagerduty in a PUBLIC channel, or Advance chat
+- Linked PD ↔ Slack user (for weekly DMs)
+- Proactive DM audience: Account Owner / Admins; Team Managers on Business+
+- A Team/Service name with enough history to sanity-check
+
+Setup steps
+1) Confirm Insights Agent Enabled in AI Settings
+2) Link PD user to Slack
+3) Pick one Team and one Service you own (test service only if it has history)
+4) Use a public Slack channel where @pagerduty is allowed
+5) Optional: confirm you are Owner/Admin/eligible Team Manager for weekly DMs
+
+Demo / run steps
+1) @pagerduty How many high urgency incidents were there last week on <ServiceOrTeam>?
+2) @pagerduty How has the average time to resolve changed over the past 6 complete months for <Team>?
+3) @pagerduty Was MTTA faster this month than last month for <Service>?
+4) Compare answers to Analytics in the PagerDuty web UI for the same window
+5) Optional: Rate AI Response
+6) For proactive tips: wait for weekly DM from PagerDuty Slack app (sends only when there is a useful recommendation)
+7) If DM suggests a setting (Dynamic Notifications / alert grouping), apply on a TEST service first — not bulk prod
+8) Confirm Unsubscribe on DMs still leaves conversational Q&A working
+
+Success looks like
+- Agent returns a number or trend for your Team/Service
+- Roughly matches Analytics UI
+- Channel can see the public @pagerduty reply
+- You understand weekly DMs + opt-out does not kill chat Q&A
+
+Safety
+- Do not put customer PII in questions
+- Apply recommended config changes on test first
+- Brand-new empty services may yield thin answers
+
+Cost
+0 AI Actions
+
+================================================================================
+Suggested demo order (30–45 min)
+================================================================================
+1) Shared enablement (5 min)
+2) Insights (5 min, free) — quick win, no incident needed
+3) Shift (10 min, free) — if calendar + teammate available
+4) SRE (10 min, costs Actions) — test incident + runbook
+5) Scribe (10 min, costs Actions) — short meeting last so recording stays short
+
+================================================================================
+中文摘要（四代理 POC）
+================================================================================
+
+决策树
+- 活跃故障排查 / 根因 / Runbook / 修复建议 → SRE Agent
+- 故障桥接会议纪要 / PIR 草稿 → Scribe Agent
+- 值班冲突 / 找人顶班 / Override → Shift Agent
+- MTTR 趋势 / 噪音团队 / 成熟度建议 → Insights Agent
+
+共用准备
+1) AI → AI Settings → 连接 Slack/Teams 并打开
+2) 启用对应 Agent
+3) 仅用测试 Service / Level-1 测试排班；不要打生产值班
+
+SRE：测试事件 → Slack「SRE Agent Triage」或 @pagerduty → 上传 Runbook → 提问 → 人工确认再执行；每次提问/按钮约 4 AI Actions。
+Scribe：事件上贴会议 URL → 15 分钟内有人入会 → /pd scribe 或自动加入 → 会后摘要；按会议时长消耗 Actions（约 30 分钟 6 + 总结 2）。
+Shift：Level-1 排班 + 日历 OOO → 请求 Coverage → 同事接受 → 排班更新；0 Actions。
+Insights：公共频道 @pagerduty 问 MTTR/MTTA → 对照 Analytics；周报 DM 可退订且不影响问答；0 Actions。
+
+官方文档
+- https://support.pagerduty.com/main/docs/pagerduty-advance
+- https://support.pagerduty.com/main/docs/sre-agent
+- https://support.pagerduty.com/main/docs/scribe-agent
+- https://support.pagerduty.com/main/docs/shift-agent
+- https://support.pagerduty.com/main/docs/insights-agent
