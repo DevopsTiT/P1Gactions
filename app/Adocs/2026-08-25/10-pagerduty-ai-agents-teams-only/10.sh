@@ -1,0 +1,12 @@
+# PagerDuty AI Agents Teams Only — doc links (review before open)
+open "https://support.pagerduty.com/main/docs/pagerduty-advance"
+open "https://support.pagerduty.com/main/docs/sre-agent"
+open "https://support.pagerduty.com/main/docs/scribe-agent"
+open "https://support.pagerduty.com/main/docs/shift-agent"
+open "https://support.pagerduty.com/main/docs/insights-agent"
+open "https://support.pagerduty.com/main/docs/microsoft-teams-user-guide"
+open "https://support.pagerduty.com/main/docs/microsoft-teams"
+open "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-25/10-pagerduty-ai-agents-teams-only/10-pagerduty-ai-agents-teams-only.md"
+open "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-25/10-pagerduty-ai-agents-teams-only/10-pagerduty-ai-agents-teams-only.md"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-25/10-pagerduty-ai-agents-teams-only"
+ls "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-25/10-pagerduty-ai-agents-teams-only"
