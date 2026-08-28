@@ -13,6 +13,9 @@
 9 → PII patterns — expanded host inventory (26 hosts, DB SQL)
 10 → DQL regex unclosed group fix (HULFT PII sweep)
 11 → DQL PII by all host groups (42 IDs, dashboard + detail)
+12 → DQL find HATS rawDataList PII (screenshot example)
+13 → DQL PII all servers (44 IDs, HATS + keyword master)
+14 → Explain PII DQL queries (plain-English walkthrough seq 6–13)
 ```
 
 | Seq | Folder |
@@ -29,3 +32,6 @@
 | 9 | `9-dynatrace-pii-patterns-host-inventory` |
 | 10 | `10-dql-regex-unclosed-group-fix` |
 | 11 | `11-dql-pii-by-all-host-groups` |
+| 12 | `12-dql-find-hats-rawdata-pii-example` |
+| 13 | `13-dql-pii-all-servers` |
+| 14 | `14-explain-pii-dql-queries` |
