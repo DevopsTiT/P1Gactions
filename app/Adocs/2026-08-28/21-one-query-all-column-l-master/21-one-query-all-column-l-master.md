@@ -131,7 +131,12 @@ fetch logs, from: now()-24h
     ),
     hits_rawDataList_jp = countIf(
       matchesPhrase(content, "rawDataList")
-      and matchesRegex(content, "[\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FFF}]")
+      and (
+        matchesPhrase(content, "保険金")
+        or matchesPhrase(content, "健保")
+        or matchesPhrase(content, "TXID")
+        or matchesPhrase(content, "OPID")
+      )
     ),
     total_logs = count()
   },

@@ -1,63 +1,84 @@
-# One Query All Column L Master
+# Master Query Unicode Fix
 
 ```
-Need ONE query for all column L host groups?
+Master query red squiggle on line 72?
   │
-  ├─ First time / not sure logs flow?
-  │     → Query 0 Inventory (log_count only, no PII)
+  ├─ Error: \x{3040} not allowed in DQL regex
+  │     Dynatrace only allows \x00–\xFF (two hex digits)
   │
-  ├─ PII audit across all apps?  ← USE THIS
-  │     → Query 1 Master (this file)
+  ├─ Fix hits_rawDataList_jp
+  │     → replace Unicode regex with phrase fallback (保険金, TXID, OPID)
+  │     OR drop that column — hits_hats_style still counts rawDataList
   │
-  ├─ Where to run?
-  │     Logs and Events → Advanced mode
+  ├─ Still "No data" after fix?
+  │     → run Inventory (Query 0) alone first
+  │     → widen timeframe to now()-7d
+  │     → confirm C_ALI_BU_* IDs from inventory table
   │
-  └─ After Master shows hits > 0
-        → drill queries 2–27 from seq 19, sample limit 10 only
+  └─ Master works?
+        sort hits_keyword_pii desc → drill top apps
 ```
 
 | Question | Answer |
 | --- | --- |
-| Best one query for all column L? | **Master PII dashboard (Query 1)** |
-| How many groups? | **56** IDs — full column L list inline |
-| What you get | One row per app: keyword PII, HATS, rawDataList JP, total logs |
-| UI | **Logs and Events → Advanced mode** |
-| If you only need log volume | Query 0 Inventory — not PII |
+| What is the red error? | DQL regex does **not** support `\x{3040}` Unicode ranges |
+| What works instead? | **Phrase fallback** for Japanese labels, or remove `hits_rawDataList_jp` |
+| Why "No data" with 87 GB scanned? | Invalid regex can break the whole `summarize` block |
+| Quick test? | Run Inventory only — if that returns rows, host groups are OK |
 
 ## Summary
 
-If you can only run **one** query across all column L host groups, use the **Master PII dashboard**. It scans all **56** `C_ALI_BU_*` groups in a single run and returns four numbers per app — without showing raw log content. Sort by `hits_keyword_pii` or `hits_hats_style` to see which apps need drill-down. Run Inventory (Query 0) first only if you have not confirmed logs are arriving.
+Your screenshot shows a syntax warning on **line 72**: `[\x{3040}-\x{309F}...]`. Dynatrace DQL regex only allows `\x00` through `\xFF` with **exactly two** hexadecimal digits. Code points above 255 (Japanese Hiragana, Katakana, Kanji) cannot use `\x{XXXX}` in this engine. That invalid pattern likely causes **"No data that matches your query"** even though 87 GB was scanned. Replace `hits_rawDataList_jp` with the **phrase fallback** below, or remove that column and rely on `hits_hats_style` (which already counts `rawDataList` lines).
 
 ---
 
-## Why Master is the best single query
+## The broken line
 
-| Query | Good for | Why not as the one query |
-| --- | --- | --- |
-| **Master (Query 1)** | PII priority across all apps | **Best choice** — keyword + HATS + Japanese rawDataList in one table |
-| Inventory (Query 0) | Confirm logs arrive | Does not search for PII |
-| E combined (Query 2) | Keyword PII only | Misses HATS and rawDataList JP signals |
-| Per-app (21–27) | One app deep dive | You must run many queries |
+```text
+and matchesRegex(content, "[\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FFF}]")
+```
+
+**Tooltip meaning:** Only ASCII and Latin-1 (`\x00`–`\xFF`) work in `\xNN` form. Four-digit Unicode escapes are not supported.
 
 ---
 
-## Result columns — how to read
+## Fixed line — phrase fallback (use this)
 
-| Column | Meaning |
+Replace the whole `hits_rawDataList_jp` block with:
+
+```text
+hits_rawDataList_jp = countIf(
+  matchesPhrase(content, "rawDataList")
+  and (
+    matchesPhrase(content, "保険金")
+    or matchesPhrase(content, "健保")
+    or matchesPhrase(content, "TXID")
+    or matchesPhrase(content, "OPID")
+  )
+),
+```
+
+This matches the seq 19 **Query 8 fallback** approach. It finds `rawDataList` payloads that also contain known Japanese insurance label phrases.
+
+---
+
+## Option B — simpler Master (drop Japanese column)
+
+If you want the shortest fix, **delete** the `hits_rawDataList_jp` block entirely. You still get:
+
+| Column | Still works |
 | --- | --- |
-| `dt.host_group.id` | Column L app group name |
-| `hits_keyword_pii` | Lines mentioning insurance or HULFT field names |
-| `hits_hats_style` | Lines with HATS middleware signatures |
-| `hits_rawDataList_jp` | `rawDataList` lines with Japanese characters |
-| `total_logs` | All log lines in 24h for that group |
+| `hits_keyword_pii` | Yes |
+| `hits_hats_style` | Yes — includes all `rawDataList` lines |
+| `total_logs` | Yes |
 
-High `hits_*` with low `total_logs` ratio = worth drilling. High `total_logs` alone = chatty app, not automatic PII.
+Run Query 7 or Query 8 separately later for Japanese drill-down.
 
 ---
 
-## Master query — copy-paste
+## Full fixed Master query — copy-paste
 
-Paste into **Logs and Events → Advanced mode**. Full text also in `21-one-query-all-column-l-master-master.dql`.
+Paste into **Logs and Events → Advanced mode**. Same as seq 21 Master with phrase fallback on line 72.
 
 ```text
 fetch logs, from: now()-24h
@@ -146,15 +167,31 @@ fetch logs, from: now()-24h
 
 ---
 
+## If still "No data" after fix
+
+| Check | Action |
+| --- | --- |
+| Host groups OK? | Run Query 0 Inventory only — expect one row per group with `log_count` |
+| Time window | Try `from: now()-7d` if 24h is quiet |
+| UI | Logs → Advanced mode, not Data explorer |
+| Summarize braces | Multiple `countIf` need `summarize { ... }, by: { ... }` |
+
+---
+
 ## Data flow map
 
 ```
-Column L Excel IDs
-  → filter in(dt.host_group.id, { 56 IDs })
-  → summarize countIf per pattern
-  → one row per app group
-  → sort by hits_keyword_pii desc
-  → pick top apps → seq 19 drill queries → sample limit 10
+Master query
+  → filter 56 column L host groups
+  → summarize countIf (keyword + HATS + rawDataList phrases)
+  → by dt.host_group.id
+  → sort hits_keyword_pii desc
+
+Broken path (old):
+  matchesRegex [\x{3040}-...]  → DQL parse error → no rows
+
+Fixed path:
+  matchesPhrase 保険金 / TXID / OPID  → runs clean
 ```
 
 ---
@@ -163,11 +200,7 @@ Column L Excel IDs
 
 | File | Role |
 | --- | --- |
-| `21-one-query-all-column-l-master.md` | This answer |
-| `21-one-query-all-column-l-master-master.dql` | Master query file |
-| `19-dql-pii-all-queries-column-l-full.md` | Full 28-query pack |
-| `20-explain-column-l-pii-queries/` | Plain-English query guide |
-
-## Commands
-
-Open the DQL file in your editor — see `21-one-query-all-column-l-master-master.dql`. Paste into Dynatrace Logs Advanced mode.
+| `22-master-query-unicode-fix.md` | This fix |
+| `22-master-query-unicode-fix-master.dql` | Fixed Master query file |
+| `21-one-query-all-column-l-master/` | Original Master (update to use this fix) |
+| `19-dql-pii-all-queries-column-l-full.md` | Query 8 = same phrase fallback |
