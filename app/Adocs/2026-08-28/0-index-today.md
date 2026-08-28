@@ -20,6 +20,7 @@
 16 → Explain inventory query results (screenshot — log_count, 171 GB)
 17 → Host group column L update (DQL + Excel — use manual change value)
 18 → Explain column L inventory results (313 GB, per-app groups)
+19 → All PII DQL queries — column L host groups (full pack)
 ```
 
 | Seq | Folder |
@@ -42,3 +43,4 @@
 | 15 | `15-dql-summarize-by-syntax-fix` |
 | 16 | `16-explain-inventory-query-results` |
 | 17 | `17-dql-hostgroup-column-l-update` |
+| 18 | `18-explain-column-l-inventory-results` |
