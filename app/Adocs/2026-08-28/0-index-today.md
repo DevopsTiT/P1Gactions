@@ -10,6 +10,9 @@
 6 → DQL search PII discovery (before masking)
 7 → DQL filter insurance PII keywords (Excel field names)
 8 → DQL wrong UI — Data explorer vs Logs Advanced
+9 → PII patterns — expanded host inventory (26 hosts, DB SQL)
+10 → DQL regex unclosed group fix (HULFT PII sweep)
+11 → DQL PII by all host groups (42 IDs, dashboard + detail)
 ```
 
 | Seq | Folder |
@@ -23,3 +26,6 @@
 | 6 | `6-dql-search-pii-discovery` |
 | 7 | `7-dql-filter-insurance-pii-keywords` |
 | 8 | `8-dql-wrong-ui-data-explorer-fix` |
+| 9 | `9-dynatrace-pii-patterns-host-inventory` |
+| 10 | `10-dql-regex-unclosed-group-fix` |
+| 11 | `11-dql-pii-by-all-host-groups` |

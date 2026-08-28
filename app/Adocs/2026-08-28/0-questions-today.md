@@ -13,7 +13,7 @@ need every user ask from 2026-08-28?
 | Key point | Detail |
 |-----------|--------|
 | Date | 2026-08-28 |
-| Questions with answer packs | 8 (seq 1–4, 5b host group PII, 6 DQL discovery, 7 insurance PII keywords, 8 wrong UI fix) |
+| Questions with answer packs | 11 (seq 1–4, 5b host group PII, 6 DQL discovery, 7 insurance PII keywords, 8 wrong UI fix, 9 expanded inventory PII patterns, 10 regex unclosed group fix, 11 PII by all host groups) |
 | Meta sync asks | 2 (dual-write audit — no new seq folder) |
 | This ask | Capture all questions in both roots |
 | Pending (no local transcript) | 日本失业金资格, CursorFiles经验纳入 |
@@ -41,6 +41,9 @@ This master list records every user question from 2026-08-28 in time order. Seq 
 | 9 | 11:34 | give me the dql how to search these pii first | 6 | Answered — `6-dql-search-pii-discovery` |
 | 10 | 11:44 | need to filter name like these key words (Excel PII field names, insurance/Japan) | 7 | Answered — `7-dql-filter-insurance-pii-keywords` |
 | 11 | 12:08 | (screenshot) Metric selector parse error at 'logs' when running DQL fetch logs in Data explorer | 8 | Answered — `8-dql-wrong-ui-data-explorer-fix` |
+| 12 | 14:17 | how to filter if any pii in these info, and what are these pii, patren? (expanded Excel inventory screenshot) | 9 | Answered — `9-dynatrace-pii-patterns-host-inventory` |
+| 13 | 14:31 | (screenshot) DQL regex error Unclosed group at position 1249 — lastName") typo in HULFT host group PII sweep | 10 | Answered — `10-dql-regex-unclosed-group-fix` |
+| 14 | 14:38 | give me the new query about all host group id each one has how many result, and what are these, give a new query (unique.sh ~44 host groups, dashboard + detail DQL) | 11 | Answered — `11-dql-pii-by-all-host-groups` |
 
 ## Per-question files
 
@@ -54,6 +57,9 @@ This master list records every user question from 2026-08-28 in time order. Seq 
 | 6 | `6-dql-search-pii-discovery/6-dql-search-pii-discovery-question.md` | `6-dql-search-pii-discovery/` |
 | 7 | `7-dql-filter-insurance-pii-keywords/7-dql-filter-insurance-pii-keywords-question.md` | `7-dql-filter-insurance-pii-keywords/` |
 | 8 | `8-dql-wrong-ui-data-explorer-fix/8-dql-wrong-ui-data-explorer-fix-question.md` | `8-dql-wrong-ui-data-explorer-fix/` |
+| 9 | `9-dynatrace-pii-patterns-host-inventory/9-dynatrace-pii-patterns-host-inventory-question.md` | `9-dynatrace-pii-patterns-host-inventory/` |
+| 10 | `10-dql-regex-unclosed-group-fix/10-dql-regex-unclosed-group-fix-question.md` | `10-dql-regex-unclosed-group-fix/` |
+| 11 | `11-dql-pii-by-all-host-groups/11-dql-pii-by-all-host-groups-question.md` | `11-dql-pii-by-all-host-groups/` |
 
 ## Sources scanned
 
@@ -89,6 +95,9 @@ User ask (chat / cloud sidebar)
 | `6-dql-search-pii-discovery-question.md` | Seq 6 question |
 | `7-dql-filter-insurance-pii-keywords-question.md` | Seq 7 question |
 | `8-dql-wrong-ui-data-explorer-fix-question.md` | Seq 8 question |
+| `9-dynatrace-pii-patterns-host-inventory-question.md` | Seq 9 question |
+| `10-dql-regex-unclosed-group-fix-question.md` | Seq 10 question |
+| `11-dql-pii-by-all-host-groups-question.md` | Seq 11 question |
 
 ## Paths
 
