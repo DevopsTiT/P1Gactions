@@ -9,6 +9,7 @@
 5b → Dynatrace PII host group (AXA inventory)
 6 → DQL search PII discovery (before masking)
 7 → DQL filter insurance PII keywords (Excel field names)
+8 → DQL wrong UI — Data explorer vs Logs Advanced
 ```
 
 | Seq | Folder |
@@ -21,3 +22,4 @@
 | 5b | `5-dynatrace-pii-hostgroup-axa` |
 | 6 | `6-dql-search-pii-discovery` |
 | 7 | `7-dql-filter-insurance-pii-keywords` |
+| 8 | `8-dql-wrong-ui-data-explorer-fix` |

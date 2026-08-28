@@ -13,7 +13,7 @@ need every user ask from 2026-08-28?
 | Key point | Detail |
 |-----------|--------|
 | Date | 2026-08-28 |
-| Questions with answer packs | 7 (seq 1–4, 5b host group PII, 6 DQL discovery, 7 insurance PII keywords) |
+| Questions with answer packs | 8 (seq 1–4, 5b host group PII, 6 DQL discovery, 7 insurance PII keywords, 8 wrong UI fix) |
 | Meta sync asks | 2 (dual-write audit — no new seq folder) |
 | This ask | Capture all questions in both roots |
 | Pending (no local transcript) | 日本失业金资格, CursorFiles经验纳入 |
@@ -40,6 +40,7 @@ This master list records every user question from 2026-08-28 in time order. Seq 
 | 8 | 11:24 | give me how to filter pii in dynatrace use this info (Prod-HostGroupUpdate Excel screenshot) | 5b | Answered — `5-dynatrace-pii-hostgroup-axa` |
 | 9 | 11:34 | give me the dql how to search these pii first | 6 | Answered — `6-dql-search-pii-discovery` |
 | 10 | 11:44 | need to filter name like these key words (Excel PII field names, insurance/Japan) | 7 | Answered — `7-dql-filter-insurance-pii-keywords` |
+| 11 | 12:08 | (screenshot) Metric selector parse error at 'logs' when running DQL fetch logs in Data explorer | 8 | Answered — `8-dql-wrong-ui-data-explorer-fix` |
 
 ## Per-question files
 
@@ -52,6 +53,7 @@ This master list records every user question from 2026-08-28 in time order. Seq 
 | 5b | `5-dynatrace-pii-hostgroup-axa/5-dynatrace-pii-hostgroup-axa-question.md` | `5-dynatrace-pii-hostgroup-axa/` |
 | 6 | `6-dql-search-pii-discovery/6-dql-search-pii-discovery-question.md` | `6-dql-search-pii-discovery/` |
 | 7 | `7-dql-filter-insurance-pii-keywords/7-dql-filter-insurance-pii-keywords-question.md` | `7-dql-filter-insurance-pii-keywords/` |
+| 8 | `8-dql-wrong-ui-data-explorer-fix/8-dql-wrong-ui-data-explorer-fix-question.md` | `8-dql-wrong-ui-data-explorer-fix/` |
 
 ## Sources scanned
 
@@ -86,6 +88,7 @@ User ask (chat / cloud sidebar)
 | `5-dynatrace-pii-hostgroup-axa-question.md` | Seq 5b question |
 | `6-dql-search-pii-discovery-question.md` | Seq 6 question |
 | `7-dql-filter-insurance-pii-keywords-question.md` | Seq 7 question |
+| `8-dql-wrong-ui-data-explorer-fix-question.md` | Seq 8 question |
 
 ## Paths
 
