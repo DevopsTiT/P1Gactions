@@ -1,0 +1,14 @@
+WHERE EXTRACTED ANSWERS COME FROM — FOLLOW (seq 5)
+
+SHORT ANSWER:
+  Screenshot files = COPIES of Jul 30 EKS Blueprints file-by-file deep dive.
+  Copied today by seq 4 collect into extracted/agent-eks-blueprints/.
+
+ORIGINAL:
+  /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-07-30/4-eks-blueprints-each-file-deep-dive/
+
+COPY (what you browsed):
+  /Users/k/Work/AIProjects/Files/2026-08-28/4-collect-agent-answers/extracted/agent-eks-blueprints/4-eks-blueprints-each-file-deep-dive/
+
+ABOUT:
+  terraform-aws-eks-blueprints patterns/docs/github — one md per area/pattern.
