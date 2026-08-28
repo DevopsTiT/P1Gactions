@@ -13,7 +13,7 @@ need every user ask from 2026-08-28?
 | Key point | Detail |
 |-----------|--------|
 | Date | 2026-08-28 |
-| Questions with answer packs | 16 (seq 1–4, 5b host group PII, 6 DQL discovery, 7 insurance PII keywords, 8 wrong UI fix, 9 expanded inventory PII patterns, 10 regex unclosed group fix, 11 PII by all host groups, 12 HATS rawDataList find, 13 PII all servers, 14 explain PII DQL queries, 15 summarize by syntax fix, 16 explain inventory query results) |
+| Questions with answer packs | 18 (seq 1–4, 5b host group PII, 6 DQL discovery, 7 insurance PII keywords, 8 wrong UI fix, 9 expanded inventory PII patterns, 10 regex unclosed group fix, 11 PII by all host groups, 12 HATS rawDataList find, 13 PII all servers, 14 explain PII DQL queries, 15 summarize by syntax fix, 16 explain inventory query results, 17 column L host group update, 18 explain column L inventory results) |
 | Meta sync asks | 2 (dual-write audit — no new seq folder) |
 | This ask | Capture all questions in both roots |
 | Pending (no local transcript) | 日本失业金资格, CursorFiles经验纳入 |
@@ -49,6 +49,8 @@ This master list records every user question from 2026-08-28 in time order. Seq 
 | 17 | 15:26 | explain about these querys (plain-English walkthrough of all PII DQL from today's session) | 14 | Answered — `14-explain-pii-dql-queries` |
 | 18 | — | (pending) DQL summarize by syntax fix for Master query countIf | 15 | Answered — `15-dql-summarize-by-syntax-fix` |
 | 19 | — | (screenshot) what is this mean — inventory query results, log_count, 171 GB scanned | 16 | Answered — `16-explain-inventory-query-results` |
+| 20 | — | dt group should use colume L, change everything (Excel column L manual change value) | 17 | Answered — `17-dql-hostgroup-column-l-update` |
+| 21 | — | (screenshot) column L inventory results — 313 GB, per-app log_count table | 18 | Answered — `18-explain-column-l-inventory-results` |
 
 ## Per-question files
 
@@ -70,6 +72,7 @@ This master list records every user question from 2026-08-28 in time order. Seq 
 | 14 | `14-explain-pii-dql-queries/14-explain-pii-dql-queries-question.md` | `14-explain-pii-dql-queries/` |
 | 15 | `15-dql-summarize-by-syntax-fix/15-dql-summarize-by-syntax-fix-question.md` | `15-dql-summarize-by-syntax-fix/` |
 | 16 | `16-explain-inventory-query-results/16-explain-inventory-query-results-question.md` | `16-explain-inventory-query-results/` |
+| 17 | `17-dql-hostgroup-column-l-update/17-dql-hostgroup-column-l-update-question.md` | `17-dql-hostgroup-column-l-update/` |
 
 ## Sources scanned
 
@@ -113,6 +116,7 @@ User ask (chat / cloud sidebar)
 | `14-explain-pii-dql-queries-question.md` | Seq 14 question |
 | `15-dql-summarize-by-syntax-fix-question.md` | Seq 15 question |
 | `16-explain-inventory-query-results-question.md` | Seq 16 question |
+| `17-dql-hostgroup-column-l-update-question.md` | Seq 17 question |
 
 ## Paths
 

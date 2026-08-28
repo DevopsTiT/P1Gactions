@@ -18,6 +18,8 @@
 14 → Explain PII DQL queries (plain-English walkthrough seq 6–13)
 15 → DQL summarize by syntax fix (Master countIf braces)
 16 → Explain inventory query results (screenshot — log_count, 171 GB)
+17 → Host group column L update (DQL + Excel — use manual change value)
+18 → Explain column L inventory results (313 GB, per-app groups)
 ```
 
 | Seq | Folder |
@@ -39,3 +41,4 @@
 | 14 | `14-explain-pii-dql-queries` |
 | 15 | `15-dql-summarize-by-syntax-fix` |
 | 16 | `16-explain-inventory-query-results` |
+| 17 | `17-dql-hostgroup-column-l-update` |
