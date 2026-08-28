@@ -7,7 +7,8 @@
 4 → Collect agent answers
 5 → Where extracted answers come from
 5b → Dynatrace PII host group (AXA inventory)
-next → 6
+6 → DQL search PII discovery (before masking)
+7 → DQL filter insurance PII keywords (Excel field names)
 ```
 
 | Seq | Folder |
@@ -18,3 +19,5 @@ next → 6
 | 4 | `4-collect-agent-answers` |
 | 5 | `5-where-extracted-answers-from` |
 | 5b | `5-dynatrace-pii-hostgroup-axa` |
+| 6 | `6-dql-search-pii-discovery` |
+| 7 | `7-dql-filter-insurance-pii-keywords` |
