@@ -1,0 +1,42 @@
+DQL Master query fix — 'by isn't allowed here' (seq 15)
+
+ROOT CAUSE
+Multiple countIf columns + by: { dt.host_group.id } need curly braces around the aggregation block.
+
+Inventory worked because it has only ONE count:
+  summarize log_count = count(), by: { dt.host_group.id }
+
+Master failed because it has FOUR counts without braces:
+  summarize
+    hits_keyword_pii = countIf(...),
+    ...
+    total_logs = count()
+  by: { dt.host_group.id }   ← error here
+
+FIX — add { after summarize and }, before by:
+
+| summarize {
+|     hits_keyword_pii = countIf(...),
+|     hits_hats_style = countIf(...),
+|     hits_rawDataList_jp = countIf(...),
+|     total_logs = count()
+|   },
+|   by: { dt.host_group.id }
+
+NOT the problem:
+- Missing summarize (it is there)
+- Spaces in by: { dt.host_group.id }
+- Multiline and/or inside countIf (OK when parens balanced)
+
+Host group IDs: use C_ALJ prefix (not C_ALI). Your inventory results already show C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP etc.
+
+FULL CORRECTED MASTER
+Paste the full block from 15-dql-summarize-by-syntax-fix.md (same as seq 13 Master but with { } around summarize aggregations).
+
+FALLBACK — two queries if Master still fails
+1. Query E-all (keyword PII) — seq 13
+2. Query A-all (HATS-style) — one-liner in 15.sh
+Join on dt.host_group.id in spreadsheet.
+
+TEST TIP
+Use from: now()-1h while checking syntax — full 24h scan is ~171 GB.

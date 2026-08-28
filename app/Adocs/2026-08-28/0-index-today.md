@@ -16,6 +16,8 @@
 12 → DQL find HATS rawDataList PII (screenshot example)
 13 → DQL PII all servers (44 IDs, HATS + keyword master)
 14 → Explain PII DQL queries (plain-English walkthrough seq 6–13)
+15 → DQL summarize by syntax fix (Master countIf braces)
+16 → Explain inventory query results (screenshot — log_count, 171 GB)
 ```
 
 | Seq | Folder |
@@ -35,3 +37,5 @@
 | 12 | `12-dql-find-hats-rawdata-pii-example` |
 | 13 | `13-dql-pii-all-servers` |
 | 14 | `14-explain-pii-dql-queries` |
+| 15 | `15-dql-summarize-by-syntax-fix` |
+| 16 | `16-explain-inventory-query-results` |
