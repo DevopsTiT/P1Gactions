@@ -1,8 +1,0 @@
-open "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15-Dynatrace-PagerDuty-Four-Agents-Design-Diagrams.pptx"
-open "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15-Dynatrace-PagerDuty-Four-Agents-Design-Diagrams.pptx"
-"/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/.venv/bin/python" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15_generate_design_diagrams_pptx.py"
-cp "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15-Dynatrace-PagerDuty-Four-Agents-Design-Diagrams.pptx" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15_generate_design_diagrams_pptx.py" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/"
-echo "Do not git add .venv"
-echo "git add /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams"
-echo "git -C /Users/k/Codes/Pra/P1GithubActions/P1Gactions commit -m \"Add Dynatrace PD four agents ARB-style design diagrams PPT\""
-echo "git -C /Users/k/Codes/Pra/P1GithubActions/P1Gactions push"

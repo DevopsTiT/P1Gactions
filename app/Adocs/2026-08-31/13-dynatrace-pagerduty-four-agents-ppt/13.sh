@@ -1,8 +1,0 @@
-open "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/13-Dynatrace-PagerDuty-Four-AI-Agents-ARB-style.pptx"
-open "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/13-Dynatrace-PagerDuty-Four-AI-Agents-ARB-style.pptx"
-"/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/.venv/bin/python" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/13_generate_four_agents_pptx.py"
-cp "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/13-Dynatrace-PagerDuty-Four-AI-Agents-ARB-style.pptx" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/"
-echo "Do not git add .venv folders"
-echo "git add /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt"
-echo "git -C /Users/k/Codes/Pra/P1GithubActions/P1Gactions commit -m \"Add Dynatrace to PagerDuty four AI agents ARB-style PPT\""
-echo "git -C /Users/k/Codes/Pra/P1GithubActions/P1Gactions push"
