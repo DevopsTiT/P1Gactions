@@ -1,0 +1,36 @@
+Dynatrace → PagerDuty Four AI Agents — Design Diagrams PPT (like ARB AS-IS/TO-BE)
+
+OPEN
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15-Dynatrace-PagerDuty-Four-Agents-Design-Diagrams.pptx
+
+Also:
+/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/15-dynatrace-pd-four-agents-design-diagrams/15-Dynatrace-PagerDuty-Four-Agents-Design-Diagrams.pptx
+
+WHAT YOU ASKED FOR
+Similar visual design to your Splunk→Dynatrace ARB slides:
+- Solution Context AS-IS
+- Solution Context TO-BE (hub in the middle)
+- Impacted Platforms
+- Alignment stack
+- Technical HLD
+Plus agent hub + design checklist
+
+8 SLIDES
+1 Title
+2 AS-IS — Dynatrace → PD → Human toil / pain
+3 TO-BE — Dynatrace (+EO) → PD Advance hub (4 agents) → Human decides
+4 Impacted Platforms — Dynatrace reuse / PD+Advance modify / Apps out of scope
+5 Alignment — Users → Chat → Assist(NEW) → Page → Detect
+6 HLD — Responder/Admin → PD ← Dynatrace; Teams meeting/chat; PD web
+7 Agent hub — SRE/Scribe/Shift/Insights around one incident
+8 Design checklist
+
+PAIR WITH
+- Seq 14 md = text architecture capture (like seq 10)
+- Seq 13 PPT = narrative agent detail slides
+- This seq 15 = visual context diagrams for design
+
+REGENERATE
+see 15.sh
+Do not git-commit .venv
+Do not push unless asked.

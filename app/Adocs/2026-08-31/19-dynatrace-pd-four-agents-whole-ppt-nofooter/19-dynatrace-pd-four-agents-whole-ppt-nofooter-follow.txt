@@ -1,0 +1,17 @@
+NEW WHOLE PPT — NO BOTTOM FOOTER / NO PAGE NUMBERS
+
+Open:
+  /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/19-dynatrace-pd-four-agents-whole-ppt-nofooter/19-Dynatrace-PagerDuty-Four-Agents-Whole-Pack-NoFooter.pptx
+
+Adocs:
+  /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/19-dynatrace-pd-four-agents-whole-ppt-nofooter/
+
+Command:
+  open "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/19-dynatrace-pd-four-agents-whole-ppt-nofooter/19-Dynatrace-PagerDuty-Four-Agents-Whole-Pack-NoFooter.pptx"
+
+Same 42 slides as seq 18 (Parts A/B/C), but:
+  - NO "Dynatrace to PagerDuty Four AI Agents — Whole Pack" at bottom
+  - NO page numbers
+  - NO AXA / ARB template footer
+
+Do not use seq 18 if you want a clean bottom edge.

@@ -1,0 +1,8 @@
+open "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11-P260120F-Splunk-to-Dynatrace-ARB-style.pptx"
+open "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11-P260120F-Splunk-to-Dynatrace-ARB-style.pptx"
+"/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/.venv/bin/python" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11_generate_arb_pptx.py"
+cp "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11-P260120F-Splunk-to-Dynatrace-ARB-style.pptx" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/"
+echo "Do not git add the .venv folder"
+echo "git add /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11-P260120F-Splunk-to-Dynatrace-ARB-style.pptx /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11_generate_arb_pptx.py /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11-axa-arb-splunk-dynatrace-ppt.md /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11.sh /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/11-axa-arb-splunk-dynatrace-ppt/11-axa-arb-splunk-dynatrace-ppt-follow.txt"
+echo "git -C /Users/k/Codes/Pra/P1GithubActions/P1Gactions commit -m \"Add ARB-style Splunk to Dynatrace PPT for P260120F\""
+echo "git -C /Users/k/Codes/Pra/P1GithubActions/P1Gactions push"

@@ -1,0 +1,43 @@
+Dynatrace → PagerDuty Four AI Agents — ARB-style PPT ready
+
+OPEN
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/13-Dynatrace-PagerDuty-Four-AI-Agents-ARB-style.pptx
+
+Also:
+/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/13-dynatrace-pagerduty-four-agents-ppt/13-Dynatrace-PagerDuty-Four-AI-Agents-ARB-style.pptx
+
+STORY
+Dynatrace detects → PagerDuty pages → Four Advance agents assist
+Agents = SRE · Scribe · Shift · Insights
+(Dynatrace is ingress; agents are PagerDuty Advance products)
+
+12 SLIDES (same navy ARB-like design as Splunk→Dynatrace deck)
+1 Title
+2 Summary Sheet
+3 Which agent by job
+4 AS-IS (human toil after the page)
+5 TO-BE (four agents beside human)
+6 E2E Detect→Notify→Page→Assist→Resolve→Learn
+7 Four agents matrix (cost + Teams honesty)
+8 SRE Agent detail
+9 Scribe Agent detail
+10 Shift + Insights
+11 Enablement / cost / safety
+12 POC afternoon + open items
+
+COST CHEAT
+SRE 4 Actions/ask
+Scribe ~6/30min + 2 summary
+Shift 0
+Insights 0
+
+TEAMS-ONLY HONESTY
+SRE / Scribe / Insights Q&A = full
+Shift coverage DMs = Slack-first (use Path B web+Calendar)
+Insights weekly DMs = Slack-first
+
+REGENERATE
+see 13.sh (uses python-pptx venv from seq 11)
+Do not git-commit .venv
+
+Do not push unless asked.

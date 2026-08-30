@@ -1,0 +1,77 @@
+Clone KTA - TH EMMA PRD → STG (from your screenshots)
+
+WHAT THE REF IS
+Dashboard: KTA - TH EMMA PRD
+Owner/preset: jenne.pang@axa.com
+Time: Last 2 hours
+Do NOT edit or break this PRD board.
+
+WHAT IS ON THE REF
+Overview:
+- Service health honeycomb (~61 All fine)
+- Host health honeycomb (~45 All fine)
+- Problems (0 when calm)
+- Network status (talkers/processes/volume)
+
+Mobile (often broken on ref):
+- TH EMMA MOBILE → Permission denied
+- User Sessions / City / Crashes / Apdex → 0 or No data
+→ For STG trial: mark Mobile out of scope if no RUM access
+
+Web Services:
+- Request count (stacked)
+- Top list Last 10min by volume (Netty, VersionApi, myaxa-middleware, ...)
+- Failure rate HTTP 5xx (chart + top list)
+- 99th% response time (chart + top list; e.g. DividendOnDepositApi slow)
+
+Infrastructure:
+- Garbage collection time
+- CPU usage % chart + top lists (telehealth-middleware, api-cases, ...)
+- Memory used % (last 7 days + current lists)
+- Disk used % (last 7 days)
+
+GAPS vs your 11-point TODO (add on STG board)
+- 7 Log errors — not on screenshots → add Logs tile
+- 8 Database — not on screenshots → add DB/stub
+- 9 AWS — not on screenshots → add if in scope
+- 10 L1 action Markdown — add checklist under Problems
+- 11 Architecture/DC — add Smartscape/Markdown
+
+CLONE STEPS
+1) Open KTA - TH EMMA PRD read-only
+2) Duplicate / Save as → name: KTA - TH EMMA STG (or L1-Health-STG)
+3) Edit STG copy only:
+   - default Last 2 hours
+   - MZ/tag = STG (not AGO_RG_ESG_PRD)
+   - Markdown: STAGING COPY — not for prod decisions
+4) Retarget Overview tiles → STG hosts/services/problems
+   Check: host count should look like STG size, not still ~45 from PRD
+5) Retarget Web Services tiles → STG services; prefer auto Top N + STG filter
+6) Retarget Infrastructure → STG hosts/processes (7d memory/disk OK if thin day 1)
+7) Mobile: skip/defer if Permission denied
+8) Add gap tiles (Logs, DB, L1 Markdown, Arch, AWS if needed)
+9) Feed STG dummy traffic + synthetic (STG URLs only)
+10) STG failure drill: 5xx, process stop, slow stub, problem >15m
+11) Accept when honeycombs/Problems/Request/5xx/99th/CPU lists all STG-scoped and reactive
+
+DUMMY TRAFFIC (replace STG_URL; never PRD)
+curl -sS -o /dev/null -w "%{http_code} %{time_total}\n" "https://STG_URL/health"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do curl -sS -o /dev/null -w "%{http_code}\n" "https://STG_URL/api/demo"; done
+curl -sS -o /dev/null -w "%{http_code}\n" "https://STG_URL/api/demo?force_error=1"
+
+PASS CHECK
+[ ] PRD unchanged
+[ ] Name says STG
+[ ] Overview filtered to STG
+[ ] Request/Top lists show STG after load
+[ ] 5xx and 99th RT move on injected fault
+[ ] Infra scoped to STG
+[ ] Mobile scoped or marked out of scope
+[ ] Gaps 7–11 added or deferred in Markdown
+
+PATHS
+CursorFiles: .../2026-08-31/10-emma-prd-clone-to-stg/
+Adocs: app/Adocs/2026-08-31/10-emma-prd-clone-to-stg/
+Related: seq 8 (dummy plan), seq 9 (detailed STG steps)
+Commands: 10.sh
+Tile map: 10-emma-prd-clone-to-stg-tile-map.yaml

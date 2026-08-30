@@ -1,0 +1,244 @@
+Dynatrace L1 dashboard — detailed STG steps
+Assumption: Dynatrace SaaS already has STG hosts with OneAgent
+
+============================================================
+BEFORE YOU START (write these down)
+============================================================
+- Dynatrace URL: https://YOUR_ENV.live.dynatrace.com
+- STG health URL: https://STG_URL/health
+- STG API URL: https://STG_URL/api/demo
+- STG host name(s)
+- Tag: env:stg
+- Dashboard name: L1-Health-STG
+- Default tile time: Last 2 hours
+- Host trend time: Last 3 or 7 days
+- Do NOT page prod on-call during drills
+
+============================================================
+STEP 0 — Right environment
+============================================================
+1. Open Dynatrace SaaS
+2. Confirm you are in the correct environment
+3. You will create a NEW dashboard named L1-Health-STG
+
+============================================================
+STEP 1 — Prove STG OneAgent data exists
+============================================================
+1. Left menu → Hosts
+2. Search STG host (example stg-app-01)
+3. Open host → confirm CPU, Memory, Disk charts have data
+4. Open Processes → find app process → confirm running
+STOP if host/process missing. Fix OneAgent/visibility first.
+
+============================================================
+STEP 2 — Tag with env:stg
+============================================================
+1. On STG host → Properties and tags → Add tag env=stg
+2. On process group → add env:stg if not inherited
+3. Services → find STG service → add env:stg
+4. Optional: Settings → Automatically applied tags
+   - Rule: hostname contains "stg" (or your real pattern)
+   - Apply tag env:stg
+
+============================================================
+STEP 3 — Management zone MZ-STG
+============================================================
+1. Settings → Management zones → Add
+2. Name: MZ-STG
+3. Rule: entities with tag env:stg
+4. Include hosts, process groups, services, apps as needed
+5. Save; ensure your user can view MZ-STG
+
+============================================================
+STEP 4 — Empty dashboard shell
+============================================================
+1. Dashboards → Create dashboard
+2. Name: L1-Health-STG
+3. Save
+4. Gear/settings → default timeframe Last 2 hours
+5. Default filter/MZ: MZ-STG or env:stg
+6. Add Markdown tile at top:
+
+L1 Health — STAGING ONLY
+Tag filter: env:stg
+Do not use for prod decisions.
+Drill: Overall → Problems → Host/Process/App → Logs → DB/AWS
+
+Layout top to bottom:
+[Markdown]
+[1 Overall Health] [2 Active Problems]
+[3 Host health]
+[4 Process] [5 Application]
+[6 Top services] [7 Log errors]
+[8 Database] [9 AWS]
+[10 L1 action required]
+[11 Architecture / DC]
+
+============================================================
+STEP 5 — Synthetic monitor (dummy availability)
+============================================================
+1. Synthetic → Create → HTTP monitor
+2. Name: STG-app-health
+3. URL: https://STG_URL/health
+4. Frequency: 1 or 5 minutes
+5. Location that can reach STG (private location if internal)
+6. Assert HTTP 200 (optional body contains healthy/OK)
+7. Tag env:stg
+8. Save → wait for 2–3 green executions
+Optional second monitor: STG-app-api-demo → /api/demo
+
+============================================================
+STEP 6 — Extra dummy traffic + log errors
+============================================================
+Replace STG_URL. Never use prod.
+
+curl -sS -o /dev/null -w "%{http_code} %{time_total}\n" "https://STG_URL/health"
+
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  curl -sS -o /dev/null -w "%{http_code}\n" "https://STG_URL/api/demo"
+done
+
+curl -sS -o /dev/null -w "%{http_code}\n" "https://STG_URL/api/demo?force_error=1"
+
+If no force_error flag:
+- use a dedicated STG failing endpoint, OR
+- briefly stop a STG backend stub
+
+Then:
+1. Trigger an exception path so ERROR logs exist
+2. Dynatrace → Logs → filter STG host/service → confirm ERROR
+3. Wait 5–10 minutes for charts to update
+
+============================================================
+STEP 7 — Build tiles 1–11 (filter each to env:stg / MZ-STG)
+============================================================
+
+TILE 1 Overall Health
+- Edit dashboard → Add tile
+- Problems / health overview for env:stg
+- Pass: calm when healthy; changes after injected failure
+
+TILE 2 Active Problems
+- Problems list/chart
+- Show count, severity, duration
+- Filter open problems + env:stg
+- Pass: empty state works; later shows a problem with duration
+
+TILE 3 Host health
+- Data explorer / host metrics
+- CPU %, Memory %, Disk %
+- Filter hosts env:stg
+- Duplicate one chart → Last 3 days or 7 days for trend
+- Pass: STG host lines visible (not No data)
+
+TILE 4 Process health
+- Process group availability / instance count
+- Filter env:stg
+- Pass: running now; will flip when stopped in drill
+
+TILE 5 Application health
+- Service/Application tiles:
+  availability (or synthetic success %)
+  request count
+  response time
+  error/failure rate
+- Pass: non-zero after Step 5–6 traffic
+
+TILE 6 Top services + backends
+- Top N by error rate
+- Top N by response time
+- Service flow / calls to backends for STG service
+- Pass: bad backend visible
+- If empty: add stub backend and call it from demo API
+
+TILE 7 Log errors
+- Logs tile or saved query
+- Example filter idea: status="ERROR" OR content="Exception"
+- Scope to STG
+- Pass: intentional ERROR appears
+
+TILE 8 Database health
+- Find DB or called data-store from service flow
+- Tag env:stg
+- Tiles: availability/failures, connections, response/query time
+- If only stub: pin stub latency/errors and label "DB/data store STG stub"
+- Pass: metric moves when slowed in drill
+
+TILE 9 AWS health
+- Settings → Cloud and virtualization → AWS (confirm STG account)
+- Add tiles only for AWS services STG app uses (ALB/RDS/etc.)
+- Filter env:stg / STG account
+- Pass: scoped correctly (quiet OK; prod-account data NOT OK)
+
+TILE 10 L1 action required
+Create filters/tiles for:
+- new critical problems
+- problems older than 15 minutes
+- hosts not reporting
+- application unavailable
+- process unavailable
+Add Markdown L1 actions:
+1) Ack Problem
+2) Check Overall Health severity
+3) Host down? → Host tile
+4) Process down? → Process tile
+5) App errors? → App + Top services + Logs
+6) DB/AWS? → tiles 8–9
+7) Page only if STG runbook says so (usually no for drill)
+
+TILE 11 Architecture / data-center
+- Smartscape link for STG app, OR
+- Markdown architecture + link, OR
+- Hosts by AZ/DC property + env:stg
+- Pass: L1 can see which tier/DC is sick in one click
+
+============================================================
+STEP 8 — Failure drill (STG only, one at a time, then restore)
+============================================================
+A. Confirm board calm (no forced errors)
+B. Force 5xx / stop backend 10+ min → watch tiles 1,2,5,6,10 → restore
+C. Stop process or scale to 0 → watch 4,5,10 → restore
+D. Slow DB/stub → watch 8,6 → restore
+E. Leave one problem open >15 minutes → watch 2,10 → fix
+F. Optional+approval: stop OneAgent briefly on one STG host → watch 3,10 → start OneAgent
+
+Mute / do not route dummy failures to prod PagerDuty.
+
+============================================================
+STEP 9 — Acceptance (all must pass)
+============================================================
+[ ] 1 Overall Health flips
+[ ] 2 Problems count/severity/duration
+[ ] 3 Host CPU/mem/disk visible
+[ ] 4 Process unavailable detectable
+[ ] 5 App metrics move
+[ ] 6 Top services shows bad backend
+[ ] 7 Log ERROR visible
+[ ] 8 DB/stub metrics move
+[ ] 9 AWS scoped to STG
+[ ] 10 L1 action row covers 5 triggers
+[ ] 11 Architecture/DC usable
+[ ] No prod entities on board
+[ ] Markdown says STAGING ONLY
+
+Also mark YAML in seq 8:
+8-dynatrace-dashboard-stg-dummy-tile-checklist.yaml
+
+============================================================
+STEP 10 — Save / export (prod clone later)
+============================================================
+1. Save L1-Health-STG
+2. Export dashboard JSON
+3. Later: duplicate → L1-Health-PROD
+4. Change filter/MZ to env:prod
+5. Observe prod read-only first — do NOT inject failures on prod
+
+============================================================
+COMMAND FILE
+============================================================
+See 9.sh
+
+PATHS
+CursorFiles: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/9-dynatrace-stg-dashboard-steps/
+Adocs: /Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-08-31/9-dynatrace-stg-dashboard-steps/
+Related plan: .../8-dynatrace-dashboard-stg-dummy/

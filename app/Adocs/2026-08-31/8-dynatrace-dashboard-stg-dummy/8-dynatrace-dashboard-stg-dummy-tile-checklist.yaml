@@ -1,0 +1,74 @@
+# L1 Dynatrace dashboard — STG dummy-data acceptance checklist
+# Status values: pending | pass | fail | blocked
+dashboard_name: L1-Health-STG
+environment: stg
+management_zone_tag: "env:stg"
+data_method: oneagent_plus_synthetic
+
+sections:
+  - id: 1
+    name: overall_health
+    signals: [healthy, unhealthy, critical]
+    dummy_how: "baseline green; inject dependency failure; restore"
+    status: pending
+  - id: 2
+    name: active_problems
+    signals: [problem_count, severity, duration]
+    dummy_how: "leave one problem open >15 minutes once"
+    status: pending
+  - id: 3
+    name: host_health
+    signals: [cpu, memory, disk, trend_3d_or_7d]
+    dummy_how: "brief CPU or disk stress on STG host only"
+    status: pending
+  - id: 4
+    name: process_health
+    signals: [process_unavailable, low_instance_count]
+    dummy_how: "stop process or scale demo replicas to zero"
+    status: pending
+  - id: 5
+    name: application_health
+    signals: [availability, request_time, response_time, error_rate]
+    dummy_how: "HTTP synthetic + load script with controlled 5xx"
+    status: pending
+  - id: 6
+    name: top_services
+    signals: [errors, latency, backend_called]
+    dummy_how: "slow stub + error stub backends"
+    status: pending
+  - id: 7
+    name: log_errors
+    signals: [errors, exceptions]
+    dummy_how: "emit ERROR/EXCEPTION from demo app"
+    status: pending
+  - id: 8
+    name: database_health
+    signals: [availability, connections, response_time]
+    dummy_how: "STG DB or stub with added latency"
+    status: pending
+  - id: 9
+    name: aws_health
+    signals: [stg_aws_resource_metrics]
+    dummy_how: "STG AWS integration + env:stg tags"
+    status: pending
+  - id: 10
+    name: l1_action_required
+    signals:
+      - new_critical_problems
+      - problems_older_than_15_min
+      - hosts_not_reporting
+      - application_unavailable
+      - process_unavailable
+    dummy_how: "run each scenario once in STG with approval"
+    status: pending
+  - id: 11
+    name: architecture_datacenter
+    signals: [topology_or_smartscape_stg]
+    dummy_how: "confirm STG apps/hosts appear under correct tier/DC view"
+    status: pending
+
+promote_to_prod_when:
+  - all_sections_status_pass
+  - no_prod_entities_on_stg_dashboard
+  - one_full_l1_drill_completed
+  - dashboard_exported_or_saved_as_code
