@@ -1,7 +1,9 @@
-ONE DQL PER HOST GROUP — show name/address PII lines
+ONE DQL PER HOST GROUP — show name/address PII lines (limit 20)
 
-Daily Files:
-  2026-08-31/29-one-dql-per-host-group-pii-lines/29-one-dql-per-host-group-pii-lines.dql
+Full file (22 blocks):
+  /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/29-one-dql-per-host-group-pii-lines/29-one-dql-per-host-group-pii-lines.dql
+
+Run ONE block at a time. No summarize.
 
 TEMPLATE:
 fetch logs, from: now()-24h
@@ -10,8 +12,24 @@ fetch logs, from: now()-24h
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 
-MDM examples:
+MDM (try both if needed):
   C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP
   C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP
 
-Fragment fallback: contains(dt.host_group.id, "CUSTMDMGM") etc.
+FRAGMENT fallback (Excel ID wrong):
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "CUSTMDMGM")
+| filter matchesRegex(content, "(?i)(AddressKana|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|holderName|given_name|family_name)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+Other fragments: HULFT | FILENET | PSOFTHRMG | ETLPCBTCH | EIP_ | IWFM | TAXRPRTMG
+
+PER SERVER (host.name):
+fetch logs, from: now()-24h
+| filter matchesValue(host.name, "CEAA2116.piprivmgmt.intraxa")
+| filter matchesRegex(content, "(?i)(AddressKana|AXACleansingAddress|address\\s*,\\s*Value\\s*=|person_fullname|holderName)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+Groups in .dql: MDM, HR, EIP, HULFT, FTP, DFS, IWFM, UDM, ETL, Filenet, LoadRunner, Tax, PolicyODS, BICCIPSIM, DAMPOSHIN, HATS

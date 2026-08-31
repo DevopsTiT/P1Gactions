@@ -1,0 +1,168 @@
+// One DQL per host group — SHOW PII-like lines (name / address), not counts
+// Run ONE block at a time in Logs → Advanced
+// Shared PII pattern (name + address). Always limit 20.
+// If matchesValue returns empty: check ALJ vs ALI / spelling via contains(dt.host_group.id, "FRAGMENT")
+
+// ========== SHARED PII REGEX (copy into each query) ==========
+// (?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\s*,\s*Value\s*=|person_fullname|Type\s*=\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|kanaFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS|policyHolderName)
+
+// ----- 01 MDM APP -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 01b MDM APP (Excel ALJ / DATAENGLF variant — use if 01 empty) -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 02 MDM middleware -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_CUSTMDMGM_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 03 HR PeopleSoft -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_HR_A_PSOFTHRMG_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS|employeeName|EMPLID)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 04 EIP APP -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_EIP_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 05 EIP DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_EIP_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 06 HULFT -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_HULFT_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|holder_name|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS|policyHolderName|uketorininName1)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 07 FTP SSTB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_FTPSSBTB_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 08 DFS -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_DFS_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 09 IWFM -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_IWFM_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 10 UDM -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_UDM_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 11 ETL batch APP -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_ETLPCBTCH_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 12 ETL batch DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_ETLPCBTCH_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 13 Filenet APP -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_FILENETFN_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 14 Filenet DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_FILENETFN_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 15 LoadRunner -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_LOADRUNNR_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 16 Tax APP -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATA_A_TAXRPRTMG_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS|taxpayer)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 17 Tax DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATA_A_TAXRPRTMG_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS|taxpayer)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 18 Policy ODS DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATA_A_POLICYODS_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 19 BICCIPSIM DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATADA_A_BICCIPSIM_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 20 DAMPOSHIN BCCALC DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DAMPOSHIN_A_BCCALC_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 21 DAMPOSHIN CANWEB DB -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DAMPOSHIN_A_CANWEB_E_PRD_T_DB")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+// ----- 22 HATS -----
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDDLEWARE-SHARED-PRODUCT_A_HATS_E_PRD_T_APP")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|rawDataList|HatsProcessResponse|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
