@@ -1,0 +1,35 @@
+VERIFY EXCEL COLUMN L HOST GROUP IDs
+
+Dynatrace = source of truth.
+Excel often wrong: spaces, ALJ vs ALI, DATAENGLF vs DATAENGI.
+
+Live MDM (proved): C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP
+
+V1 list live:
+fetch logs, from: now()-24h
+| filter isNotNull(dt.host_group.id)
+| summarize log_count = count(), by: { dt.host_group.id }
+| sort log_count desc
+| limit 200
+
+V2 keyword examples:
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "CUSTMDMGM")
+| summarize log_count = count(), by: { dt.host_group.id }
+| sort log_count desc
+
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "HULFT")
+| summarize log_count = count(), by: { dt.host_group.id }
+| sort log_count desc
+
+V3 prefix check:
+fetch logs, from: now()-24h
+| filter startsWith(dt.host_group.id, "C_ALI_BU_")
+| summarize ali_count = count()
+
+fetch logs, from: now()-24h
+| filter startsWith(dt.host_group.id, "C_ALJ_BU_")
+| summarize alj_count = count()
+
+Then update Excel L to the live ID from V2. Copy-paste, do not retype.

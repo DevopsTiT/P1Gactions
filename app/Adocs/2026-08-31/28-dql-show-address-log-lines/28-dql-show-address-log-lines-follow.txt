@@ -1,0 +1,18 @@
+SHOW ADDRESS LOG LINES (not counts)
+
+fetch logs, from: now()-30m
+| filter contains(content, "AddressKana")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+fetch logs, from: now()-30m
+| filter contains(content, "address, Value =")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+fetch logs, from: now()-30m
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|address\\s*,\\s*Value\\s*=|Type\\s*=\\s*address|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 30
+
+Full guide: Daily Files 2026-08-31/28-dql-show-address-log-lines/

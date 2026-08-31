@@ -1,0 +1,17 @@
+ONE DQL PER HOST GROUP — show name/address PII lines
+
+Daily Files:
+  2026-08-31/29-one-dql-per-host-group-pii-lines/29-one-dql-per-host-group-pii-lines.dql
+
+TEMPLATE:
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "PASTE_EXACT_HOST_GROUP_ID")
+| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+MDM examples:
+  C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP
+  C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP
+
+Fragment fallback: contains(dt.host_group.id, "CUSTMDMGM") etc.
