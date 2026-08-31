@@ -1,0 +1,56 @@
+FIX + HOW TO USE NEW LOGS UI
+
+PROBLEMS:
+  1) New Logs: Invalid syntax
+     You had: summarize hit_count = count
+               0. by: { dt.host_group.id }
+     Need:    summarize hit_count = count(), by: { dt.host_group.id }
+  2) Old Advanced: host-group + content together → No data
+     Start with CONTENT ONLY in New Logs
+
+USE NEW LOGS:
+  1. Click "Switch now" (new Logs experience)
+  2. Timeframe: Last 30 minutes
+  3. Clear broken query
+  4. Paste ONE query below → Run query
+
+=== Q1 content only (FIRST) ===
+fetch logs, from: now()-30m
+| filter contains(content, "axacleansingservice")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== Q2 full class ===
+fetch logs, from: now()-30m
+| filter contains(content, "AXACleansingAddressBP")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== Q3 address Value ===
+fetch logs, from: now()-30m
+| filter contains(content, "address, Value =")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== Q4 count by host group (after Q1 works) ===
+fetch logs, from: now()-30m
+| filter contains(content, "axacleansingservice")
+| summarize hit_count = count(), by: { dt.host_group.id }
+| sort hit_count desc
+
+=== Q5 exact host group (paste ID from Q1 row) ===
+fetch logs, from: now()-30m
+| filter matchesValue(dt.host_group.id, "PASTE_EXACT_ID_FROM_Q1_ROW")
+| filter contains(content, "axacleansingservice")
+| summarize hit_count = count(), by: { dt.host_group.id }
+
+EASY FILTER (no DQL):
+  New Logs → Last 30 minutes → Easy filtering
+  → content contains axacleansingservice → Run
+  → open a record → copy dt.host_group.id from Fields
+
+RULES:
+  count() needs ()
+  by: on same summarize line
+  contains for CamelCase
+  30m first, then 24h
