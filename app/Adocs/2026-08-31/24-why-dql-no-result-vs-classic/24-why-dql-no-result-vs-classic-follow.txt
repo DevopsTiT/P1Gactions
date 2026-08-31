@@ -1,0 +1,40 @@
+WHY: Classic shows MDM address logs, Advanced DQL = No data
+
+ROOT CAUSE (most likely):
+  Log class token = AXACleansingAddressBP
+  Your DQL used matchesPhrase("AXACleansingAddress")
+  matchesPhrase = whole token → partial name does NOT match
+
+FIX — run in Advanced, one at a time:
+
+A) Host group only (must be > 0)
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| summarize hit_count = count(), by: { dt.host_group.id }
+
+B) Package phrase (works with matchesPhrase)
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter matchesPhrase(content, "axacleansingservice")
+| summarize hit_count = count(), by: { dt.host_group.id }
+
+C) Full class name
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter matchesPhrase(content, "AXACleansingAddressBP")
+| summarize hit_count = count(), by: { dt.host_group.id }
+
+D) Partial class — contains (best)
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter contains(content, "AXACleansingAddress")
+| summarize hit_count = count(), by: { dt.host_group.id }
+
+E) Address value
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter contains(content, "address, Value =")
+| summarize hit_count = count(), by: { dt.host_group.id }
+
+If A is also empty → copy host group from Classic Fields panel; check Grail ingest.
+If A works and D works → you are done; avoid partial matchesPhrase on CamelCase names.
