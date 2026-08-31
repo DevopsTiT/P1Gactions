@@ -1,35 +1,524 @@
-ONE DQL PER HOST GROUP — show name/address PII lines (limit 20)
+ALL PII FILTER DQL PER HOST GROUP (24h)
+Use contains only. Run ONE block at a time. limit 20.
+Full file: 29-one-dql-per-host-group-pii-lines.dql
 
-Full file (22 blocks):
-  /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/29-one-dql-per-host-group-pii-lines/29-one-dql-per-host-group-pii-lines.dql
+INDEX
+01  MDM APP       C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP
+01b MDM Excel     C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP
+01c MDM fragment  CUSTMDMGM
+02  MDM mid       C_ALI_BU_MIDLWARE_A_CUSTMDMGM_E_PRD_T_APP
+03  HR            C_ALI_BU_HR_A_PSOFTHRMG_E_PRD_T_APP
+04  EIP APP       C_ALI_BU_MIDLWARE_A_EIP_E_PRD_T_APP
+05  EIP DB        C_ALI_BU_MIDLWARE_A_EIP_E_PRD_T_DB
+06  HULFT         C_ALI_BU_MIDLWARE_A_HULFT_E_PRD_T_APP
+07  FTP SSTB      C_ALI_BU_MIDLWARE_A_FTPSSBTB_E_PRD_T_APP
+08  DFS           C_ALI_BU_MIDLWARE_A_DFS_E_PRD_T_APP
+09  IWFM          C_ALI_BU_MIDLWARE_A_IWFM_E_PRD_T_APP
+10  UDM           C_ALI_BU_MIDLWARE_A_UDM_E_PRD_T_APP
+11  ETL APP       C_ALI_BU_MIDLWARE_A_ETLPCBTCH_E_PRD_T_APP
+12  ETL DB        C_ALI_BU_PLATFARCH_A_ETLPCBTCH_E_PRD_T_DB
+13  Filenet APP   C_ALI_BU_PLATFARCH_A_FILENETFN_E_PRD_T_APP
+14  Filenet DB    C_ALI_BU_PLATFARCH_A_FILENETFN_E_PRD_T_DB
+15  LoadRunner    C_ALI_BU_PLATFARCH_A_LOADRUNNR_E_PRD_T_APP
+16  Tax APP       C_ALI_BU_DATA_A_TAXRPRTMG_E_PRD_T_APP
+17  Tax DB        C_ALI_BU_DATA_A_TAXRPRTMG_E_PRD_T_DB
+18  Policy ODS    C_ALI_BU_DATA_A_POLICYODS_E_PRD_T_DB
+19  BICCIPSIM     C_ALI_BU_DATADA_A_BICCIPSIM_E_PRD_T_DB
+20  BCCALC        C_ALI_BU_DAMPOSHIN_A_BCCALC_E_PRD_T_DB
+21  CANWEB        C_ALI_BU_DAMPOSHIN_A_CANWEB_E_PRD_T_DB
+22  HATS          C_ALI_BU_MIDDLEWARE-SHARED-PRODUCT_A_HATS_E_PRD_T_APP
 
-Run ONE block at a time. No summarize.
-
-TEMPLATE:
+=== 01 MDM APP ===
 fetch logs, from: now()-24h
-| filter matchesValue(dt.host_group.id, "PASTE_EXACT_HOST_GROUP_ID")
-| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter (
+    contains(content, "axacleansingservice")
+    or contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "AddressKana")
+    or contains(content, "AddressKanji")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "insuredPerson")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "kanjiFullAddress")
+    or contains(content, "PERSON_ADDRESS")
+    or contains(content, "OFFICE_ADDRESS")
+  )
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 
-MDM (try both if needed):
-  C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP
-  C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP
+=== 01b MDM Excel variant ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALJ_BU_DATAENGLF_A_CUSTMDMGM_E_PRD_T_APP")
+| filter (
+    contains(content, "axacleansingservice")
+    or contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
 
-FRAGMENT fallback (Excel ID wrong):
+=== 01c MDM fragment ===
 fetch logs, from: now()-24h
 | filter contains(dt.host_group.id, "CUSTMDMGM")
-| filter matchesRegex(content, "(?i)(AddressKana|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|holderName|given_name|family_name)")
+| filter (
+    contains(content, "axacleansingservice")
+    or contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 
-Other fragments: HULFT | FILENET | PSOFTHRMG | ETLPCBTCH | EIP_ | IWFM | TAXRPRTMG
-
-PER SERVER (host.name):
+=== 02 MDM middleware ===
 fetch logs, from: now()-24h
-| filter matchesValue(host.name, "CEAA2116.piprivmgmt.intraxa")
-| filter matchesRegex(content, "(?i)(AddressKana|AXACleansingAddress|address\\s*,\\s*Value\\s*=|person_fullname|holderName)")
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_CUSTMDMGM_E_PRD_T_APP")
+| filter (
+    contains(content, "axacleansingservice")
+    or contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "insuredPerson")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "loginId")
+  )
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 
-Groups in .dql: MDM, HR, EIP, HULFT, FTP, DFS, IWFM, UDM, ETL, Filenet, LoadRunner, Tax, PolicyODS, BICCIPSIM, DAMPOSHIN, HATS
+=== 03 HR ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_HR_A_PSOFTHRMG_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "employeeName")
+    or contains(content, "EMPLID")
+    or contains(content, "loginId")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 04 EIP APP ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_EIP_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "insuredPerson")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "loginId")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 05 EIP DB ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_EIP_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "insuredPerson")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "loginId")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 06 HULFT ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_HULFT_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "insuredPerson")
+    or contains(content, "holderName")
+    or contains(content, "holder_name")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "policyHolderName")
+    or contains(content, "uketorininName1")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 07 FTP SSTB ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_FTPSSBTB_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 08 DFS ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_DFS_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 09 IWFM ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_IWFM_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 10 UDM ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_UDM_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 11 ETL APP ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDLWARE_A_ETLPCBTCH_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 12 ETL DB ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_ETLPCBTCH_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 13 Filenet APP ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_FILENETFN_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 14 Filenet DB ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_FILENETFN_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 15 LoadRunner ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_PLATFARCH_A_LOADRUNNR_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 16 Tax APP ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATA_A_TAXRPRTMG_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "taxpayer")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 17 Tax DB ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATA_A_TAXRPRTMG_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "taxpayer")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 18 Policy ODS ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATA_A_POLICYODS_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 19 BICCIPSIM ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATADA_A_BICCIPSIM_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 20 DAMPOSHIN BCCALC ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DAMPOSHIN_A_BCCALC_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 21 DAMPOSHIN CANWEB ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DAMPOSHIN_A_CANWEB_E_PRD_T_DB")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 22 HATS ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_MIDDLEWARE-SHARED-PRODUCT_A_HATS_E_PRD_T_APP")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "rawDataList")
+    or contains(content, "HatsProcessResponse")
+    or contains(content, "holderName")
+    or contains(content, "displayName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== FRAGMENT HULFT ===
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "HULFT")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== FRAGMENT FILENET ===
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "FILENET")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== FRAGMENT HR ===
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "PSOFTHRMG")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "employeeName")
+    or contains(content, "EMPLID")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== FRAGMENT ETL ===
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "ETLPCBTCH")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== FRAGMENT EIP ===
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "EIP_")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+SAFETY: limit 20. Do not paste full address/name content into chat.
+No matchesRegex. No \s.

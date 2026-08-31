@@ -22,7 +22,8 @@ Need one DQL per host group that SHOWS name/address PII lines?
 | File | `29-one-dql-per-host-group-pii-lines.dql` |
 | Output | `timestamp`, `dt.host_group.id`, `host.name`, `content` — **limit 20** |
 | Not included | `summarize` / hit counts |
-| PII words | AddressKana, AXACleansingAddress/PersonName, address Value, holderName, given_name, etc. |
+| PII words | contains: AddressKana, AXACleansingAddress/PersonName, address Value, holderName, given_name, etc. |
+| Filter style | **contains OR list only** (no matchesRegex / no `\s`) |
 
 ---
 
@@ -72,7 +73,15 @@ Each query pins one Magaki-related host group, filters log text for name/address
 ```text
 fetch logs, from: now()-24h
 | filter matchesValue(dt.host_group.id, "PASTE_EXACT_HOST_GROUP_ID")
-| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "Type = address")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 ```
@@ -82,7 +91,14 @@ fetch logs, from: now()-24h
 ```text
 fetch logs, from: now()-24h
 | filter contains(dt.host_group.id, "PASTE_FRAGMENT")
-| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|subscriberAddr|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 ```
@@ -94,7 +110,14 @@ Fragment examples: `CUSTMDMGM`, `HULFT`, `FILENET`, `PSOFTHRMG`, `ETLPCBTCH`, `E
 ```text
 fetch logs, from: now()-24h
 | filter matchesValue(host.name, "PASTE_HOST_NAME")
-| filter matchesRegex(content, "(?i)(AddressKana|AddressKanji|AXACleansingAddress|AXACleansingPersonName|address\\s*,\\s*Value\\s*=|person_fullname|Type\\s*=\\s*address|insuredPerson|holderName|displayName|kanjiFullAddress|given_name|family_name|loginId|PERSON_ADDRESS|OFFICE_ADDRESS)")
+| filter (
+    contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+    or contains(content, "person_fullname")
+    or contains(content, "holderName")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+  )
 | fields timestamp, dt.host_group.id, host.name, content
 | limit 20
 ```

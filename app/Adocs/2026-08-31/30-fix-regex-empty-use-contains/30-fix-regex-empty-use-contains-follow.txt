@@ -1,0 +1,50 @@
+FIX: scanned GB but No data — stop matchesRegex
+Timerange: ALL queries use now()-24h
+
+Your screen:
+  Host group OK (C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP)
+  Scanned ~39 GB → logs exist
+  Line 3 still matchesRegex with \s → THAT returns 0
+
+CLEAR the query box. Paste ONLY one block below. Run. Do not keep the regex line.
+
+=== A any lines (24h) ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 5
+
+=== B package (content only) ===
+fetch logs, from: now()-24h
+| filter contains(content, "axacleansingservice")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== C address Value ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter contains(content, "address, Value =")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== D address class substring ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter contains(content, "AXACleansingAddress")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== E MDM fragment + contains ===
+fetch logs, from: now()-24h
+| filter contains(dt.host_group.id, "CUSTMDMGM")
+| filter (
+    contains(content, "AXACleansingAddress")
+    or contains(content, "AXACleansingPersonName")
+    or contains(content, "AddressKana")
+    or contains(content, "address, Value =")
+  )
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+Never paste matchesRegex with \s again.
+Do not paste full address content into chat.
