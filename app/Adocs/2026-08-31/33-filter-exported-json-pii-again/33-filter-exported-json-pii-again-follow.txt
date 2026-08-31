@@ -1,0 +1,43 @@
+FILTER EXPORTED JSON AGAIN (second pass)
+
+Your Dynatrace table can export to JSON.
+Then filter that file locally — keep real PII-like content, drop CleansingResult noise.
+
+=== 1) Prefer cleaner DQL before export (seq 32 B) ===
+fetch logs, from: now()-24h
+| filter matchesValue(dt.host_group.id, "C_ALI_BU_DATAENGI_A_CUSTMDMGM_E_PRD_T_APP")
+| filter contains(content, "Value =")
+| filter (
+    contains(content, "address")
+    or contains(content, "Address")
+    or contains(content, "phone")
+    or contains(content, "mobile")
+    or contains(content, "email")
+    or contains(content, "person_fullname")
+    or contains(content, "given_name")
+    or contains(content, "family_name")
+    or contains(content, "holderName")
+  )
+| filter not contains(content, "CleansingResult")
+| filter not contains(content, "cleansingResult")
+| fields timestamp, dt.host_group.id, host.name, content
+| limit 20
+
+=== 2) Export JSON from Dynatrace UI ===
+Save as e.g. ~/Downloads/dt-pii-export.json
+
+=== 3) Python filter (recommended) ===
+python3 "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/33-filter-exported-json-pii-again/33-filter-dt-json-pii.py" ~/Downloads/dt-pii-export.json ~/Downloads/dt-pii-filtered.json
+
+=== 4) Ticket-safe redacted JSON (no full address text) ===
+python3 "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/33-filter-exported-json-pii-again/33-filter-dt-json-pii.py" ~/Downloads/dt-pii-export.json ~/Downloads/dt-pii-redacted.json --redact
+
+=== 5) jq alternative (if root is a list) ===
+jq '[ .[] | select( (.content // "") | test("address, Value =|AddressKana|person_fullname|phoneNumber, Value =|住所|電話番号"; "i") ) | select( (.content // "") | test("CleansingResult|cleansingResult") | not ) ]' ~/Downloads/dt-pii-export.json > ~/Downloads/dt-pii-filtered.json
+
+=== 6) jq if records are nested ===
+jq '[ .records[]? // .data[]? // .[] | select( (.content // "") | test("address, Value =|AddressKana|person_fullname|phoneNumber, Value =|住所|電話番号"; "i") ) | select( (.content // "") | test("CleansingResult|cleansingResult") | not ) ]' ~/Downloads/dt-pii-export.json > ~/Downloads/dt-pii-filtered.json
+
+KEEP logic: Value= / AddressKana / phone / name / JP labels
+DROP logic: CleansingResult / cleansingResult
+Do not commit raw PII JSON to git. Prefer --redact for tickets.
