@@ -1,0 +1,56 @@
+Dynatrace → PagerDuty Four Agents PPT — 42-slide page guide
+
+Deck: 19-Dynatrace-PagerDuty-Four-Agents-Whole-Pack-NoFooter.pptx
+Structure: Part A (1–14) narrative | Part B (15–22) diagrams | Part C (23–42) Teams POC runbook
+
+Safe rule: TEST Service only, Level-1 test schedule, never prod pages.
+
+PART A — SLIDES 1–14
+1 Cover — whole deck title; four agents SRE/Scribe/Shift/Insights; three parts preview
+2 Agenda — design review reads A→B; POC reads C; safe demo rule; no footer on slides
+3 PART A divider — narrative architecture section
+4 Architecture summary sheet — one-page diagram wall-chart (detect→page→agents→human)
+5 Which agent — pick by job; Advance+Teams+enabled+TEST required; without Advance toggles do nothing
+6 AS-IS — Dynatrace detect → PD page → human manual triage/notes/coverage/CSV; slow MTTA/MTTR, noise
+7 TO-BE — same ingress + four agents suggest; human confirms; SRE 4 Actions/ask, Scribe ~6/30m+2, Shift/Insights 0
+8 Data flow — Detect→Notify→Page→Assist→Resolve→Learn; SRE memory on resolve
+9 Four agents table — Dynatrace creates incident; put problem URL in custom_details; connectors optional
+10 SRE — triage, runbook ≤100KB, 25 files, human approves remediation, 4 Actions/ask
+11 Scribe — joins Zoom/Teams/Meet, join within 15 min, 1/meeting, 10 concurrent max
+12 Shift+Insights — coverage Q&A (0 Actions); MTTR/MTTA analytics Q&A (0 Actions); weekly tips Slack-first
+13 Enablement/cost/safety — Advance once, test service pages only you
+14 POC afternoon + open items — §0→SRE→Scribe→Shift→Insights
+
+PART B — SLIDES 15–22
+15 PART B divider — design diagrams for ARB/architects
+16 AS-IS diagram expanded — adds chat cards-only, schedule, analytics pain
+17 TO-BE diagram expanded — optional Event Orchestration, Ops HQ, human decides
+18 Impacted platforms — green reuse, orange modify, blue new; Dynatrace/PD/Teams/Calendar scopes
+19 Alignment stack — Assist layer (NEW) between UI and Page/Incident
+20 HLD — Dynatrace→PD, EO optional, Teams chat+meeting, PD web, Graph consent, Calendar for Shift
+21 Agent hub — one incident, multiple agents by task; resolve saves SRE memory
+22 Design checklist — detect, noise, advance, identity, safe target, per-agent, board pack
+
+PART C — SLIDES 23–42
+23 PART C divider — Teams-only click path; Slack gaps documented
+24 POC agenda — ordered §0→1→2→3→4
+25 Decision tree — triage=SRE, notes=Scribe, coverage=Shift Path B, trends=Insights
+26 Shared gate — no Advance or no PD+MS admin = stop
+27 Short takeaway — test incidents, honest Teams limits
+28 §0 prerequisites — Teams Admin, MS Admin, PD Admin; see seq 10 Graph detail
+29 §0 steps 1–5 — allow app, install, authorize, Graph scopes, map channel to poc-pd-ai-agents-test
+30 §0 steps 6–10 — Teams Connected, enable agents, linkUser, graphAuth if needed, Scribe lobby
+31 §0 success/safety — bot responds, agents enabled, 0 Actions for enablement
+32 §1 SRE goal — summarize TEST incident, runbook, next steps; Early Access
+33 §1 SRE steps — 11 click/say steps including @pagerduty root causes / past incidents / first steps
+34 §1 SRE success/cost — 4 Actions per ask; human approves remediation
+35 §2 Scribe steps — meeting URL on incident, auto-join or advance scribe, ≤10 min POC
+36 §2 Scribe cost — ~6 Actions/30m + ~2 summary; warn recording
+37 §3 Shift honest status — Teams-only cannot claim Slack DM coverage flow; Path B recommended
+38 §3 Shift Path B — Google Calendar + PD web override, 9 steps
+39 §3 Shift Path A — best-effort Teams ask + manual override; 0 Actions
+40 §4 Insights — ask volume/MTTR/MTTA in Teams; verify vs Analytics UI
+41 §4 Insights cheat sheet — 0 Actions for Q&A; weekly DMs Slack gap
+42 Afternoon plan — full flow + copy-paste Teams commands (linkUser, graphAuth, scribe, MTTR question)
+
+Saved: app/Adocs/2026-09-02/14-dynatrace-pd-ppt-page-guide/

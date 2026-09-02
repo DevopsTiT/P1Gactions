@@ -1,0 +1,76 @@
+Dynatrace → PagerDuty Architecture + Four Agents (detailed)
+
+MENTAL MODEL
+Dynatrace = eyes (detect)
+PagerDuty = pager + incident record (hub)
+Four Advance agents = assistants AFTER the page
+Human = owns resolution and prod changes
+
+FIVE LAYERS
+1 Detect — Dynatrace Problem (Davis AI)
+2 Reduce noise (optional) — Event Orchestration / grouping
+3 Page — PD Service + Escalation + Schedule
+4 Assist (NEW) — SRE, Scribe, Shift, Insights
+5 Improve — Resolve, SRE memory, Insights trends
+
+HUB OBJECT = PagerDuty Incident (not Dynatrace Problem)
+
+DYNATRACE INGRESS
+- Problem notification / Workflow → PD Integration Key
+- Must include: summary, urgency, Dynatrace problem URL, custom_details
+- Dynatrace creates incident; NOT main SRE connector (use Grafana/Datadog/CloudWatch/Confluence/GitHub for logs/runbooks)
+
+INCIDENT LIFECYCLE
+T-0  Dynatrace Problem → PD incident → human paged
+T+2m SRE: summarize, runbook, past incidents (4 Actions/ask)
+T+5m Scribe joins bridge (~6 Actions/30min + 2 summary)
+T+30m Human resolves → SRE memory saved
+T+1w  Insights: MTTR/MTTA trends (0 Actions)
+
+FOUR AGENTS — WHEN AND HOW
+
+1) SRE AGENT (live triage)
+When: first minutes after page; need root cause + first steps
+Reads: incident context, ~2k chars custom_details, runbooks ≤100KB, connectors, past incidents
+Surfaces: Teams @pagerduty (EA), PD web SRE tab, Ops Console, virtual responder
+Example asks:
+  @pagerduty What are some likely root causes?
+  @pagerduty Analyze past incidents
+  @pagerduty What steps should I take first?
+Cost: 4 AI Actions per ask
+Safety: human MUST approve remediation; Resolve saves memory
+
+2) SCRIBE AGENT (bridge notes)
+When: war room / bridge call; people talk faster than typing
+Reads: conference URL on incident; join within 15 min
+Surfaces: auto-join or @PagerDuty advance scribe
+Outputs: live transcript + post-meeting summary → PIR context
+Limits: 1 Scribe/meeting, 10 concurrent max
+Cost: ~6 Actions/30min + ~2 summary
+
+3) SHIFT AGENT (coverage)
+When: OOO overlaps Level-1 on-call
+Reads: Level-1 schedule + Google Calendar OOO
+Slack path (full): Request coverage → teammate accepts in DM → override written
+Teams Path B (recommended): Calendar OOO → PD web manual override
+Cost: 0 Actions
+
+4) INSIGHTS AGENT (analytics)
+When: after incidents or weekly review; MTTR/MTTA/noise questions
+Reads: PD Analytics for Team/Service
+Teams: @pagerduty Q&A (GA)
+Slack-first gap: weekly proactive DMs
+Example: How has average time to resolve changed over past 6 months for <Team>?
+Cost: 0 Actions — verify vs Analytics UI
+
+ENABLEMENT ORDER
+1. Dynatrace → PD reliable (problem URL)
+2. Event Orchestration if noise storms
+3. Advance + Teams/Slack + agent toggles
+4. linkUser per responder
+5. POC test Service only
+
+COST
+Enablement 0 | SRE 4/ask | Scribe ~6/30m+2 | Shift 0 | Insights 0
+
+Saved: Daily Files/2026-09-02/15-dynatrace-pd-architecture-agents-deep/
