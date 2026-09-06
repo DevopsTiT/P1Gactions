@@ -1,0 +1,44 @@
+# OpenPipeline / OneAgent PII prevention checklist
+# Status: pending | done | n/a
+
+scope:
+  host_groups:
+    - C_ALJ_BU_OS_A_INFRA_E_PRD_T_BAS
+    - C_ALJ_BU_BAP_A_HULFT_E_PRD_T_AF
+    - C_ALJ_BU_BAP_A_TAXPAYMENT_E_PRD
+    - C_ALJ_BU_MIDDLEWARE-SHARED-PROD
+  blocklist_file: pii-keys-blocklist.txt
+
+rules:
+  - id: R1_app_deny_list
+    layer: application
+    action: never_log_blocklist_keys
+    status: pending
+  - id: R2_no_prd_full_body
+    layer: application
+    action: no_full_request_response_bodies_in_prd
+    status: pending
+  - id: R3_oneagent_email_builtin
+    layer: oneagent
+    action: enable_builtin_email_masking
+    status: pending
+  - id: R4_oneagent_custom_bank_dob
+    layer: oneagent
+    action: custom_mask_bankAccountNo_subscriberDOB_phone
+    status: pending
+  - id: R5_openpipeline_fields_remove
+    layer: openpipeline
+    action: fieldsRemove_high_risk_attrs
+    status: pending
+  - id: R6_openpipeline_content_replace
+    layer: openpipeline
+    action: replacePattern_json_pii_keys_in_content
+    status: pending
+  - id: R7_weekly_dql_scan
+    layer: governance
+    action: run_pii-scan.dql_weekly_ticket_on_hits
+    status: pending
+  - id: R8_grail_cleanup_process
+    layer: privacy
+    action: sensitive_data_center_if_hits_confirmed
+    status: pending

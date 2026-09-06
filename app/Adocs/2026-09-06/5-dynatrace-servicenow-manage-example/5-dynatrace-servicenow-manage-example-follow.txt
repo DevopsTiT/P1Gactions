@@ -1,0 +1,41 @@
+Dynatrace + ServiceNow — manage + detailed example
+
+WHAT
+Dynatrace detects Problems (Davis RCA). ServiceNow holds Incidents + CMDB.
+Wire: Problem notification → Incident (optional Events + CMDB sync).
+
+THREE LANES
+1) Incident — Problem → ServiceNow Incident
+2) Event Management — events → em_event
+3) CMDB/Service Graph — hosts/services → CIs
+
+HOW TO MANAGE
+Dynatrace: Problem notification + alerting profile (prod only) + test notify + close sync
+ServiceNow: Incident Integration app + transform map + assignment groups + CI identity rules
+Weekly: test notify, compare open Problems vs Incidents, CI link rate, no STG in prod queue
+
+DETAILED EXAMPLE — EIP checkout latency
+T+0  Checkout slow
+T+2m Davis Problem P-240906 (DB behind eip-checkout)
+T+2m Alerting profile allows (prod + app:eip)
+T+3m ServiceNow INC0012345, CI=eip-checkout/eip-app-01, group=EIP-Support, Problem URL in notes
+T+5m On-call opens Problem URL, uses dashboard app=EIP
+T+20m Fix (rollback / query)
+T+25m Problem closes → Incident Resolved
+
+SETUP MINIMAL
+1 Install Dynatrace Incident Integration in ServiceNow
+2 Guided setup + transform map
+3 Dynatrace Settings → Problem notifications → ServiceNow → Send incidents ITSM ON
+4 Attach prod alerting profile
+5 Send test notification
+6 Optional: Service Graph Connector for CI auto-link
+
+TROUBLE
+403 → auth/IP allow list
+No incident → transform / ITSM flag
+No CI → CMDB sync / name mismatch
+Duplicates → multiple notifications
+STG noise → tighten alerting profile
+
+Saved: Daily Files/2026-09-06/5-dynatrace-servicenow-manage-example/

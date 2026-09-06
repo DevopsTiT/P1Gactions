@@ -1,0 +1,202 @@
+{
+  "version": 21,
+  "variables": [
+    {
+      "version": 2,
+      "key": "app",
+      "type": "csv",
+      "visible": true,
+      "editable": true,
+      "input": "All,EIP,API,Payment",
+      "multiple": false,
+      "defaultValue": "All"
+    }
+  ],
+  "settings": {
+    "defaultTimeframe": {
+      "value": {
+        "from": "now()-2h",
+        "to": "now()"
+      },
+      "enabled": true
+    }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "## MAIN multi-app dashboard (one board — not one board per app)\n\n**How to use**\n- `app = All` → monitor **everything**, detect problems fast\n- `app = EIP` (or API / Payment) → **same board**, only **filter** — multi servers + logs + errors for that app\n- **Do not** create separate EIP / API / Payment dashboards (avoids repetitive boards)\n\n**Tag once:** services & hosts `app:eip` / `app:api` / `app:payment` (names should also contain EIP/API/Payment when possible).\n\n**OS:** Windows CPU + Linux CPU + Memory on **this** board."
+    },
+    "2": {
+      "type": "markdown",
+      "content": "## CRITICAL ALERTS & AI ROOT CAUSE (Davis — look here first)"
+    },
+    "3": {
+      "type": "data",
+      "title": "Open problems (quick detect)",
+      "query": "fetch dt.davis.problems\n| filter event.status == \"ACTIVE\"\n| fieldsAdd title = event.title\n| filter $app == \"All\" or contains(toString(title), $app) or contains(toString(affected_entity_ids), $app)\n| summarize open_problems = count()\n| fields open_problems",
+      "visualization": "singleValue",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "4": {
+      "type": "data",
+      "title": "Problems",
+      "query": "fetch dt.davis.problems\n| filter event.status == \"ACTIVE\"\n| fieldsAdd title = event.title\n| filter $app == \"All\" or contains(toString(title), $app) or contains(toString(affected_entity_ids), $app)\n| fields timestamp, title, event.category, event.severity, event.status, affected_entity_ids\n| sort timestamp desc\n| limit 50",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "5": {
+      "type": "data",
+      "title": "AI Root Cause (Davis)",
+      "query": "fetch dt.davis.problems\n| filter event.status == \"ACTIVE\"\n| fieldsAdd title = event.title\n| filter $app == \"All\" or contains(toString(title), $app) or contains(toString(affected_entity_ids), $app)\n| fields timestamp, title, event.root_cause, event.severity, affected_entity_ids\n| sort timestamp desc\n| limit 25",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "6": {
+      "type": "data",
+      "title": "Alert Summary",
+      "query": "fetch dt.davis.problems\n| filter event.status == \"ACTIVE\"\n| fieldsAdd title = event.title\n| filter $app == \"All\" or contains(toString(title), $app) or contains(toString(affected_entity_ids), $app)\n| summarize count = count(), by: { event.severity }\n| sort count desc",
+      "visualization": "categoricalBarChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "7": {
+      "type": "markdown",
+      "content": "## APPLICATION PERFORMANCE (selected app — or All apps)"
+    },
+    "8": {
+      "type": "data",
+      "title": "Requests",
+      "query": "timeseries requests = sum(dt.service.request.count), by: { dt.entity.service }\n| fieldsAdd name = entityName(dt.entity.service)\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, requests, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "9": {
+      "type": "data",
+      "title": "Errors",
+      "query": "timeseries errors = avg(dt.service.request.failure.count), by: { dt.entity.service }\n| fieldsAdd name = entityName(dt.entity.service)\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, errors, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "10": {
+      "type": "data",
+      "title": "Response Time",
+      "query": "timeseries rt = avg(dt.service.request.response_time), by: { dt.entity.service }\n| fieldsAdd name = entityName(dt.entity.service)\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, rt, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "11": {
+      "type": "markdown",
+      "content": "## INFRASTRUCTURE — multi servers (Windows + Linux) for selected app"
+    },
+    "12": {
+      "type": "data",
+      "title": "Servers / Hosts (multi)",
+      "query": "timeseries cpu = avg(dt.host.cpu.usage), mem = avg(dt.host.memory.usage), by: { dt.entity.host }\n| fieldsAdd name = entityName(dt.entity.host)\n| fieldsAdd osType = entityAttr(dt.entity.host, \"osType\")\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| summarize avg_cpu = avg(arrayAvg(cpu)), avg_mem = avg(arrayAvg(mem)), by: { name, osType }\n| sort avg_cpu desc\n| limit 50",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "13": {
+      "type": "data",
+      "title": "Windows CPU",
+      "query": "timeseries cpu = avg(dt.host.cpu.usage), by: { dt.entity.host }\n| fieldsAdd name = entityName(dt.entity.host)\n| fieldsAdd osType = entityAttr(dt.entity.host, \"osType\")\n| filter contains(toString(osType), \"WIN\") or contains(toLowerCase(name), \"win\")\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, cpu, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "14": {
+      "type": "data",
+      "title": "Linux CPU",
+      "query": "timeseries cpu = avg(dt.host.cpu.usage), by: { dt.entity.host }\n| fieldsAdd name = entityName(dt.entity.host)\n| fieldsAdd osType = entityAttr(dt.entity.host, \"osType\")\n| filter contains(toString(osType), \"LINUX\") or contains(toLowerCase(name), \"linux\") or (isNull(osType) and not contains(toLowerCase(name), \"win\"))\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, cpu, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "15": {
+      "type": "data",
+      "title": "Memory",
+      "query": "timeseries mem = avg(dt.host.memory.usage), by: { dt.entity.host }\n| fieldsAdd name = entityName(dt.entity.host)\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, mem, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "16": {
+      "type": "markdown",
+      "content": "## LOGS & ERRORS (follow selected app — e.g. EIP shows EIP servers' errors)"
+    },
+    "17": {
+      "type": "data",
+      "title": "Error Logs",
+      "query": "fetch logs\n| filter loglevel == \"ERROR\" or matchesValue(status, \"ERROR\")\n| filter $app == \"All\" or contains(content, $app) or contains(toString(dt.source_entity), $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app))\n| sort timestamp desc\n| fields timestamp, loglevel, content, dt.source_entity, host.name\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "18": {
+      "type": "data",
+      "title": "Exception Traces",
+      "query": "fetch logs\n| filter matchesPhrase(content, \"Exception\") or matchesPhrase(content, \"exception\") or matchesPhrase(content, \"Traceback\")\n| filter $app == \"All\" or contains(content, $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app))\n| sort timestamp desc\n| fields timestamp, content, dt.source_entity, host.name\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "19": {
+      "type": "markdown",
+      "content": "## DATABASE & DEPENDENCIES (same filter — no second dashboard)"
+    },
+    "20": {
+      "type": "data",
+      "title": "DB Connections",
+      "query": "timeseries conns = avg(dt.service.request.count), by: { dt.entity.service }\n| fieldsAdd name = entityName(dt.entity.service)\n| filter contains(toLowerCase(name), \"sql\") or contains(toLowerCase(name), \"db\") or contains(toLowerCase(name), \"jdbc\") or contains(toLowerCase(name), \"mongo\") or contains(toLowerCase(name), \"redis\") or contains(toLowerCase(name), \"postgres\") or contains(toLowerCase(name), \"mysql\")\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, conns, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "21": {
+      "type": "data",
+      "title": "Queries",
+      "query": "timeseries qt = avg(dt.service.request.response_time), by: { dt.entity.service }\n| fieldsAdd name = entityName(dt.entity.service)\n| filter contains(toLowerCase(name), \"sql\") or contains(toLowerCase(name), \"db\") or contains(toLowerCase(name), \"jdbc\") or contains(toLowerCase(name), \"mongo\") or contains(toLowerCase(name), \"redis\") or contains(toLowerCase(name), \"postgres\") or contains(toLowerCase(name), \"mysql\")\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, qt, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "22": {
+      "type": "data",
+      "title": "External Services",
+      "query": "timeseries fails = avg(dt.service.request.failure.count), by: { dt.entity.service }\n| fieldsAdd name = entityName(dt.entity.service)\n| filter $app == \"All\" or contains(toUpperCase(name), toUpperCase($app))\n| fields timeframe, interval, fails, name",
+      "visualization": "lineChart",
+      "visualizationSettings": {},
+      "querySettings": {}
+    }
+  },
+  "layouts": {
+    "1": { "x": 0, "y": 0, "w": 24, "h": 4 },
+    "2": { "x": 0, "y": 4, "w": 24, "h": 1 },
+    "3": { "x": 0, "y": 5, "w": 6, "h": 8 },
+    "4": { "x": 6, "y": 5, "w": 6, "h": 8 },
+    "5": { "x": 12, "y": 5, "w": 6, "h": 8 },
+    "6": { "x": 18, "y": 5, "w": 6, "h": 8 },
+    "7": { "x": 0, "y": 13, "w": 24, "h": 1 },
+    "8": { "x": 0, "y": 14, "w": 8, "h": 8 },
+    "9": { "x": 8, "y": 14, "w": 8, "h": 8 },
+    "10": { "x": 16, "y": 14, "w": 8, "h": 8 },
+    "11": { "x": 0, "y": 22, "w": 24, "h": 1 },
+    "12": { "x": 0, "y": 23, "w": 24, "h": 8 },
+    "13": { "x": 0, "y": 31, "w": 8, "h": 8 },
+    "14": { "x": 8, "y": 31, "w": 8, "h": 8 },
+    "15": { "x": 16, "y": 31, "w": 8, "h": 8 },
+    "16": { "x": 0, "y": 39, "w": 24, "h": 1 },
+    "17": { "x": 0, "y": 40, "w": 12, "h": 10 },
+    "18": { "x": 12, "y": 40, "w": 12, "h": 10 },
+    "19": { "x": 0, "y": 50, "w": 24, "h": 1 },
+    "20": { "x": 0, "y": 51, "w": 8, "h": 8 },
+    "21": { "x": 8, "y": 51, "w": 8, "h": 8 },
+    "22": { "x": 16, "y": 51, "w": 8, "h": 8 }
+  }
+}

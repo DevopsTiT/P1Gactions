@@ -1,0 +1,43 @@
+# Dynatrace DQL — scan PRD host groups for PII key phrases
+# Paste into Notebooks / Logs. Extend matchesPhrase list from pii-keys-blocklist.txt
+# Review before run. Prefer \"key\" JSON shape to reduce false positives.
+
+fetch logs, from: now()-24h
+| filter in(dt.host_group.id, {
+    "C_ALJ_BU_OS_A_INFRA_E_PRD_T_BAS",
+    "C_ALJ_BU_BAP_A_HULFT_E_PRD_T_AF",
+    "C_ALJ_BU_BAP_A_TAXPAYMENT_E_PRD",
+    "C_ALJ_BU_MIDDLEWARE-SHARED-PROD"
+  })
+| filter
+    matchesPhrase(content, "\"policyHolderName\"") or
+    matchesPhrase(content, "\"policyHolderNameKana\"") or
+    matchesPhrase(content, "\"policyOwnerNameKana\"") or
+    matchesPhrase(content, "\"policyOwnerDateOfBirth\"") or
+    matchesPhrase(content, "\"subscriberDOB\"") or
+    matchesPhrase(content, "\"subscriberZipCode\"") or
+    matchesPhrase(content, "\"subscriberAdress1\"") or
+    matchesPhrase(content, "\"holderAddress\"") or
+    matchesPhrase(content, "\"holderKadress1\"") or
+    matchesPhrase(content, "\"insuredPersonKanjiName\"") or
+    matchesPhrase(content, "\"insuredPersonKanaName\"") or
+    matchesPhrase(content, "\"insuredName\"") or
+    matchesPhrase(content, "\"contractPersonKanjiName\"") or
+    matchesPhrase(content, "\"bankAccountNo\"") or
+    matchesPhrase(content, "\"bankOwnerNameKana\"") or
+    matchesPhrase(content, "\"depositorName\"") or
+    matchesPhrase(content, "\"telephoneNumber\"") or
+    matchesPhrase(content, "\"policyNotificationTelNo\"") or
+    matchesPhrase(content, "\"EmailAddress1\"") or
+    matchesPhrase(content, "\"employeeName\"") or
+    matchesPhrase(content, "\"employeeNameKana\"") or
+    matchesPhrase(content, "\"deathBeneficiaryName\"") or
+    matchesPhrase(content, "\"FirstName\"") or
+    matchesPhrase(content, "\"LastName\"") or
+    matchesPhrase(content, "\"PostalCode\"") or
+    matchesPhrase(content, "\"HomeNumber\"") or
+    matchesPhrase(content, "\"mail\"") or
+    matchesPhrase(content, "\"email\"")
+| fields timestamp, dt.host_group.id, host.name, log.source, content
+| sort timestamp desc
+| limit 200

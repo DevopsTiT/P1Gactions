@@ -1,0 +1,54 @@
+PII prevent BEFORE log import (no important data in Dynatrace yet)
+
+WHY
+- Empty tenant = best time to lock the door
+- Keyword list = standing blocklist, not a cleanup of old logs
+- Do not wait for real traffic to create rules
+
+GATES (in order)
+1) App — deny-list from pii-keys-blocklist.txt
+   - Never log policyHolder*, subscriber*, bankAccountNo, phones, emails, etc.
+   - Prefer omit key; or value "***"
+   - Ban full request/response body logs in PRD
+   - CI: fixtures must not contain raw blocklist keys
+
+2) OneAgent — Sensitive data masking
+   Path: Settings → Collect and capture → Log monitoring → Configure log module → Sensitive data masking
+   - Scope: host-group when known, else environment
+   - Type: STRING, replacement ***
+   - Pattern per key: "KEY"\s*:\s*"(.*?)"
+   - Start top 20, then full first-wave (11-oneagent-pii-regex-waves.txt)
+   - Add generic email rule if available
+
+3) OpenPipeline — same keys
+   - fieldsRemove for attribute names on blocklist
+   - Content mask same regex → ***
+   - Use 11-openpipeline-pii-rules.yaml as checklist
+
+4) Prove with FAKE JSON only
+   - Dummy values: TEST_USER, 0000000, fake@example.com
+   - Confirm Logs/DQL show *** or key gone
+   - Never test with real customer data
+
+5) Then enable real log import
+   - First 24h: run pii-scan.dql
+   - Weekly: same scan
+   - New host group: gates before go-live
+
+STANDING RULES
+R1 App never logs raw blocklist keys
+R2 OneAgent masking on
+R3 OpenPipeline remove/mask on
+R4 Weekly DQL scan
+R5 No product/contract keys until privacy says so
+R6 New source = gates first
+
+FILES
+- pii-keys-blocklist.txt
+- 11-oneagent-pii-regex-waves.txt
+- 11-openpipeline-pii-rules.yaml
+- pii-scan.dql
+- 11.sh
+
+COMMON MISTAKE
+"No data yet so skip Dynatrace rules" → first import dumps PII. Install Gate B+C now.

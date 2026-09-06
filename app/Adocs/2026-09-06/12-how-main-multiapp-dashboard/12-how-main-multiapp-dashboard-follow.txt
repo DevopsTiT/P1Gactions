@@ -1,0 +1,41 @@
+HOW TO DO Dynatrace.txt (one main board + EIP filter)
+
+NEED
+- One main Dashboard for multi apps (NOT multi dashboards)
+- Select EIP → show multi servers + logs + errors on THAT board
+
+STEPS
+0) Prerequisites
+   - OneAgent on hosts
+   - Tag services/hosts: app:eip, app:api, app:payment
+   - Prefer names containing EIP/API/Payment
+   - Log ingest ON
+
+1) Import ONE board
+   File: Main-MultiApp-Health-Dashboards.json
+   Dynatrace → Dashboards → Create/Import → paste JSON → Save
+   Name: Main-MultiApp-Health
+   Variable app = All,EIP,API,Payment (already in JSON)
+
+2) Use it
+   app=All  → monitor everything
+   app=EIP  → same tiles filtered to EIP multi servers + logs + errors
+   Do NOT clone EIP/API/Payment boards
+
+3) Verify with app=EIP
+   - Servers/Hosts table shows several EIP hosts
+   - Windows CPU + Linux CPU + Memory update
+   - Error Logs + Exception Traces update
+   - Requests/Errors charts show EIP services
+
+4) If empty
+   - Name/tag missing EIP → fix tags/names
+   - No OneAgent → install
+   - No logs → enable log monitoring
+   - Wrong timeframe → Last 2h / 24h
+
+FLOW
+User → Main-MultiApp-Health → pick EIP → all tiles filter → multi servers + logs + errors
+
+FILE
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-06/12-how-main-multiapp-dashboard/Main-MultiApp-Health-Dashboards.json
