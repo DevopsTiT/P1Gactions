@@ -1,0 +1,18 @@
+Dynatrace dashboard JSON to match LAYOUT VISUAL
+
+PREFERRED (new Dashboards + app selector variable):
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-06/2-dynatrace-dashboard-layout-json/App-Health-Layout-Dashboards.json
+
+Import:
+1. Dynatrace → Dashboards → Create dashboard
+2. Edit JSON / Upload → paste that file
+3. Save
+4. Use variable app = All | EIP | API | Payment
+
+CLASSIC (Config API / Dashboards Classic / Terraform json_dashboard):
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-06/2-dynatrace-dashboard-layout-json/App-Health-Layout-Classic.json
+
+Covers all 11 rows from the picture.
+If a tile is blank: fix DQL/metric names for your tenant; tag services; confirm logs/problems exist.
+
+Do NOT paste Classic JSON into new Dashboards (schema mismatch).
