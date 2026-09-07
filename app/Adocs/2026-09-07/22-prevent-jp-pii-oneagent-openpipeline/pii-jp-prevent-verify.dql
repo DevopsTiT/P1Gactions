@@ -1,0 +1,14 @@
+# Verify only — after OneAgent + OpenPipeline masks
+fetch logs
+| filter matchesValue(content, ".*[\\u3000-\\u30FF\\u4E00-\\u9FFF].*")
+| filter matchesValue(content, ".*(氏名|住所|電話|生年月日|郵便番号|メール|メールアドレス|携帯|携帯電話|携帯番号|固定電話|電話番号|ファックス|生年月|誕生日|年齢|性別|身分証|身分証明書|マイナンバー|個人番号|運転免許|免許証|パスポート|旅券|銀行口座|口座番号|銀行コード|支店コード|クレジットカード|カード番号|会社).*")
+| summarize hits = count(), by: { host.name }
+| sort hits desc
+| limit 50
+
+fetch logs
+| filter matchesValue(content, ".*[\\u3000-\\u30FF\\u4E00-\\u9FFF].*")
+| filter matchesValue(content, ".*(氏名|住所|電話|メール|マイナンバー|口座番号|クレジットカード).*")
+| sort timestamp desc
+| fields timestamp, host.name, content
+| limit 50
