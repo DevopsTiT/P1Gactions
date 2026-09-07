@@ -1,17 +1,6 @@
-# Summarize By Entity Host Source Status
+# Summarize Entity Service Host Source Status
 
-```
-ERROR or FATAL only
-  → summarize by entity, host, source, status
-```
-
-| Column | Meaning |
-| --- | --- |
-| entity | Source entity / service / process id |
-| host | Host name |
-| source | `dt.source_entity` |
-| status | Log level (`ERROR` / `FATAL`) |
-| error_fatal_count | How many lines |
+ERROR/FATAL only. Added **service** (same idea as Data Explorer “Split by Service”).
 
 ## Main DQL
 
@@ -20,11 +9,22 @@ fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd entity = coalesce(toString(dt.source_entity), toString(dt.entity.service), toString(dt.entity.process_group_instance), "unknown-entity")
+| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
+| fieldsAdd service = coalesce(toString(dt.entity.service), entityName(dt.entity.service), "unknown-service")
 | fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| summarize error_fatal_count = count(), by: { entity, host, source, status }
+| summarize error_fatal_count = count(), by: { entity, service, host, source, status }
 | sort error_fatal_count desc
 | limit 200
 ```
 
-File: `error-fatal-by-app-host-source.dql` (both folders).
+| Column | Dynatrace field |
+| --- | --- |
+| entity | `dt.source_entity` |
+| service | `dt.entity.service` (+ name if `entityName` works) |
+| host | `host.name` |
+| source | `dt.source_entity` |
+| status | `loglevel` (`ERROR` / `FATAL`) |
+
+If `entityName(...)` fails, use the ALT query in the `.dql` file (service id only).
+
+File: `error-fatal-by-app-host-source.dql`

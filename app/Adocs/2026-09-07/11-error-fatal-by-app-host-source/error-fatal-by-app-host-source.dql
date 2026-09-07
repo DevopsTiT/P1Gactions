@@ -1,40 +1,57 @@
-# ERROR / FATAL only — summarize by entity, host, source, status
+# ERROR / FATAL only — summarize by entity, service, host, source, status
 # New Dashboards DQL / Notebooks / Logs
 
-# ========== MAIN) Gather all ERROR/FATAL by entity + host + source + status ==========
-fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL"
-| fieldsAdd host = coalesce(host.name, "unknown-host")
-| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd entity = coalesce(toString(dt.source_entity), toString(dt.entity.service), toString(dt.entity.process_group_instance), "unknown-entity")
-| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| summarize error_fatal_count = count(), by: { entity, host, source, status }
-| sort error_fatal_count desc
-| limit 200
-
-# ========== ALT) If level is stored in status field (still ERROR/FATAL only) ==========
-fetch logs
-| filter matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
-| fieldsAdd host = coalesce(host.name, "unknown-host")
-| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd entity = coalesce(toString(dt.source_entity), toString(dt.entity.service), "unknown-entity")
-| summarize error_fatal_count = count(), by: { entity, host, source, status }
-| sort error_fatal_count desc
-| limit 200
-
-# ========== DETAIL) Lines still ERROR/FATAL only ==========
+# ========== MAIN) entity + service + host + source + status ==========
 fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
 | fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
+| fieldsAdd service = coalesce(toString(dt.entity.service), entityName(dt.entity.service), "unknown-service")
 | fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| sort timestamp desc
-| fields timestamp, status, entity, host, source, content
+| summarize error_fatal_count = count(), by: { entity, service, host, source, status }
+| sort error_fatal_count desc
 | limit 200
 
-# ========== TOTAL count ==========
+# ========== ALT) If entityName() not supported — service id only ==========
 fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
-| summarize error_fatal_total = count()
-| fields error_fatal_total
+| fieldsAdd host = coalesce(host.name, "unknown-host")
+| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
+| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
+| fieldsAdd service = coalesce(toString(dt.entity.service), "unknown-service")
+| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
+| summarize error_fatal_count = count(), by: { entity, service, host, source, status }
+| sort error_fatal_count desc
+| limit 200
+
+# ========== ALT2) status field instead of loglevel (still ERROR/FATAL only) ==========
+fetch logs
+| filter matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| fieldsAdd host = coalesce(host.name, "unknown-host")
+| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
+| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
+| fieldsAdd service = coalesce(toString(dt.entity.service), "unknown-service")
+| summarize error_fatal_count = count(), by: { entity, service, host, source, status }
+| sort error_fatal_count desc
+| limit 200
+
+# ========== DETAIL) lines with service ==========
+fetch logs
+| filter loglevel == "ERROR" or loglevel == "FATAL"
+| fieldsAdd host = coalesce(host.name, "unknown-host")
+| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
+| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
+| fieldsAdd service = coalesce(toString(dt.entity.service), "unknown-service")
+| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
+| sort timestamp desc
+| fields timestamp, status, entity, service, host, source, content
+| limit 200
+
+# ========== By service only (like Data Explorer Split by Service) ==========
+fetch logs
+| filter loglevel == "ERROR" or loglevel == "FATAL"
+| fieldsAdd service = coalesce(toString(dt.entity.service), entityName(dt.entity.service), "unknown-service")
+| summarize error_fatal_count = count(), by: { service, status }
+| sort error_fatal_count desc
+| limit 50
