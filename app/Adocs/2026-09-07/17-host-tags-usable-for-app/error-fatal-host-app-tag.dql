@@ -1,0 +1,20 @@
+# ERROR/FATAL using host tags from Properties panel
+# Prefer: app  or  AGO_GLOBAL_APP
+
+fetch logs
+| filter loglevel == "ERROR" or loglevel == "FATAL"
+| fieldsAdd host = coalesce(host.name, "unknown-host")
+| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
+| fieldsAdd application = coalesce(toString(`dt.entity.host.tags[app]`), "unknown-application")
+| summarize error_fatal_count = count(), by: { application, host, source, loglevel }
+| sort error_fatal_count desc
+| limit 200
+
+fetch logs
+| filter loglevel == "ERROR" or loglevel == "FATAL"
+| fieldsAdd host = coalesce(host.name, "unknown-host")
+| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
+| fieldsAdd application = coalesce(toString(`dt.entity.host.tags[AGO_GLOBAL_APP]`), toString(`dt.entity.host.tags[app]`), "unknown-application")
+| summarize error_fatal_count = count(), by: { application, host, source, loglevel }
+| sort error_fatal_count desc
+| limit 200
