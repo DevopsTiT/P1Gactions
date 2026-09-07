@@ -1,0 +1,138 @@
+{
+  "version": 21,
+  "variables": [
+    {
+      "version": 2,
+      "key": "app",
+      "type": "csv",
+      "visible": true,
+      "editable": true,
+      "input": "All,EIP,API,Payment,Claims,Portal",
+      "multiple": false,
+      "defaultValue": "All"
+    }
+  ],
+  "settings": {
+    "defaultTimeframe": {
+      "value": {
+        "from": "now()-2h",
+        "to": "now()"
+      },
+      "enabled": true
+    }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "## LOGS \u2014 wrong / bad logs\n\nShows **ERROR / FATAL / Exception / fail** lines for **all apps** (`app=All`) or one app (`app=EIP`, etc.).\n\nUse next to Classic **App-Must-Should-Watch** (metrics/health). This board is for **log evidence**.\n\nTag hosts/services `app:<name>` so the filter works for any monitored app."
+    },
+    "2": {
+      "type": "markdown",
+      "content": "## Error / Fatal logs (wrong logs)"
+    },
+    "3": {
+      "type": "data",
+      "title": "Wrong logs \u2014 ERROR / FATAL",
+      "query": "fetch logs\n| filter loglevel == \"ERROR\" or loglevel == \"FATAL\" or matchesValue(status, \"ERROR\") or matchesValue(status, \"FATAL\") or matchesPhrase(content, \" ERROR\") or matchesPhrase(content, \"FATAL\")\n| filter $app == \"All\" or contains(content, $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app)) or contains(toString(dt.source_entity), $app)\n| sort timestamp desc\n| fields timestamp, loglevel, content, host.name, dt.source_entity\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "4": {
+      "type": "data",
+      "title": "Wrong logs \u2014 count by host",
+      "query": "fetch logs\n| filter loglevel == \"ERROR\" or loglevel == \"FATAL\" or matchesValue(status, \"ERROR\") or matchesPhrase(content, \"Exception\")\n| filter $app == \"All\" or contains(content, $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app))\n| summarize wrong_logs = count(), by: { host.name }\n| sort wrong_logs desc\n| limit 30",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "5": {
+      "type": "markdown",
+      "content": "## Exceptions / stack traces"
+    },
+    "6": {
+      "type": "data",
+      "title": "Exception / Traceback",
+      "query": "fetch logs\n| filter matchesPhrase(content, \"Exception\") or matchesPhrase(content, \"exception\") or matchesPhrase(content, \"Traceback\") or matchesPhrase(content, \"FATAL\") or matchesPhrase(content, \"OutOfMemory\")\n| filter $app == \"All\" or contains(content, $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app))\n| sort timestamp desc\n| fields timestamp, content, host.name, dt.source_entity\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "7": {
+      "type": "markdown",
+      "content": "## Fail / 5xx / timeout keywords"
+    },
+    "8": {
+      "type": "data",
+      "title": "Wrong logs \u2014 fail / 5xx / timeout",
+      "query": "fetch logs\n| filter matchesPhrase(content, \"failed\") or matchesPhrase(content, \"Failed\") or matchesPhrase(content, \"FAILURE\") or matchesPhrase(content, \"5xx\") or matchesPhrase(content, \" 500\") or matchesPhrase(content, \" 502\") or matchesPhrase(content, \" 503\") or matchesPhrase(content, \"timeout\") or matchesPhrase(content, \"Timeout\")\n| filter $app == \"All\" or contains(content, $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app))\n| sort timestamp desc\n| fields timestamp, content, host.name, loglevel\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "9": {
+      "type": "data",
+      "title": "Wrong-log volume (last window)",
+      "query": "fetch logs\n| filter loglevel == \"ERROR\" or loglevel == \"FATAL\" or matchesPhrase(content, \"Exception\")\n| filter $app == \"All\" or contains(content, $app) or contains(toUpperCase(toString(host.name)), toUpperCase($app))\n| summarize wrong_log_count = count()\n| fields wrong_log_count",
+      "visualization": "singleValue",
+      "visualizationSettings": {},
+      "querySettings": {}
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 3
+    },
+    "2": {
+      "x": 0,
+      "y": 3,
+      "w": 24,
+      "h": 1
+    },
+    "3": {
+      "x": 0,
+      "y": 4,
+      "w": 16,
+      "h": 10
+    },
+    "4": {
+      "x": 16,
+      "y": 4,
+      "w": 8,
+      "h": 10
+    },
+    "5": {
+      "x": 0,
+      "y": 14,
+      "w": 24,
+      "h": 1
+    },
+    "6": {
+      "x": 0,
+      "y": 15,
+      "w": 24,
+      "h": 10
+    },
+    "7": {
+      "x": 0,
+      "y": 25,
+      "w": 24,
+      "h": 1
+    },
+    "8": {
+      "x": 0,
+      "y": 26,
+      "w": 16,
+      "h": 10
+    },
+    "9": {
+      "x": 16,
+      "y": 26,
+      "w": 8,
+      "h": 10
+    }
+  }
+}

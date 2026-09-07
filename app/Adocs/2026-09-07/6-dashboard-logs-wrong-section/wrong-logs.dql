@@ -1,0 +1,30 @@
+# Wrong / bad logs — Dynatrace DQL
+# Use in Logs app, Notebooks, or new Dashboard tiles
+
+# A) ERROR / FATAL
+fetch logs
+| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| sort timestamp desc
+| fields timestamp, loglevel, content, host.name, dt.source_entity
+| limit 100
+
+# B) Exceptions
+fetch logs
+| filter matchesPhrase(content, "Exception") or matchesPhrase(content, "Traceback") or matchesPhrase(content, "OutOfMemory")
+| sort timestamp desc
+| fields timestamp, content, host.name
+| limit 100
+
+# C) fail / 5xx / timeout
+fetch logs
+| filter matchesPhrase(content, "failed") or matchesPhrase(content, "FAILURE") or matchesPhrase(content, "timeout") or matchesPhrase(content, " 500") or matchesPhrase(content, " 502") or matchesPhrase(content, " 503")
+| sort timestamp desc
+| fields timestamp, content, host.name, loglevel
+| limit 100
+
+# D) count by host
+fetch logs
+| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesPhrase(content, "Exception")
+| summarize wrong_logs = count(), by: { host.name }
+| sort wrong_logs desc
+| limit 30
