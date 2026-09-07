@@ -1,51 +1,30 @@
-# ERROR FATAL Only No Info
+# Summarize By Entity Host Source Status
 
 ```
-loglevel == ERROR or FATAL only
-  → no INFO / WARN / DEBUG / other
-  → still group by app, host, source
+ERROR or FATAL only
+  → summarize by entity, host, source, status
 ```
 
-| Key point | Detail |
+| Column | Meaning |
 | --- | --- |
-| Included | `ERROR`, `FATAL` |
-| Excluded | `INFO`, `WARN`, `DEBUG`, and other levels |
-| File | `error-fatal-by-app-host-source.dql` |
+| entity | Source entity / service / process id |
+| host | Host name |
+| source | `dt.source_entity` |
+| status | Log level (`ERROR` / `FATAL`) |
+| error_fatal_count | How many lines |
 
-## Strict filter (use this)
-
-```dql
-| filter loglevel == "ERROR" or loglevel == "FATAL"
-```
-
-Do **not** match Exception/fail keywords alone — that can pull INFO lines that only mention the word.
-
-## Main gather query (A2)
+## Main DQL
 
 ```dql
 fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd app = if(contains(toUpperCase(host), "EIP"), "eip",
-    if(contains(toUpperCase(host), "API"), "api",
-      if(contains(toUpperCase(host), "PAYMENT"), "payment",
-        if(contains(toUpperCase(host), "CLAIM"), "claims", "other"))))
-| summarize error_fatal_count = count(), by: { app, host, source, loglevel }
+| fieldsAdd entity = coalesce(toString(dt.source_entity), toString(dt.entity.service), toString(dt.entity.process_group_instance), "unknown-entity")
+| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
+| summarize error_fatal_count = count(), by: { entity, host, source, status }
 | sort error_fatal_count desc
 | limit 200
 ```
 
-## Detail (B)
-
-```dql
-fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL"
-| fieldsAdd host = coalesce(host.name, "unknown-host")
-| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| sort timestamp desc
-| fields timestamp, loglevel, host, source, content
-| limit 200
-```
-
-If your tenant stores level in `status` instead of `loglevel`, use query **D** in the `.dql` file (still ERROR/FATAL only).
+File: `error-fatal-by-app-host-source.dql` (both folders).
