@@ -1,16 +1,15 @@
-# ERROR / FATAL only — filter on Applications — NO service
-# summarize: application, entity, host, source, status
+# ERROR / FATAL — use Application entity (NOT tags[app])
+# No service tags. Matches Applications page (Web / Mobile).
 
-# ========== MAIN ==========
+# ========== MAIN (paste this in Logs advanced mode) ==========
 fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
 | filter isNotNull(dt.entity.application)
 | fieldsAdd application = coalesce(entityName(dt.entity.application), toString(dt.entity.application), "unknown-application")
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
 | fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| summarize error_fatal_count = count(), by: { application, entity, host, source, status }
+| summarize error_fatal_count = count(), by: { application, host, source, status }
 | sort error_fatal_count desc
 | limit 200
 
@@ -21,30 +20,18 @@ fetch logs
 | fieldsAdd application = toString(dt.entity.application)
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
 | fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| summarize error_fatal_count = count(), by: { application, entity, host, source, status }
+| summarize error_fatal_count = count(), by: { application, host, source, status }
 | sort error_fatal_count desc
 | limit 200
 
-# ========== By application only ==========
+# ========== Closest to your old query shape (app → application) ==========
 fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
 | filter isNotNull(dt.entity.application)
-| fieldsAdd application = coalesce(entityName(dt.entity.application), toString(dt.entity.application), "unknown-application")
-| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| summarize error_fatal_count = count(), by: { application, status }
-| sort error_fatal_count desc
-| limit 100
-
-# ========== DETAIL (no service) ==========
-fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL"
-| filter isNotNull(dt.entity.application)
-| fieldsAdd application = coalesce(entityName(dt.entity.application), toString(dt.entity.application), "unknown-application")
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| sort timestamp desc
-| fields timestamp, status, application, host, source, content
+| fieldsAdd application = coalesce(entityName(dt.entity.application), toString(dt.entity.application), "unknown-application")
+| summarize error_fatal_count = count(), by: { application, host, source, loglevel }
+| sort error_fatal_count desc
 | limit 200

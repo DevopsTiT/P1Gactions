@@ -1,23 +1,26 @@
-# DQL Applications No Service
+# Tags App To Application
 
-ERROR/FATAL only. Filter on **Applications**. **No service** in the query.
+Replace host/service **`tags[app]`** with **Application** entity.
+
+| Old (remove) | New (use) |
+| --- | --- |
+| `` `dt.entity.host.tags[app]` `` | `dt.entity.application` |
+| `` `dt.entity.service.tags[app]` `` | `entityName(dt.entity.application)` |
+
+## Paste this (closest to your screen)
 
 ```dql
 fetch logs
 | filter loglevel == "ERROR" or loglevel == "FATAL"
 | filter isNotNull(dt.entity.application)
-| fieldsAdd application = coalesce(entityName(dt.entity.application), toString(dt.entity.application), "unknown-application")
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd entity = coalesce(toString(dt.source_entity), "unknown-entity")
-| fieldsAdd status = coalesce(loglevel, status, "UNKNOWN")
-| summarize error_fatal_count = count(), by: { application, entity, host, source, status }
+| fieldsAdd application = coalesce(entityName(dt.entity.application), toString(dt.entity.application), "unknown-application")
+| summarize error_fatal_count = count(), by: { application, host, source, loglevel }
 | sort error_fatal_count desc
 | limit 200
 ```
 
-| Include | Exclude |
-| --- | --- |
-| application, entity, host, source, status | service / `dt.entity.service` |
+Do **not** use `tags[app]` or service tags in this query.
 
-File: `error-fatal-by-app-host-source.dql`
+If empty: many logs are not linked to a RUM Application — check Logs fields for `dt.entity.application` on a sample ERROR line.
