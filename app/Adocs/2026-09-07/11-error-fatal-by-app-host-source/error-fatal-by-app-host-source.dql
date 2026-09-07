@@ -1,10 +1,10 @@
-# ERROR / FATAL — gather by app, host, source (all in one summary)
-# New Dashboards DQL tile / Notebooks / Logs
-# If tag field names fail in your tenant, use A2 instead of A1
+# ERROR / FATAL only — never INFO / WARN / other levels
+# New Dashboards DQL / Notebooks / Logs
+# Strict: filter on loglevel (and status) ERROR|FATAL only
 
-# ========== A1) ONE summary table: app + host + source + level ==========
+# ========== A1) Summary by app + host + source (tag-based app) ==========
 fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
 | fieldsAdd app = coalesce(toString(`dt.entity.host.tags[app]`), toString(`dt.entity.service.tags[app]`), "unknown-app")
@@ -12,40 +12,50 @@ fetch logs
 | sort error_fatal_count desc
 | limit 200
 
-# ========== A2) ONE summary without tag fields (safer) ==========
-# App guessed from host name / content markers — retune contains() for your naming
+# ========== A2) Summary by app + host + source (no tags; name hints) ==========
 fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
-| fieldsAdd app = if(contains(toUpperCase(host), "EIP") or contains(toUpperCase(content), "EIP"), "eip",
-    if(contains(toUpperCase(host), "API") or contains(toUpperCase(content), "API"), "api",
-      if(contains(toUpperCase(host), "PAYMENT") or contains(toUpperCase(content), "PAYMENT"), "payment",
-        if(contains(toUpperCase(host), "CLAIM") or contains(toUpperCase(content), "CLAIM"), "claims", "other"))))
+| fieldsAdd app = if(contains(toUpperCase(host), "EIP"), "eip",
+    if(contains(toUpperCase(host), "API"), "api",
+      if(contains(toUpperCase(host), "PAYMENT"), "payment",
+        if(contains(toUpperCase(host), "CLAIM"), "claims", "other"))))
 | summarize error_fatal_count = count(), by: { app, host, source, loglevel }
 | sort error_fatal_count desc
 | limit 200
 
-# ========== A3) Even simpler: host + source only (if app unknown) ==========
+# ========== A3) Summary host + source only ==========
 fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
 | summarize error_fatal_count = count(), by: { host, source, loglevel }
 | sort error_fatal_count desc
 | limit 200
 
-# ========== B) ONE detail table: all ERROR/FATAL lines ==========
+# ========== B) Detail lines — ERROR/FATAL only ==========
 fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| filter loglevel == "ERROR" or loglevel == "FATAL"
 | fieldsAdd host = coalesce(host.name, "unknown-host")
 | fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
 | sort timestamp desc
 | fields timestamp, loglevel, host, source, content
 | limit 200
 
-# ========== C) ONE single-value: total ERROR+FATAL count ==========
+# ========== C) Total count — ERROR/FATAL only ==========
 fetch logs
-| filter loglevel == "ERROR" or loglevel == "FATAL" or matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| filter loglevel == "ERROR" or loglevel == "FATAL"
 | summarize error_fatal_total = count()
 | fields error_fatal_total
+
+# ========== D) If your tenant uses status instead of loglevel ==========
+# Still ERROR/FATAL only — no INFO/WARN
+fetch logs
+| filter matchesValue(status, "ERROR") or matchesValue(status, "FATAL")
+| filter not matchesValue(status, "INFO") and not matchesValue(status, "WARN") and not matchesValue(status, "DEBUG")
+| fieldsAdd host = coalesce(host.name, "unknown-host")
+| fieldsAdd source = coalesce(toString(dt.source_entity), "unknown-source")
+| summarize error_fatal_count = count(), by: { host, source, status }
+| sort error_fatal_count desc
+| limit 200
