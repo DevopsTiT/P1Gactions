@@ -1,0 +1,50 @@
+{
+  "servicenow_create_incident_conceptual": {
+    "correlation_id": "<dynatrace_problem_id>",
+    "caller_id": "<snow_user_sys_id_dynatrace_bot>",
+    "category": "Software",
+    "subcategory": "Application",
+    "impact": "2",
+    "urgency": "3",
+    "assignment_group": "<group_sys_id>",
+    "business_service": "<biz_service_sys_id>",
+    "short_description": "[Dynatrace] <problem_title> — <app>",
+    "description": "Caller: Dynatrace Workflow\nBusiness service: <biz>\nApp: <app>\nPriority intent: P3\n\nDynatrace: <problem_url>\nProblem ID: <problem_id>\n\nWho can help:\n- L1: <l1>\n- L2: <l2>\n- L3: <l3>\n\nRunbook: <runbook_url>\n"
+  },
+  "pagerduty_trigger": {
+    "routing_key": "<EVENTS_V2_ROUTING_KEY>",
+    "event_action": "trigger",
+    "dedup_key": "dt-problem-<problem_id>",
+    "client": "Dynatrace",
+    "client_url": "<problem_url>",
+    "links": [
+      { "href": "<problem_url>", "text": "Open Dynatrace Problem" },
+      { "href": "<runbook_url>", "text": "Runbook" }
+    ],
+    "payload": {
+      "summary": "[Dynatrace] <problem_title> (<app>)",
+      "source": "<app>",
+      "severity": "error",
+      "component": "<app>",
+      "group": "<assignment_group_name>",
+      "class": "dynatrace-problem",
+      "custom_details": {
+        "problem_id": "<problem_id>",
+        "problem_url": "<problem_url>",
+        "business_service": "<biz>",
+        "assignment_group": "<assignment_group_name>",
+        "priority_intent": "P3",
+        "l1": "<l1>",
+        "l2": "<l2>",
+        "l3": "<l3>",
+        "runbook": "<runbook_url>",
+        "caller": "Dynatrace Workflow"
+      }
+    }
+  },
+  "pagerduty_resolve": {
+    "routing_key": "<EVENTS_V2_ROUTING_KEY>",
+    "event_action": "resolve",
+    "dedup_key": "dt-problem-<problem_id>"
+  }
+}

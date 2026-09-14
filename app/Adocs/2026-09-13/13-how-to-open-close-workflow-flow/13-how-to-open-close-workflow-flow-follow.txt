@@ -1,0 +1,78 @@
+How to implement: Problem OPEN prepare→parallel SNOW+PD→cross-link; CLOSED find+resolve
+
+Verdict: Two workflows. Fill SNOW fields (§4.2) and assignMap (§4.4) + PD routing_key. Open: prepare then parallel creates then cross-link. Close: find INC by correlation_id, resolve SNOW + PD with same dedup_key. Fastest: edit/upload seq 4 YAML pair.
+
+Part 0 — Collect first
+----------------------
+SNOW: instance URL, integration user, Connection, caller sys_id, category/subcategory,
+      per-app assignment_group sys_id, business_service sys_id
+Maps (§4.4): app tag → group, biz, L1/L2/L3, runbook URL (this is assignMap)
+PD: Events API v2 routing_key; allow events.pagerduty.com
+Keys: correlation_id=ProblemID; dedup_key=dt-problem-<ProblemID>
+
+Part 1 — Two workflows
+----------------------
+WF-A open: onProblemClose=false; 4 tasks
+WF-B close: onProblemClose=true; 1 task
+Upload from ../4-snow-pd-workflow-yaml-and-json/ after replacing placeholders
+
+Part 2 — prepare-payload (maps §4.4)
+------------------------------------
+JS task, no predecessors
+Read title, problemId, URL, severity, tags
+App from app: or AGO_GLOBAL_APP:
+Lookup assignMap[app] or default
+Map severity → impact/urgency/P3|P4/pdSeverity
+Return problemId, dedupKey, SNOW sys_ids, description, PD fields
+
+Part 3 — Parallel creates
+-------------------------
+Both depend ONLY on prepare-payload
+
+SNOW Create (§4.2):
+  POST /api/now/v2/table/incident (or connector Create Incident)
+  Set correlation_id, caller_id, business_service, assignment_group,
+      impact, urgency, category, subcategory, short_description, description
+  Return sysId + number
+
+PD Create:
+  POST https://events.pagerduty.com/v2/enqueue
+  routing_key, event_action=trigger, dedup_key from prepare
+  summary/severity/links/custom_details
+  Return dedupKey
+
+Part 4 — Cross-link
+-------------------
+Predecessors: BOTH creates; conditions both OK
+PATCH INC work_notes with: PagerDuty sync dedup_key=... | Problem URL | Runbook
+
+Part 5 — Close workflow
+-----------------------
+Trigger Problem closed
+One task:
+  1) problemId from event
+  2) dedupKey = dt-problem- + problemId
+  3) GET incident?sysparm_query=correlation_id=<id>
+  4) PATCH state=6 + close notes if found
+  5) PD event_action=resolve same dedup_key
+
+Part 6 — Test
+-------------
+Open Problem → 4/4 OK → INC + PD + work notes
+Close Problem → resolve OK → INC Resolved + PD resolved
+See ../12-monitor-snow-pd-demo-steps/
+
+UI wiring checklist
+-------------------
+prepare no predecessors
+SNOW and PD only wait on prepare (parallel)
+cross-link waits on both
+correlation_id set on create
+same dedup_key formula on open and close
+
+Files
+-----
+Daily Files/2026-09-13/13-how-to-open-close-workflow-flow/
+Upload pack: ../4-snow-pd-workflow-yaml-and-json/
+Field map: ../1-dynatrace-workflow-snow-pagerduty/ (§4)
+Setup: ../5-setup-snow-pd-workflow-steps-perms/

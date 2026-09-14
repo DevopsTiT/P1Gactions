@@ -1,0 +1,113 @@
+# Dynatrace Automation workflow template — Problem CLOSED → resolve SNOW + PagerDuty
+version: "1"
+dependencies:
+  apps:
+    - name: dynatrace.automations
+      version: ^1.3301.5
+inputs: []
+workflow:
+  title: AGO - Problem closed resolve ServiceNow and PagerDuty
+  description: When Dynatrace Problem closes, resolve matching ServiceNow INC and PagerDuty alert (same dedup_key).
+  schemaVersion: 4
+  trigger:
+    eventTrigger:
+      isActive: true
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories: []
+          entityTags: []
+          customFilter: null
+        onProblemClose: true
+        entityTagsMatch: any
+        maintenanceWindowTriggerBehavior: never
+        triggerOn: null
+  result: null
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  guide: null
+  tasks:
+    resolve-snow-and-pd:
+      name: resolve-snow-and-pd
+      description: Resolve SNOW by correlation_id and PD by dedup_key.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 0
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const problemId =
+              ev["display_id"] ||
+              ev["problem.id"] ||
+              ev["event.id"] ||
+              ev.pid ||
+              "unknown-problem";
+            const dedupKey = "dt-problem-" + problemId;
+
+            const snowBase = "__SNOW_INSTANCE_URL__";
+            const snowUser = "__SNOW_USER__";
+            const snowPass = "__SNOW_PASSWORD__";
+            const auth = btoa(snowUser + ":" + snowPass);
+            const pdKey = "__PD_ROUTING_KEY__";
+
+            // Find INC by correlation_id
+            const q = encodeURIComponent("correlation_id=" + problemId);
+            const searchRes = await fetch(
+              snowBase.replace(/\/$/, "") + "/api/now/v2/table/incident?sysparm_query=" + q + "&sysparm_limit=1",
+              {
+                method: "GET",
+                headers: {
+                  Authorization: "Basic " + auth,
+                  Accept: "application/json"
+                }
+              }
+            );
+            const searchText = await searchRes.text();
+            const searchJson = JSON.parse(searchText);
+            const inc = (searchJson.result && searchJson.result[0]) || null;
+
+            let snow = { skipped: true };
+            if (inc && inc.sys_id) {
+              const patchRes = await fetch(
+                snowBase.replace(/\/$/, "") + "/api/now/v2/table/incident/" + inc.sys_id,
+                {
+                  method: "PATCH",
+                  headers: {
+                    Authorization: "Basic " + auth,
+                    "Content-Type": "application/json",
+                    Accept: "application/json"
+                  },
+                  body: JSON.stringify({
+                    state: "6",
+                    close_code: "Solved (Permanently)",
+                    close_notes: "Resolved automatically: Dynatrace Problem closed (" + problemId + ")"
+                  })
+                }
+              );
+              const patchText = await patchRes.text();
+              if (!patchRes.ok) throw new Error("SNOW resolve failed: " + patchText);
+              snow = { number: inc.number, sysId: inc.sys_id, ok: true };
+            }
+
+            const pdRes = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                routing_key: pdKey,
+                event_action: "resolve",
+                dedup_key: dedupKey
+              })
+            });
+            const pdText = await pdRes.text();
+            if (!pdRes.ok) throw new Error("PD resolve failed: " + pdText);
+
+            return { problemId, dedupKey, snow, pagerduty: pdText };
+          }

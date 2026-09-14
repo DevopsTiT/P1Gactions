@@ -1,0 +1,43 @@
+{
+  "title": "AGO - Problem closed resolve ServiceNow and PagerDuty",
+  "description": "When Dynatrace Problem closes, resolve matching ServiceNow INC and PagerDuty alert (same dedup_key).",
+  "isPrivate": true,
+  "triggerType": "Event",
+  "schemaVersion": 4,
+  "type": "STANDARD",
+  "input": {},
+  "hourlyExecutionLimit": 1000,
+  "trigger": {
+    "eventTrigger": {
+      "isActive": true,
+      "triggerConfiguration": {
+        "type": "davis-problem",
+        "value": {
+          "categories": [],
+          "entityTags": [],
+          "customFilter": null
+        },
+        "onProblemClose": true,
+        "entityTagsMatch": "any",
+        "maintenanceWindowTriggerBehavior": "never",
+        "triggerOn": null
+      }
+    }
+  },
+  "tasks": {
+    "resolve-snow-and-pd": {
+      "name": "resolve-snow-and-pd",
+      "description": "Resolve SNOW by correlation_id and PD by dedup_key.",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "predecessors": [],
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const ev = ex.event() || {};\n  const problemId =\n    ev[\"display_id\"] ||\n    ev[\"problem.id\"] ||\n    ev[\"event.id\"] ||\n    ev.pid ||\n    \"unknown-problem\";\n  const dedupKey = \"dt-problem-\" + problemId;\n\n  const snowBase = \"__SNOW_INSTANCE_URL__\";\n  const snowUser = \"__SNOW_USER__\";\n  const snowPass = \"__SNOW_PASSWORD__\";\n  const auth = btoa(snowUser + \":\" + snowPass);\n  const pdKey = \"__PD_ROUTING_KEY__\";\n\n  // Find INC by correlation_id\n  const q = encodeURIComponent(\"correlation_id=\" + problemId);\n  const searchRes = await fetch(\n    snowBase.replace(/\\/$/, \"\") + \"/api/now/v2/table/incident?sysparm_query=\" + q + \"&sysparm_limit=1\",\n    {\n      method: \"GET\",\n      headers: {\n        Authorization: \"Basic \" + auth,\n        Accept: \"application/json\"\n      }\n    }\n  );\n  const searchText = await searchRes.text();\n  const searchJson = JSON.parse(searchText);\n  const inc = (searchJson.result && searchJson.result[0]) || null;\n\n  let snow = { skipped: true };\n  if (inc && inc.sys_id) {\n    const patchRes = await fetch(\n      snowBase.replace(/\\/$/, \"\") + \"/api/now/v2/table/incident/\" + inc.sys_id,\n      {\n        method: \"PATCH\",\n        headers: {\n          Authorization: \"Basic \" + auth,\n          \"Content-Type\": \"application/json\",\n          Accept: \"application/json\"\n        },\n        body: JSON.stringify({\n          state: \"6\",\n          close_code: \"Solved (Permanently)\",\n          close_notes: \"Resolved automatically: Dynatrace Problem closed (\" + problemId + \")\"\n        })\n      }\n    );\n    const patchText = await patchRes.text();\n    if (!patchRes.ok) throw new Error(\"SNOW resolve failed: \" + patchText);\n    snow = { number: inc.number, sysId: inc.sys_id, ok: true };\n  }\n\n  const pdRes = await fetch(\"https://events.pagerduty.com/v2/enqueue\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({\n      routing_key: pdKey,\n      event_action: \"resolve\",\n      dedup_key: dedupKey\n    })\n  });\n  const pdText = await pdRes.text();\n  if (!pdRes.ok) throw new Error(\"PD resolve failed: \" + pdText);\n\n  return { problemId, dedupKey, snow, pagerduty: pdText };\n}\n"
+      }
+    }
+  }
+}

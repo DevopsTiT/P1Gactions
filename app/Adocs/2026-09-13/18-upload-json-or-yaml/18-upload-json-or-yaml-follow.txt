@@ -1,0 +1,16 @@
+Upload JSON or YAML?
+
+Recommend: YAML (both create + close).
+
+Upload these two:
+1) ago-problem-to-snow-pagerduty.workflow-template.yaml
+2) ago-problem-closed-resolve-snow-pd.workflow-template.yaml
+
+JSON is OK instead (same logic) — then upload the two .workflow.json files.
+
+Do NOT upload YAML + JSON for the same workflow.
+Always upload TWO workflows (open create + close resolve).
+
+Replace placeholders before upload.
+Folder: ../4-snow-pd-workflow-yaml-and-json/
+Files: Daily Files/2026-09-13/18-upload-json-or-yaml/

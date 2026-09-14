@@ -1,0 +1,10 @@
+echo "Demo monitor: open Dynatrace Workflows Executions + ServiceNow + PagerDuty"
+echo "1) Confirm create and close workflows Active"
+echo "2) Open a test Problem; copy Problem ID"
+echo "3) Check create execution: prepare, SNOW, PD, cross-link all OK"
+echo "4) Verify INC correlation_id and PD dedup_key=dt-problem-<ProblemID>"
+echo "5) Close Problem; check close execution; INC Resolved; PD resolved"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-13/4-snow-pd-workflow-yaml-and-json"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-13/12-monitor-snow-pd-demo-steps"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" commit -m "docs: step-by-step monitor SNOW PD workflow demo"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" push

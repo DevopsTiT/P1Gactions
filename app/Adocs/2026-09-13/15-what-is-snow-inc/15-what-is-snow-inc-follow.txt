@@ -1,0 +1,15 @@
+What is ServiceNow INC?
+
+INC = Incident.
+It is a ServiceNow ticket for something that went wrong (unplanned issue).
+Number looks like INC0012345.
+
+In our workflow:
+Dynatrace Problem opens → create ServiceNow INC
+correlation_id on the INC = Dynatrace Problem ID
+
+Not the same as:
+- Dynatrace "Problem" (monitoring object)
+- ServiceNow PRB / Change / Request (other ticket types)
+
+Files: Daily Files/2026-09-13/15-what-is-snow-inc/

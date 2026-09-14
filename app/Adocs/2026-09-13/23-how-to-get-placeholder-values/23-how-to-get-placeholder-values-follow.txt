@@ -1,0 +1,37 @@
+How to get each placeholder value (detailed)
+
+1) __SNOW_INSTANCE_URL__
+   Login to ServiceNow → address bar → copy only https://INSTANCE.service-now.com
+   Do not include /nav_to or other paths.
+
+2) __SNOW_USER__ / __SNOW_PASSWORD__
+   Ask SNOW admin for a dedicated integration user that can create/update/search Incidents.
+   Example name: dynatrace.workflow
+   Better later: store in Dynatrace Connection instead of YAML.
+
+3) __PD_ROUTING_KEY__
+   PagerDuty → Services → your service → Integrations
+   → Events API V2 → copy Integration Key
+   Use same key in create and close workflows.
+
+4) Any sys_id (shared method)
+   Open the SNOW record → URL has sys_id=XXXXXXXX (32 hex chars) → copy that.
+   Or add Sys ID column on list / ask admin.
+
+5) __SNOW_CALLER_SYS_ID__
+   Users (sys_user.list) → open caller/integration user → copy sys_id
+
+6) __SNOW_GROUP_SYS_ID_EIP__/CCI/DEFAULT
+   Groups (sys_user_group.list) → open each assignment group → copy sys_id
+   Match app tags EIP/CCI/default in assignMap
+
+7) __SNOW_BIZ_SYS_ID_EIP__/CCI/DEFAULT
+   Business Service / CMDB service list (ask admin which table)
+   → open each service → copy sys_id
+
+Fill private note with all 11. Do not commit secrets.
+If stuck on sys_id or rights, send names to SNOW admin and ask for sys_ids.
+
+Files: Daily Files/2026-09-13/23-how-to-get-placeholder-values/
+Examples (fake): ../21-placeholder-value-examples/
+Replace how-to: ../20-how-to-replace-placeholders/

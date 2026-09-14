@@ -1,0 +1,66 @@
+Explain problem-to-snow-pagerduty.workflow.json in detail
+
+Verdict: This is the CREATE workflow JSON only. On Problem OPEN it runs 4 JS tasks: prepare → parallel ServiceNow INC + PagerDuty trigger → cross-link work notes. It does NOT close tickets (use the other JSON for that). Replace all __SNOW_*__ and __PD_ROUTING_KEY__ before upload.
+
+Shell fields
+------------
+title: AGO - Problem to ServiceNow and PagerDuty
+triggerType: Event, schemaVersion 4, type STANDARD
+hourlyExecutionLimit: 1000, isPrivate: true
+
+Trigger
+-------
+type: davis-problem
+onProblemClose: false  ← OPEN only
+isActive: true
+categories/entityTags empty (tune later)
+
+Task graph
+----------
+prepare-payload (no predecessors)
+  → create-servicenow-incident (wait prepare OK)
+  → create-pagerduty-incident (wait prepare OK)  ← parallel
+  → cross-link-snow-pd (wait BOTH OK)
+
+All action: dynatrace.automations:run-javascript
+
+1) prepare-payload
+------------------
+Read title, problemId, URL, severity, tags
+App from app: or AGO_GLOBAL_APP:
+assignMap EIP/CCI/default → group, biz, L1-L3, runbook
+Severity → impact/urgency/P3|P4/pdSeverity
+Return problemId, dedupKey=dt-problem-<id>, SNOW fields, PD fields
+
+2) create-servicenow-incident
+-----------------------------
+POST {SNOW}/api/now/v2/table/incident
+Basic auth placeholders
+Body: correlation_id=problemId, caller, group, biz, impact/urgency, descriptions
+Return sysId + number (INC…)
+
+3) create-pagerduty-incident
+----------------------------
+POST https://events.pagerduty.com/v2/enqueue
+routing_key, event_action=trigger, dedup_key from prepare
+links + custom_details (L1-L3, runbook, etc.)
+Return dedupKey
+
+4) cross-link-snow-pd
+--------------------
+PATCH incident/{sysId} work_notes with PD dedup_key + Problem URL + runbook
+Return INC number, sysId, dedupKey, problemId
+
+Placeholders
+------------
+__SNOW_INSTANCE_URL__, __SNOW_USER__, __SNOW_PASSWORD__
+__SNOW_CALLER_SYS_ID__, __SNOW_GROUP_SYS_ID_*__, __SNOW_BIZ_SYS_ID_*__
+__PD_ROUTING_KEY__
+
+Related
+-------
+YAML twin: ago-problem-to-snow-pagerduty.workflow-template.yaml
+Close file: problem-closed-resolve-snow-pd.workflow.json
+
+Files: Daily Files/2026-09-13/16-explain-problem-to-snow-pd-json/
+Source: ../4-snow-pd-workflow-yaml-and-json/problem-to-snow-pagerduty.workflow.json

@@ -1,0 +1,108 @@
+{
+  "title": "AGO - Problem to ServiceNow and PagerDuty",
+  "description": "On Dynatrace Problem open, create ServiceNow Incident and PagerDuty incident in parallel, then cross-link IDs. Fills caller, business service, assignment, P3/P4, Dynatrace link, app, L1/L2/L3, runbook.",
+  "isPrivate": true,
+  "triggerType": "Event",
+  "schemaVersion": 4,
+  "type": "STANDARD",
+  "input": {},
+  "hourlyExecutionLimit": 1000,
+  "trigger": {
+    "eventTrigger": {
+      "isActive": true,
+      "triggerConfiguration": {
+        "type": "davis-problem",
+        "value": {
+          "categories": [],
+          "entityTags": [],
+          "customFilter": null
+        },
+        "onProblemClose": false,
+        "entityTagsMatch": "any",
+        "maintenanceWindowTriggerBehavior": "never",
+        "triggerOn": null
+      }
+    }
+  },
+  "tasks": {
+    "prepare-payload": {
+      "name": "prepare-payload",
+      "description": "Map Problem fields to SNOW/PD payload (app, P3/P4, L1-L3, runbook).",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "predecessors": [],
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const ev = ex.event() || {};\n\n  const title =\n    ev[\"event.name\"] ||\n    ev[\"problem.title\"] ||\n    ev.title ||\n    \"Dynatrace Problem\";\n  const problemId =\n    ev[\"display_id\"] ||\n    ev[\"problem.id\"] ||\n    ev[\"event.id\"] ||\n    ev.pid ||\n    \"unknown-problem\";\n  const problemUrl =\n    ev[\"problem.url\"] ||\n    ev[\"event.url\"] ||\n    ev.url ||\n    \"\";\n  const severity = String(\n    ev[\"problem.severity\"] ||\n      ev[\"event.severity\"] ||\n      ev.severity ||\n      \"ERROR\"\n  ).toUpperCase();\n\n  const tags = ev[\"entity_tags\"] || ev.tags || [];\n  const tagList = Array.isArray(tags) ? tags : [tags];\n\n  function tagValue(key) {\n    for (const t of tagList) {\n      const s = String(t);\n      if (s.startsWith(key + \":\")) return s.slice(key.length + 1);\n      if (typeof t === \"object\" && t && t.key === key) return t.value;\n    }\n    return null;\n  }\n\n  const app = tagValue(\"app\") || tagValue(\"AGO_GLOBAL_APP\") || \"unknown-app\";\n\n  // EDIT these maps for your org (names shown in tickets; use sys_ids in SNOW body)\n  const assignMap = {\n    EIP: {\n      groupName: \"EIP-Support\",\n      groupSysId: \"__SNOW_GROUP_SYS_ID_EIP__\",\n      bizName: \"EIP Checkout\",\n      bizSysId: \"__SNOW_BIZ_SYS_ID_EIP__\",\n      l1: \"EIP-L1\",\n      l2: \"EIP-L2\",\n      l3: \"EIP-L3\",\n      runbook: \"https://confluence.example/runbooks/eip\"\n    },\n    CCI: {\n      groupName: \"CCI-Support\",\n      groupSysId: \"__SNOW_GROUP_SYS_ID_CCI__\",\n      bizName: \"CCI FA Comm Calc\",\n      bizSysId: \"__SNOW_BIZ_SYS_ID_CCI__\",\n      l1: \"CCI-L1\",\n      l2: \"CCI-L2\",\n      l3: \"CCI-L3\",\n      runbook: \"https://confluence.example/runbooks/cci\"\n    },\n    default: {\n      groupName: \"Ops-Default\",\n      groupSysId: \"__SNOW_GROUP_SYS_ID_DEFAULT__\",\n      bizName: \"Unknown Business Service\",\n      bizSysId: \"__SNOW_BIZ_SYS_ID_DEFAULT__\",\n      l1: \"Ops-L1\",\n      l2: \"Ops-L2\",\n      l3: \"Ops-L3\",\n      runbook: \"https://confluence.example/runbooks/default\"\n    }\n  };\n  const meta = assignMap[app] || assignMap.default;\n\n  let impact = \"3\";\n  let urgency = \"3\";\n  let pLevel = \"P4\";\n  let pdSeverity = \"warning\";\n  if (severity.includes(\"AVAILABILITY\") || severity.includes(\"CRITICAL\")) {\n    impact = \"2\";\n    urgency = \"2\";\n    pLevel = \"P3\";\n    pdSeverity = \"critical\";\n  } else if (severity.includes(\"ERROR\")) {\n    impact = \"2\";\n    urgency = \"3\";\n    pLevel = \"P3\";\n    pdSeverity = \"error\";\n  }\n\n  const description = [\n    \"Caller: Dynatrace Workflow (auto)\",\n    \"Business service: \" + meta.bizName,\n    \"App: \" + app,\n    \"Priority intent: \" + pLevel + \" (impact=\" + impact + \", urgency=\" + urgency + \")\",\n    \"\",\n    \"Dynatrace Problem: \" + problemUrl,\n    \"Problem ID: \" + problemId,\n    \"\",\n    \"Who can help:\",\n    \"- L1: \" + meta.l1,\n    \"- L2: \" + meta.l2,\n    \"- L3: \" + meta.l3,\n    \"\",\n    \"Runbook / SOP: \" + meta.runbook\n  ].join(\"\\n\");\n\n  return {\n    caller: \"Dynatrace Workflow\",\n    callerSysId: \"__SNOW_CALLER_SYS_ID__\",\n    app,\n    businessServiceName: meta.bizName,\n    businessServiceSysId: meta.bizSysId,\n    assignmentGroupName: meta.groupName,\n    assignmentGroupSysId: meta.groupSysId,\n    impact,\n    urgency,\n    pLevel,\n    l1: meta.l1,\n    l2: meta.l2,\n    l3: meta.l3,\n    runbookUrl: meta.runbook,\n    problemId,\n    problemUrl,\n    problemTitle: title,\n    pdSeverity,\n    dedupKey: \"dt-problem-\" + problemId,\n    shortDescription: \"[Dynatrace] \" + title + \" — \" + app,\n    description,\n    category: \"Software\",\n    subcategory: \"Application\"\n  };\n}\n"
+      }
+    },
+    "create-servicenow-incident": {
+      "name": "create-servicenow-incident",
+      "description": "Create ServiceNow Incident via Table API (parallel with PagerDuty).",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": {
+        "x": 0,
+        "y": 1
+      },
+      "predecessors": [
+        "prepare-payload"
+      ],
+      "conditions": {
+        "states": {
+          "prepare-payload": "OK"
+        }
+      },
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const p = await ex.result(\"prepare-payload\");\n\n  // REPLACE placeholders or switch this task to ServiceNow Connector \"Create Incident\" in UI\n  const snowBase = \"__SNOW_INSTANCE_URL__\"; // e.g. https://example.service-now.com\n  const snowUser = \"__SNOW_USER__\";\n  const snowPass = \"__SNOW_PASSWORD__\";\n  const auth = btoa(snowUser + \":\" + snowPass);\n\n  const body = {\n    correlation_id: p.problemId,\n    caller_id: p.callerSysId,\n    category: p.category,\n    subcategory: p.subcategory,\n    impact: p.impact,\n    urgency: p.urgency,\n    assignment_group: p.assignmentGroupSysId,\n    business_service: p.businessServiceSysId,\n    short_description: p.shortDescription,\n    description: p.description\n  };\n\n  const res = await fetch(snowBase.replace(/\\/$/, \"\") + \"/api/now/v2/table/incident\", {\n    method: \"POST\",\n    headers: {\n      Authorization: \"Basic \" + auth,\n      \"Content-Type\": \"application/json\",\n      Accept: \"application/json\"\n    },\n    body: JSON.stringify(body)\n  });\n\n  const text = await res.text();\n  let json = {};\n  try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }\n  if (!res.ok) {\n    throw new Error(\"ServiceNow create failed HTTP \" + res.status + \": \" + text);\n  }\n\n  const result = json.result || json;\n  return {\n    sysId: result.sys_id,\n    number: result.number,\n    raw: result\n  };\n}\n"
+      }
+    },
+    "create-pagerduty-incident": {
+      "name": "create-pagerduty-incident",
+      "description": "Trigger PagerDuty Events API v2 (parallel with ServiceNow).",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": {
+        "x": 1,
+        "y": 1
+      },
+      "predecessors": [
+        "prepare-payload"
+      ],
+      "conditions": {
+        "states": {
+          "prepare-payload": "OK"
+        }
+      },
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const p = await ex.result(\"prepare-payload\");\n\n  const routingKey = \"__PD_ROUTING_KEY__\"; // 32-char Events API v2 integration key\n\n  const body = {\n    routing_key: routingKey,\n    event_action: \"trigger\",\n    dedup_key: p.dedupKey,\n    client: \"Dynatrace\",\n    client_url: p.problemUrl,\n    links: [\n      { href: p.problemUrl, text: \"Open Dynatrace Problem\" },\n      { href: p.runbookUrl, text: \"Runbook\" }\n    ],\n    payload: {\n      summary: p.shortDescription,\n      source: p.app,\n      severity: p.pdSeverity,\n      component: p.app,\n      group: p.assignmentGroupName,\n      class: \"dynatrace-problem\",\n      custom_details: {\n        problem_id: p.problemId,\n        problem_url: p.problemUrl,\n        business_service: p.businessServiceName,\n        assignment_group: p.assignmentGroupName,\n        priority_intent: p.pLevel,\n        l1: p.l1,\n        l2: p.l2,\n        l3: p.l3,\n        runbook: p.runbookUrl,\n        caller: p.caller\n      }\n    }\n  };\n\n  const res = await fetch(\"https://events.pagerduty.com/v2/enqueue\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify(body)\n  });\n  const text = await res.text();\n  let json = {};\n  try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }\n  if (!res.ok) {\n    throw new Error(\"PagerDuty trigger failed HTTP \" + res.status + \": \" + text);\n  }\n  return {\n    status: json.status,\n    dedupKey: json.dedup_key || p.dedupKey,\n    message: json.message,\n    raw: json\n  };\n}\n"
+      }
+    },
+    "cross-link-snow-pd": {
+      "name": "cross-link-snow-pd",
+      "description": "Comment on ServiceNow INC with PagerDuty dedup_key (sync link).",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": {
+        "x": 0,
+        "y": 2
+      },
+      "predecessors": [
+        "create-servicenow-incident",
+        "create-pagerduty-incident"
+      ],
+      "conditions": {
+        "states": {
+          "create-servicenow-incident": "OK",
+          "create-pagerduty-incident": "OK"
+        }
+      },
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const snow = await ex.result(\"create-servicenow-incident\");\n  const pd = await ex.result(\"create-pagerduty-incident\");\n  const p = await ex.result(\"prepare-payload\");\n\n  const snowBase = \"__SNOW_INSTANCE_URL__\";\n  const snowUser = \"__SNOW_USER__\";\n  const snowPass = \"__SNOW_PASSWORD__\";\n  const auth = btoa(snowUser + \":\" + snowPass);\n\n  const comment =\n    \"PagerDuty sync: dedup_key=\" + pd.dedupKey +\n    \" | Dynatrace Problem=\" + p.problemUrl +\n    \" | Runbook=\" + p.runbookUrl;\n\n  const res = await fetch(\n    snowBase.replace(/\\/$/, \"\") + \"/api/now/v2/table/incident/\" + snow.sysId,\n    {\n      method: \"PATCH\",\n      headers: {\n        Authorization: \"Basic \" + auth,\n        \"Content-Type\": \"application/json\",\n        Accept: \"application/json\"\n      },\n      body: JSON.stringify({ work_notes: comment })\n    }\n  );\n  const text = await res.text();\n  if (!res.ok) {\n    throw new Error(\"ServiceNow comment failed HTTP \" + res.status + \": \" + text);\n  }\n  return {\n    incidentNumber: snow.number,\n    incidentSysId: snow.sysId,\n    pagerDutyDedupKey: pd.dedupKey,\n    problemId: p.problemId\n  };\n}\n"
+      }
+    }
+  }
+}

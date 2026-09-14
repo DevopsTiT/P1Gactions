@@ -1,0 +1,86 @@
+Explain the four SNOW+PD workflow files (detailed)
+
+Verdict: 4 files = 2 workflows (open create + close resolve) × 2 formats (YAML template + JSON twin). Same logic. Upload one format per workflow. Do not merge open+close.
+
+Decision tree
+-------------
+What are these 4 files?
+  → OPEN: ago-problem-to-snow-pagerduty.workflow-template.yaml
+          problem-to-snow-pagerduty.workflow.json
+  → CLOSE: ago-problem-closed-resolve-snow-pd.workflow-template.yaml
+           problem-closed-resolve-snow-pd.workflow.json
+  → Pick YAML or JSON per import (not both unless you want duplicates)
+  → Keep open and close as separate workflows
+
+YAML vs JSON
+------------
+YAML: version + dependencies + workflow; scripts in multi-line blocks (easier to edit)
+JSON: flat workflow object; scripts as escaped strings; has isPrivate/triggerType
+Logic/tasks: same
+
+Shared settings
+---------------
+schemaVersion 4, type STANDARD, davis-problem trigger, run-javascript tasks
+Open: onProblemClose=false, 4 tasks
+Close: onProblemClose=true, 1 task
+
+OPEN task flow
+--------------
+prepare-payload
+  → create-servicenow-incident  ─┐
+  → create-pagerduty-incident   ─┴→ cross-link-snow-pd
+
+prepare-payload:
+  Reads title, problemId, URL, severity, tags
+  App from tag app: or AGO_GLOBAL_APP:
+  assignMap (EIP/CCI/default) → group, biz service, L1/L2/L3, runbook
+  Severity → impact/urgency + P3/P4 + PD severity
+  Builds dedupKey = dt-problem-<problemId>
+
+create-servicenow-incident:
+  POST /api/now/v2/table/incident
+  correlation_id = problemId (critical for close)
+  Returns sysId + number
+
+create-pagerduty-incident (parallel):
+  POST events.pagerduty.com/v2/enqueue
+  event_action=trigger, dedup_key=dedupKey
+  Links + custom_details (problem, L1-L3, runbook)
+
+cross-link-snow-pd:
+  PATCH INC work_notes with PD dedup_key + Problem URL + runbook
+  Runs only if both creates OK
+
+CLOSE task flow
+---------------
+resolve-snow-and-pd:
+  problemId from event
+  dedupKey = dt-problem- + problemId
+  GET INC where correlation_id=problemId
+  If found: PATCH state=6 Resolved + close notes
+  Always: PD event_action=resolve with same dedup_key
+  If no INC: snow.skipped=true, still resolve PD
+
+Placeholders to replace
+-----------------------
+__SNOW_INSTANCE_URL__
+__SNOW_USER__ / __SNOW_PASSWORD__
+__SNOW_CALLER_SYS_ID__
+__SNOW_GROUP_SYS_ID_*__ / __SNOW_BIZ_SYS_ID_*__
+__PD_ROUTING_KEY__
+Also edit assignMap apps + runbook URLs
+
+Correlation lock
+----------------
+OPEN: correlation_id=P-123, dedup_key=dt-problem-P-123
+CLOSE: find by correlation_id, resolve PD with same dedup_key
+
+Upload tip
+----------
+Prefer the two YAML templates to edit, then upload create + close once each.
+Prefer Connection in UI for SNOW instead of password in script long-term.
+
+Files
+-----
+Daily Files/2026-09-13/11-explain-four-workflow-files/
+Source: ../4-snow-pd-workflow-yaml-and-json/

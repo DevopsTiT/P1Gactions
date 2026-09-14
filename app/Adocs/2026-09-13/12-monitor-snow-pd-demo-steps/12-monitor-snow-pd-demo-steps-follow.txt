@@ -1,0 +1,55 @@
+How to monitor a SNOW+PD Dynatrace demo (step by step)
+
+Verdict: Open Dynatrace + ServiceNow + PagerDuty. Fire one test Problem. Watch create Executions (4 OK) and verify INC+PD+work notes. Close the Problem. Watch close Execution and verify both resolved. Use non-prod / demo PD service.
+
+Before demo
+-----------
+- Create + close workflows Active
+- Placeholders replaced (no __SNOW_*__ / __PD_ROUTING_KEY__ left)
+- External hosts allowed
+- Demo/low-noise PagerDuty service preferred
+- Test entity has app tag in assignMap (e.g. app:EIP)
+
+Windows
+-------
+A) Dynatrace Workflows → Executions (create + close)
+B) Dynatrace Problems
+C) ServiceNow Incident list
+D) PagerDuty demo service Incidents/Alerts
+
+Steps
+-----
+1) Note start time + expected app tag
+2) Trigger Problem open (non-prod alert / controlled Problem / manual run if available)
+3) Copy Problem ID + URL
+4) Create workflow Executions:
+   - prepare-payload OK (problemId, dedupKey)
+   - create-servicenow-incident OK (INC number)
+   - create-pagerduty-incident OK (same dedupKey)
+   - cross-link-snow-pd OK
+5) ServiceNow: find INC by correlation_id=ProblemID
+   - description has app, P3/P4, L1-L3, runbook, Problem URL
+   - work notes: PagerDuty sync dedup_key=dt-problem-...
+6) PagerDuty: alert open with same dedup_key and links
+7) Say create success aloud (Problem → INC → PD → cross-link)
+8) Close / resolve the same Dynatrace Problem
+9) Close workflow Execution: resolve-snow-and-pd OK
+10) ServiceNow INC Resolved (state 6); PagerDuty resolved
+
+Pass checklist
+--------------
+Create: Problem ID, 4/4 OK, INC#, dedup_key match, work notes
+Close: close run OK, INC Resolved, PD resolved
+
+If fail
+-------
+No execution → workflow not Active / trigger filter too strict
+SNOW 401/403 → auth or IP allow list
+SNOW bad sys_id → caller/group/biz placeholders
+PD fail → routing key / external host
+Close no-op → close WF inactive or correlation_id/dedup mismatch
+
+Files
+-----
+Daily Files/2026-09-13/12-monitor-snow-pd-demo-steps/
+Setup first: ../5-setup-snow-pd-workflow-steps-perms/
