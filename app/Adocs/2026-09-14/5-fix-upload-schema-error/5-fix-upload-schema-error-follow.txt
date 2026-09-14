@@ -1,0 +1,28 @@
+Fixed upload Error 400 for Connection workflows
+
+Cause:
+- position.y must be >= 1 (not 0)
+- categories/entityTags must be dictionaries (not [])
+- onProblemClose, entityTagsMatch, maintenanceWindowTriggerBehavior not allowed
+- use filterQuery for open vs close instead
+
+Fixed files:
+Daily Files/2026-09-14/3-snow-pd-workflow-with-connection/
+- ago-problem-to-snow-pagerduty-connection.workflow-template.yaml
+- ago-problem-closed-resolve-snow-pd-connection.workflow-template.yaml
+(+ JSON twins)
+
+Your Connection:
+- Name: ServiceNowTest
+- URL: https://silvastg.service-now.com
+- Type: OAuth Client Credentials
+(Silva = silvastg SNOW staging)
+
+Do now:
+1) Re-upload the two fixed YAML files
+2) Map Connection ServiceNowTest
+3) Manage External Requests → allow https://silvastg.service-now.com
+4) Also allow events.pagerduty.com for PD
+5) Activate and test
+
+Files: Daily Files/2026-09-14/5-fix-upload-schema-error/
