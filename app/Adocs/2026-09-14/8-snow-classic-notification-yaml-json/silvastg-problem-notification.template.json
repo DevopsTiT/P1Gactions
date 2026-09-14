@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "type": "SERVICE_NOW",
+  "displayName": "silvastg",
+  "alertingProfile": "{{ .alertingProfile }}",
+  "serviceNowNotification": {
+    "instanceName": "silvastg",
+    "username": "Tech_DynatraceINC_WS",
+    "password": "{{ .snowPassword }}",
+    "message": "{State} {ProblemImpact} Problem {ProblemID}: {ProblemTitle}",
+    "sendIncidents": false,
+    "sendEvents": true,
+    "formatProblemDetailsAsText": false
+  }
+}

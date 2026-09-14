@@ -1,0 +1,10 @@
+echo "Confirm username in UI matches Tech_DynatraceINC_WS"
+echo "Keep classic notification silvastg for ServiceNow ITOM"
+echo "Upload ago-problem-to-pagerduty-only.workflow-template.yaml"
+echo "Upload ago-problem-closed-resolve-pagerduty-only.workflow-template.yaml"
+echo "Replace __PD_ROUTING_KEY__ before activate"
+echo "Allowlist events.pagerduty.com and silvastg.service-now.com"
+echo "Do not set workflow connectionId to silvastg problem notification"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-14/8-snow-classic-notification-yaml-json"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" commit -m "docs: classic silvastg SNOW notification plus PD-only workflows"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" push

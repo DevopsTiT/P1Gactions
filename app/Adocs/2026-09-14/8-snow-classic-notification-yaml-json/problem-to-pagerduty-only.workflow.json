@@ -1,0 +1,55 @@
+{
+  "title": "AGO - Problem to PagerDuty (SNOW via classic notification)",
+  "description": "On Dynatrace Problem open, create PagerDuty only. ServiceNow ITOM events come from Settings → Problem notifications → silvastg (not this workflow).",
+  "schemaVersion": 3,
+  "trigger": {
+    "eventTrigger": {
+      "isActive": true,
+      "filterQuery": "event.kind == \"DAVIS_PROBLEM\" AND event.status == \"ACTIVE\" AND (event.status_transition == \"CREATED\" OR event.status_transition == \"UPDATED\" OR event.status_transition == \"REOPENED\")",
+      "triggerConfiguration": {
+        "type": "davis-problem",
+        "value": {
+          "categories": {
+            "error": true,
+            "resource": true,
+            "slowdown": true,
+            "availability": true
+          },
+          "entityTags": {}
+        }
+      }
+    }
+  },
+  "type": "STANDARD",
+  "input": {},
+  "hourlyExecutionLimit": 1000,
+  "tasks": {
+    "prepare-payload": {
+      "name": "prepare-payload",
+      "description": "Map Problem fields to PagerDuty payload (app, severity, runbook).",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": { "x": 0, "y": 1 },
+      "predecessors": [],
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const ev = ex.event() || {};\n\n  const title =\n    ev[\"event.name\"] ||\n    ev[\"problem.title\"] ||\n    ev.title ||\n    \"Dynatrace Problem\";\n  const problemId =\n    ev[\"display_id\"] ||\n    ev[\"problem.id\"] ||\n    ev[\"event.id\"] ||\n    ev.pid ||\n    \"unknown-problem\";\n  const problemUrl =\n    ev[\"problem.url\"] ||\n    ev[\"event.url\"] ||\n    ev.url ||\n    \"\";\n  const severity = String(\n    ev[\"problem.severity\"] ||\n      ev[\"event.severity\"] ||\n      ev.severity ||\n      \"ERROR\"\n  ).toUpperCase();\n\n  const tags = ev[\"entity_tags\"] || ev.tags || [];\n  const tagList = Array.isArray(tags) ? tags : [tags];\n\n  function tagValue(key) {\n    for (const t of tagList) {\n      const s = String(t);\n      if (s.startsWith(key + \":\")) return s.slice(key.length + 1);\n      if (typeof t === \"object\" && t && t.key === key) return t.value;\n    }\n    return null;\n  }\n\n  const app = tagValue(\"app\") || tagValue(\"AGO_GLOBAL_APP\") || \"unknown-app\";\n\n  const assignMap = {\n    EIP: {\n      groupName: \"EIP-Support\",\n      l1: \"EIP-L1\",\n      l2: \"EIP-L2\",\n      l3: \"EIP-L3\",\n      runbook: \"https://confluence.example/runbooks/eip\"\n    },\n    CCI: {\n      groupName: \"CCI-Support\",\n      l1: \"CCI-L1\",\n      l2: \"CCI-L2\",\n      l3: \"CCI-L3\",\n      runbook: \"https://confluence.example/runbooks/cci\"\n    },\n    default: {\n      groupName: \"Ops-Default\",\n      l1: \"Ops-L1\",\n      l2: \"Ops-L2\",\n      l3: \"Ops-L3\",\n      runbook: \"https://confluence.example/runbooks/default\"\n    }\n  };\n  const meta = assignMap[app] || assignMap.default;\n\n  let pLevel = \"P4\";\n  let pdSeverity = \"warning\";\n  if (severity.includes(\"AVAILABILITY\") || severity.includes(\"CRITICAL\")) {\n    pLevel = \"P3\";\n    pdSeverity = \"critical\";\n  } else if (severity.includes(\"ERROR\")) {\n    pLevel = \"P3\";\n    pdSeverity = \"error\";\n  }\n\n  return {\n    app,\n    assignmentGroupName: meta.groupName,\n    pLevel,\n    l1: meta.l1,\n    l2: meta.l2,\n    l3: meta.l3,\n    runbookUrl: meta.runbook,\n    problemId,\n    problemUrl,\n    problemTitle: title,\n    pdSeverity,\n    dedupKey: \"dt-problem-\" + problemId,\n    shortDescription: \"[Dynatrace] \" + title + \" — \" + app,\n    snowPath: \"classic-problem-notification-silvastg-ITOM-events\"\n  };\n}\n"
+      }
+    },
+    "create-pagerduty-incident": {
+      "name": "create-pagerduty-incident",
+      "description": "Trigger PagerDuty Events API v2. SNOW is classic notification silvastg.",
+      "action": "dynatrace.automations:run-javascript",
+      "active": true,
+      "position": { "x": 0, "y": 2 },
+      "predecessors": ["prepare-payload"],
+      "conditions": {
+        "states": {
+          "prepare-payload": "OK"
+        }
+      },
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ executionId }) {\n  const ex = await execution(executionId);\n  const p = await ex.result(\"prepare-payload\");\n\n  const routingKey = \"__PD_ROUTING_KEY__\";\n\n  const body = {\n    routing_key: routingKey,\n    event_action: \"trigger\",\n    dedup_key: p.dedupKey,\n    client: \"Dynatrace\",\n    client_url: p.problemUrl,\n    links: [\n      { href: p.problemUrl, text: \"Open Dynatrace Problem\" },\n      { href: p.runbookUrl, text: \"Runbook\" }\n    ],\n    payload: {\n      summary: p.shortDescription,\n      source: p.app,\n      severity: p.pdSeverity,\n      component: p.app,\n      group: p.assignmentGroupName,\n      class: \"dynatrace-problem\",\n      custom_details: {\n        problem_id: p.problemId,\n        problem_url: p.problemUrl,\n        assignment_group: p.assignmentGroupName,\n        priority_intent: p.pLevel,\n        l1: p.l1,\n        l2: p.l2,\n        l3: p.l3,\n        runbook: p.runbookUrl,\n        snow_path: p.snowPath\n      }\n    }\n  };\n\n  const res = await fetch(\"https://events.pagerduty.com/v2/enqueue\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify(body)\n  });\n  const text = await res.text();\n  let json = {};\n  try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }\n  if (!res.ok) {\n    throw new Error(\"PagerDuty trigger failed HTTP \" + res.status + \": \" + text);\n  }\n  return {\n    status: json.status,\n    dedupKey: json.dedup_key || p.dedupKey,\n    message: json.message,\n    raw: json\n  };\n}\n"
+      }
+    }
+  }
+}

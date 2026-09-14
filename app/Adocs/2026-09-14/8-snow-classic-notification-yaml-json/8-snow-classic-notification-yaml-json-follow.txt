@@ -1,0 +1,36 @@
+Use classic Problem notification silvastg instead of Workflow Connection
+
+Important:
+- silvastg Problem notification ≠ Workflow Connection
+- Your toggles: ITSM OFF, ITOM ON → ServiceNow events, not INC tickets
+- Workflow should be PagerDuty only
+
+1) Connector JSON (Settings API) — already in UI; optional export:
+
+{
+  "enabled": true,
+  "type": "SERVICE_NOW",
+  "displayName": "silvastg",
+  "alertingProfile": "__ALERTING_PROFILE_ID__",
+  "serviceNowNotification": {
+    "instanceName": "silvastg",
+    "username": "Tech_DynatraceINC_WS",
+    "password": "__SNOW_PASSWORD__",
+    "message": "{State} {ProblemImpact} Problem {ProblemID}: {ProblemTitle}",
+    "sendIncidents": false,
+    "sendEvents": true,
+    "formatProblemDetailsAsText": false
+  }
+}
+
+2) Upload these workflows (YAML preferred):
+- ago-problem-to-pagerduty-only.workflow-template.yaml
+- ago-problem-closed-resolve-pagerduty-only.workflow-template.yaml
+Replace __PD_ROUTING_KEY__
+
+3) If you need ITSM INC from classic notification:
+Turn ON "Send incidents into ServiceNow ITSM" on silvastg
+Do not also run Connection Create Incident (duplicates)
+
+Folder:
+Daily Files/2026-09-14/8-snow-classic-notification-yaml-json/

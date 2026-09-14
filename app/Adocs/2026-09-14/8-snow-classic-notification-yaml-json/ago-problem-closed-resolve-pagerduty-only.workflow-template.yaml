@@ -1,0 +1,112 @@
+# Dynatrace Automation — Problem CLOSED → resolve PagerDuty only
+# ServiceNow close/resolve for classic ITOM events is handled by the silvastg
+# Problem notification (Dynatrace sends RESOLVED state). No snow-* Connection tasks.
+# BEFORE IMPORT: replace __PD_ROUTING_KEY__
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Problem closed resolve PagerDuty (SNOW via classic notification)
+  description: >-
+    When Dynatrace Problem closes, resolve PagerDuty with dedup_key.
+    ServiceNow ITOM update comes from classic Problem notification silvastg.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND
+        (event.status == "CLOSED" OR event.status_transition == "RESOLVED" OR
+        event.status_transition == "CLOSED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-close-ids:
+      name: prepare-close-ids
+      description: Build problemId and dedupKey from closed Problem event.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const problemId =
+              ev["display_id"] ||
+              ev["problem.id"] ||
+              ev["event.id"] ||
+              ev.pid ||
+              "unknown-problem";
+            return {
+              problemId,
+              dedupKey: "dt-problem-" + problemId
+            };
+          }
+
+    resolve-pagerduty-incident:
+      name: resolve-pagerduty-incident
+      description: Resolve PagerDuty with same dedup_key as open workflow.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-close-ids
+      conditions:
+        states:
+          prepare-close-ids: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-close-ids");
+
+            const routingKey = "__PD_ROUTING_KEY__";
+
+            const body = {
+              routing_key: routingKey,
+              event_action: "resolve",
+              dedup_key: p.dedupKey
+            };
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }
+            if (!res.ok) {
+              throw new Error("PagerDuty resolve failed HTTP " + res.status + ": " + text);
+            }
+            return {
+              status: json.status,
+              dedupKey: json.dedup_key || p.dedupKey,
+              message: json.message,
+              raw: json
+            };
+          }
