@@ -1,5 +1,0 @@
-# Example only — do not commit real keys
-pagerduty_integration_key_cci_batch = "REPLACE_WITH_PAGERDUTY_INTEGRATION_KEY"
-splunk_alert_owner                  = "admin"
-splunk_alert_sharing                = "app"
-splunk_alert_app                    = "search"
