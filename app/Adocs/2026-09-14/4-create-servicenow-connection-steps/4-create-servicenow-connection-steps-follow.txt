@@ -1,0 +1,36 @@
+Step-by-step: create Dynatrace ServiceNow Connection
+
+Before:
+- SNOW URL (https://xxx.service-now.com)
+- Integration user/password OR OAuth client id/secret
+- User can create/update/search incidents + read groups/choices
+
+Steps:
+1) Hub → install ServiceNow for Workflows if missing
+2) Workflows → Settings → Authorization settings
+   → enable app-settings:objects:read → save
+3) Dynatrace Settings → Connections → Connectors → ServiceNow
+4) Create Connection:
+   - Name: e.g. AGO-ServiceNow
+   - Instance URL: https://xxx.service-now.com
+   - Type: Basic (user + password) OR OAuth (client id + secret)
+   - Create/Save
+5) Share Connection so workflow runners can use it (Can view)
+6) In workflow SNOW tasks (Create Incident / Comment / Search / Resolve)
+   → select that Connection
+7) For Connection YAML pack: upload create+close templates and map Connection
+
+Success:
+- Connection appears under ServiceNow
+- Task Connection dropdown not empty
+- Test create INC works
+- No password in YAML
+
+Common fails:
+- Empty dropdown → Step 2 or Step 5
+- 401 → bad creds
+- 403 → SNOW rights or IP allow list
+
+Docs: https://docs.dynatrace.com/docs/analyze-explore-automate/workflows/default-workflow-actions/actions/service-now
+Pack: ../3-snow-pd-workflow-with-connection/
+Files: Daily Files/2026-09-14/4-create-servicenow-connection-steps/
