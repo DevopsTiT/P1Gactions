@@ -1,0 +1,25 @@
+OK to use classic Dynatrace notification (pic) instead of ServiceNow Connection?
+
+YES — for ServiceNow via Problem notifications (your pic).
+Your toggles: ITSM OFF, ITOM ON → SNOW events, not rich Workflow INC.
+
+Architecture:
+- Keep servicenowstg notification for SNOW
+- Workflow = PagerDuty only (open + close YAML)
+
+Notification YAML (Settings API) — matches pic:
+displayName: servicenowstg
+url: https://silvastg.service-now.com
+username: Tech_DynatraceJP_WS
+sendIncidents: false
+sendEvents: true
+message: {State} {ProblemID}: Problem {ProblemID}: {ProblemTitle}
+
+Files:
+Daily Files/2026-09-17/10-classic-snow-notification-pd-workflow/
+- servicenowstg-problem-notification.settings.json
+- servicenowstg-problem-notification.monaco.yaml
+- ago-problem-to-pagerduty-only.workflow-template.yaml
+- ago-problem-closed-resolve-pagerduty-only.workflow-template.yaml
+
+If you still need caller/assignment/P3-P4/L1-L3/runbook on INC → use seq 9 Connection workflow instead.
