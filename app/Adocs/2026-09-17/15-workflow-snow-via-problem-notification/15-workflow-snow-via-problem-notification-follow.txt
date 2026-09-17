@@ -1,0 +1,18 @@
+New YAML: SNOW via Problem notification (not Connection create-servicenow-incident)
+
+You CANNOT point snow-create-incident at servicenowstg.
+Instead: keep notification ITSM ON; workflow has no SNOW create task.
+
+Files:
+1-open-pd-snow-via-notification.workflow.yaml
+2-close-pd-snow-via-notification.workflow.yaml
+servicenowstg-problem-notification.settings.json
+
+Path:
+Daily Files/2026-09-17/15-workflow-snow-via-problem-notification/
+
+UI: servicenowstg — ITSM ON, ITOM ON, URL silvastg
+Workflow: replace __PD_ROUTING_KEY__, Activate both
+Do NOT also use Connection Create INC (duplicate)
+
+Trade-off: lose assignMap/caller/group/cross-link control from Connection create.

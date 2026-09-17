@@ -1,0 +1,25 @@
+How to keep notification to ServiceNow
+
+1) Settings → Integration → Problem notifications
+2) Keep servicenowstg toggle ON
+3) Confirm:
+   URL https://silvastg.service-now.com
+   User Tech_DynatraceJP_WS
+   Password valid
+   ITOM ON (events)
+   ITSM OFF (your current choice)
+   Alerting profile = Default (or yours)
+4) Settings → External requests → silvastg.service-now.com allowlisted
+5) Do NOT delete this when you add PagerDuty workflows
+6) Workflow = PD only; classic notification = SNOW
+7) Test: open Problem → see ITOM event on silvastg
+
+If SNOW stops:
+- Notification OFF?
+- Password/roles?
+- Allowlist?
+- Alerting profile mismatch?
+- silvastg down?
+
+Backup YAML: Daily Files/2026-09-17/10-classic-snow-notification-pd-workflow/
+Guide: Daily Files/2026-09-17/11-keep-snow-notification-working/

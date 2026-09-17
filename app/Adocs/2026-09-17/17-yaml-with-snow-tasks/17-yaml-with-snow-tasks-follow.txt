@@ -1,0 +1,26 @@
+YAML WITH SNOW TASKS
+
+Important: Problem notification is NOT a workflow task.
+These files use real Connection snow-* tasks.
+
+1-open-with-snow-tasks.workflow.yaml
+  - create-servicenow-incident
+  - create-pagerduty-incident
+  - cross-link-snow-pd
+
+2-close-with-snow-tasks.workflow.yaml
+  - search-snow-incident
+  - resolve-snow-incident
+  - resolve-pagerduty
+
+Path:
+Daily Files/2026-09-17/17-yaml-with-snow-tasks/
+
+Also: servicenowstg-problem-notification.settings.json (Settings only)
+
+Setup:
+- Connection to https://silvastg.service-now.com
+- Classic servicenowstg ITSM OFF (avoid duplicate INC)
+- Allowlist hosts
+- Replace __PD_ROUTING_KEY__ + assignMap sys_ids
+- Upload → map Connection → Activate

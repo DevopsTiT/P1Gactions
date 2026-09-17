@@ -1,0 +1,118 @@
+# WORKING YAML — CLOSE
+# PagerDuty resolve only.
+# ServiceNow INC/event close/update is handled by classic Problem notification
+# servicenowstg when the Dynatrace Problem resolves (ITSM/ITOM ON).
+# No snow-search / snow-resolve Connection tasks.
+#
+# BEFORE ACTIVATE: same __PD_ROUTING_KEY__ as OPEN workflow
+#
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Problem closed resolve PagerDuty (SNOW via Problem notification)
+  description: >-
+    On Problem close, resolve PagerDuty. ServiceNow updates come from classic
+    Problem notification servicenowstg (ITSM+ITOM), not Workflow Connection.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND
+        (event.status == "CLOSED" OR event.status_transition == "RESOLVED" OR
+        event.status_transition == "CLOSED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-close-ids:
+      name: prepare-close-ids
+      description: Build problemId and dedupKey for PagerDuty resolve.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const problemId =
+              ev["display_id"] ||
+              ev["problem.id"] ||
+              ev["event.id"] ||
+              ev.pid ||
+              "unknown-problem";
+            return {
+              problemId,
+              dedupKey: "dt-problem-" + problemId,
+              snowPath: "classic-problem-notification-servicenowstg"
+            };
+          }
+
+    resolve-pagerduty-incident:
+      name: resolve-pagerduty-incident
+      description: Resolve PagerDuty. SNOW close/update via servicenowstg notification.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-close-ids
+      conditions:
+        states:
+          prepare-close-ids: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-close-ids");
+
+            const routingKey = "__PD_ROUTING_KEY__";
+
+            const body = {
+              routing_key: routingKey,
+              event_action: "resolve",
+              dedup_key: p.dedupKey
+            };
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }
+            if (!res.ok) {
+              throw new Error("PagerDuty resolve failed HTTP " + res.status + ": " + text);
+            }
+            return {
+              status: json.status,
+              dedupKey: json.dedup_key || p.dedupKey,
+              message: json.message,
+              raw: json,
+              note: "ServiceNow handled by Problem notification servicenowstg"
+            };
+          }

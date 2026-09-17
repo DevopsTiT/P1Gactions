@@ -1,0 +1,25 @@
+Use pic ServiceNow integration INSIDE workflow via run-javascript
+
+Cannot call Problem notification object by name.
+Instead: JS REST to same silvastg + Tech_DynatraceJP_WS.
+
+Files:
+1-open-snow-js-rest-and-pd.workflow.yaml
+  - prepare-payload (message like [{State}] {ProblemID}: Problem {Title} {URL})
+  - create-snow-itsm-and-itom-js (POST incident + em_event)
+  - create-pagerduty-incident
+
+2-close-snow-js-rest-and-pd.workflow.yaml
+  - resolve-snow-incident-js (search correlation_id + PATCH resolved)
+  - resolve-pagerduty
+
+Path:
+Daily Files/2026-09-17/18-snow-notification-via-javascript-rest/
+
+Setup:
+1) Disable classic servicenowstg ITSM+ITOM (or turn notification OFF) — no duplicates
+2) Allowlist silvastg.service-now.com + events.pagerduty.com
+3) Replace __SNOW_PASSWORD__ and __PD_ROUTING_KEY__
+4) Upload → Activate → test
+
+Alternative with official actions: seq 17 Connection snow-* tasks.
