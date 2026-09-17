@@ -1,0 +1,25 @@
+Latest workflow YAML explained (seq 22 example-filled)
+
+OPEN: 1-open-with-example-data.workflow.yaml
+  Trigger: ACTIVE Problem CREATED/UPDATED/REOPENED
+  Tasks:
+    prepare-payload (JS) — tags, severity, assignMap, dedupKey
+    create-servicenow-incident (snow-create) — parallel
+    create-pagerduty-incident (JS fetch trigger) — parallel
+    cross-link-snow-pd (snow-comment) — after both OK
+
+CLOSE: 2-close-with-example-data.workflow.yaml
+  Trigger: CLOSED / RESOLVED
+  Tasks:
+    prepare-close-ids (JS)
+    search-snow-incident (correlation_id=problemId)
+    resolve-snow-incident (SKIP if empty)
+    resolve-pagerduty (JS fetch resolve, same key)
+
+Fake in file: PD R03AMPLE... , sys_ids 1111/2222/...
+UI: map Connection; allowlist; ITSM OFF; replace fakes
+
+Folder:
+  Daily Files/2026-09-17/22-yaml-with-all-example-data/
+Explain pack:
+  Daily Files/2026-09-17/34-latest-workflow-yaml-explained/

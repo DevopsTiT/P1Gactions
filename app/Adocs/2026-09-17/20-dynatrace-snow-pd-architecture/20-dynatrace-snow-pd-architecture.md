@@ -287,6 +287,81 @@ Replace placeholder sys_ids with real ServiceNow values before production.
 
 ---
 
+## 13) All APIs involved
+
+### A) Used by this Connector + PD architecture (required)
+
+| Step | Dynatrace action | External API (what actually runs) | Method + path | Host example |
+| --- | --- | --- | --- | --- |
+| OPEN / CLOSE start | Davis Problem event → Workflow trigger | Internal Dynatrace event bus (not a REST call you write) | n/a | Dynatrace environment |
+| prepare-payload / prepare-close-ids | `dynatrace.automations:run-javascript` | Internal Workflow JS runtime | n/a | Dynatrace |
+| create-servicenow-incident | `dynatrace.servicenow:snow-create-incident` | ServiceNow Table API — create INC | `POST /api/now/v2/table/incident` | `https://silvastg.service-now.com` |
+| cross-link-snow-pd | `dynatrace.servicenow:snow-comment-on-incident` | ServiceNow Table API — update INC (comment) | `PUT /api/now/v2/table/incident/{sys_id}` | same |
+| search-snow-incident | `dynatrace.servicenow:snow-search-incidents` | ServiceNow Table API — query INC | `GET /api/now/v2/table/incident` | same |
+| resolve-snow-incident | `dynatrace.servicenow:snow-resolve-incident` | ServiceNow Table API — update INC resolved | `PUT /api/now/v2/table/incident/{sys_id}` | same |
+| create-pagerduty-incident | JS `fetch` | PagerDuty Events API v2 — trigger | `POST /v2/enqueue` | `https://events.pagerduty.com` |
+| resolve-pagerduty | JS `fetch` | PagerDuty Events API v2 — resolve | `POST /v2/enqueue` | same |
+
+Fake full URLs (same shape as production):
+
+| Call | Fake example URL |
+| --- | --- |
+| Create INC | `POST https://silvastg.service-now.com/api/now/v2/table/incident` |
+| Search INC | `GET https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=correlation_id=P-240917001&sysparm_limit=1&sysparm_fields=number,sys_id,correlation_id,state` |
+| Comment / resolve INC | `PUT https://silvastg.service-now.com/api/now/v2/table/incident/abcdef0123456789abcdef0123456789` |
+| PD trigger / resolve | `POST https://events.pagerduty.com/v2/enqueue` |
+
+Auth:
+
+| API | Auth used here |
+| --- | --- |
+| ServiceNow Table API | Connection basic auth or OAuth (stored in Dynatrace Connection) |
+| PagerDuty Events API | `routing_key` in JSON body (not Bearer token) |
+
+### B) Optional classic Problem notification path (if ITOM kept ON)
+
+| Path | What Dynatrace calls (conceptually) | Typical SNOW landing |
+| --- | --- | --- |
+| Classic notification ITOM | Dynatrace Problem notification push to SNOW instance | ITOM event table `em_event` (and related) |
+| Classic ITSM (keep OFF here) | Same notification family | Import set / transform → `incident` (would duplicate Connector INC) |
+
+Exact Scripted REST path depends on the SNOW Dynatrace app version on the instance. Treat it as a **separate** integration from the Connector Table API above.
+
+### C) Connector actions available but NOT used in this pack
+
+| Dynatrace action | ServiceNow API endpoint |
+| --- | --- |
+| Create vulnerability item | `POST /api/now/v2/table/sn_vul_vulnerable_item` |
+| Get Groups | `GET /api/now/v2/table/sys_user_group` |
+| Generic Search | `GET /api/now/v2/table/{tableName}` |
+| Generic Comment | `PUT /api/now/v2/table/{tableName}/{sysId}` |
+| Create record | `POST /api/now/v2/table/{tableName}` |
+| Update record | `PUT /api/now/v2/table/{tableName}/{sys_id}` |
+
+UI dropdown helpers may also read `sys_choice` / `sys_user_group` when you configure Category, Subcategory, groups in the Workflow editor (not every workflow run).
+
+### D) API sequence (OPEN then CLOSE)
+
+```
+OPEN
+  Davis Problem event (internal)
+  → run-javascript prepare (internal)
+  → POST /api/now/v2/table/incident          (SNOW create)
+  → POST /v2/enqueue  event_action=trigger   (PagerDuty)
+  → PUT  /api/now/v2/table/incident/{sys_id} (SNOW comment)
+
+CLOSE
+  Davis Problem close event (internal)
+  → run-javascript prepare-close (internal)
+  → GET  /api/now/v2/table/incident?...      (SNOW search)
+  → PUT  /api/now/v2/table/incident/{sys_id} (SNOW resolve)
+  → POST /v2/enqueue  event_action=resolve   (PagerDuty)
+```
+
+Docs: Dynatrace ServiceNow Connector actions map 1:1 to those Table API paths.
+
+---
+
 ## Data flow map
 
 ```
@@ -303,11 +378,14 @@ Replace placeholder sys_ids with real ServiceNow values before production.
        ▼               ▼       │       ▼                ▼
  snow-create      PD trigger   │  snow-search      PD resolve
   incident                     │   incidents
+  POST /api/now/  POST /v2/    │  GET /api/now/   POST /v2/
+  v2/table/       enqueue      │  v2/table/       enqueue
+  incident                     │  incident
        │               │       │       │
        └───────┬───────┘       │       ▼
                ▼               │  snow-resolve
-     snow-comment              │   incident
-     (cross-link)              │
+     snow-comment              │   PUT /api/now/v2/
+     PUT .../incident/{id}     │   table/incident/{id}
                                │
         Optional classic notification (ITOM event only)
                                │
@@ -329,6 +407,7 @@ Sync string: `dt-problem-<problemId>`
 | `../14-snow-connector-vs-problem-notification/` | Connector vs classic notification diff |
 | `../15-workflow-snow-via-problem-notification/` | Alternate: notification owns INC |
 | `../18-snow-notification-via-javascript-rest/` | Alternate: JS REST mimic |
+| `../23-architecture-all-apis-involved/` | Standalone API catalog (same §13 content) |
 | `20.sh` | Paths only |
 
 ## Commands

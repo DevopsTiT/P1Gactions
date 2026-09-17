@@ -1,0 +1,6 @@
+echo "Worked example: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/33-dynatrace-sre-jobs-worked-example/33-dynatrace-sre-jobs-worked-example.md"
+echo "Jobs guide: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/32-dynatrace-sre-jobs-day-to-day/"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/33-dynatrace-sre-jobs-worked-example"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/33-dynatrace-sre-jobs-worked-example"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/33-dynatrace-sre-jobs-worked-example"
+echo "Do not commit/push unless user asks"

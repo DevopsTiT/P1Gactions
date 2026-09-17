@@ -1,0 +1,7 @@
+echo "PagerDuty guide: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/29-pagerduty-explained-common-functions/29-pagerduty-explained-common-functions.md"
+echo "Events API: POST https://events.pagerduty.com/v2/enqueue"
+echo "Allowlist: events.pagerduty.com"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/29-pagerduty-explained-common-functions"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/29-pagerduty-explained-common-functions"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/29-pagerduty-explained-common-functions"
+echo "Do not commit/push unless user asks"

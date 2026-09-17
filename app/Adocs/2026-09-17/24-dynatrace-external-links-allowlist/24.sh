@@ -1,0 +1,8 @@
+echo "Allowlist guide: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/24-dynatrace-external-links-allowlist/24-dynatrace-external-links-allowlist.md"
+echo "Grant host: silvastg.service-now.com"
+echo "Grant host: events.pagerduty.com"
+echo "UI: Settings → External requests (add hostname only, no https://)"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/24-dynatrace-external-links-allowlist"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/24-dynatrace-external-links-allowlist"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/24-dynatrace-external-links-allowlist"
+echo "Do not commit/push unless user asks"

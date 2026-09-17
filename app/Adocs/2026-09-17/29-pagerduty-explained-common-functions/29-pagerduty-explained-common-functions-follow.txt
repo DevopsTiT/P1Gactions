@@ -1,0 +1,28 @@
+PagerDuty explained + common functions
+
+What it is:
+  On-call paging — wakes the right person.
+  Dynatrace=detect, PD=page, SNOW=ticket, Splunk=logs
+
+Core functions:
+  Trigger  = start/update page
+  Ack      = I own it (stops escalation)
+  Resolve  = clear page
+  Also: reassign, escalate, snooze, notes, maintenance
+
+Your Dynatrace pack:
+  OPEN:  POST https://events.pagerduty.com/v2/enqueue
+         event_action=trigger + routing_key + dedup_key
+  CLOSE: same URL, event_action=resolve, SAME keys
+  Ack:   human in PD app (not automated)
+
+Setup:
+  PD Service + Events API integration key (= routing_key)
+  Allowlist events.pagerduty.com
+  dedup_key = dt-problem-<problemId>
+
+Do not confuse:
+  Events API (enqueue) vs REST API (api.pagerduty.com admin)
+
+Full write-up:
+  Daily Files/2026-09-17/29-pagerduty-explained-common-functions/

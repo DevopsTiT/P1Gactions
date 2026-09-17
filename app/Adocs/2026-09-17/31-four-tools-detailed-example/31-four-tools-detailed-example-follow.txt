@@ -1,0 +1,27 @@
+Four tools DETAILED example (expansion of seq 26)
+
+Story: EIP checkout fails 02:14 JST
+
+02:15 Dynatrace Problem P-240917001
+     → SNOW INC0017788 (EIP-Support)
+     → PD trigger dedup dt-problem-P-240917001
+     → SNOW comment with PD key
+
+02:16 Ack PD
+02:18 Open DT Problem (scope/traces)
+02:20 Splunk:
+  index=app_eip sourcetype=checkout_api status>=500
+  find: build 1.8.4 DB connection timeout
+
+02:28 Rollback to 1.8.3
+02:40 Problem CLOSED
+     → SNOW resolve + PD resolve
+
+Fake keys:
+  PD routing_key R03AMPLEFAKEROUTINGKEY00000000000
+  SNOW URL https://silvastg.service-now.com
+
+Full minute-by-minute + payloads:
+  Daily Files/2026-09-17/31-four-tools-detailed-example/
+Short parent:
+  Daily Files/2026-09-17/26-four-tools-common-example/

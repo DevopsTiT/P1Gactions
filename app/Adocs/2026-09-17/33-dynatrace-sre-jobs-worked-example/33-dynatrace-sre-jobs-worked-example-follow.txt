@@ -1,0 +1,18 @@
+Detailed example — how to use Dynatrace SRE jobs
+
+ACT A Deploy
+  Install OneAgent/Operator → verify UI → tag app:EIP env:stg
+
+ACT B Triage
+  Problems → P-240917001 → entities/metrics/traces → note 02:14 + URL
+
+ACT C Automate
+  Setup once: Connection, allowlist, ITSM OFF, OPEN/CLOSE YAML, PD key
+  During incident: Executions OK → INC0017788 + PD dedup dt-problem-P-240917001
+
+ACT D Investigate
+  Ack PD → open INC → DT Problem → Splunk 5xx → work note
+  Rollback 1.8.4→1.8.3 → Problem CLOSED → INC+PD resolved
+
+Copy script + full steps:
+  Daily Files/2026-09-17/33-dynatrace-sre-jobs-worked-example/

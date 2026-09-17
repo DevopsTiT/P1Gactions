@@ -1,0 +1,6 @@
+echo "Dynatrace guide: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/30-dynatrace-components-how-to-use/30-dynatrace-components-how-to-use.md"
+echo "Loop: OneAgent → Davis Problem → Workflows → SNOW/PD"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/30-dynatrace-components-how-to-use"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/30-dynatrace-components-how-to-use"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/30-dynatrace-components-how-to-use"
+echo "Do not commit/push unless user asks"

@@ -1,0 +1,39 @@
+Workflow YAML syntax explained
+
+PLAIN YAML
+  Indent with spaces (2), not tabs
+  key: value
+  lists: - item
+  comments: # text
+  multi-line JS: script: |
+  long text: description: >-
+
+DOCUMENT SHAPE
+  metadata:
+    dependencies.apps
+    inputs (connection targets)
+  workflow:
+    title, schemaVersion: 3, type: STANDARD
+    trigger.eventTrigger (filterQuery + davis-problem)
+    tasks:
+      task-key:
+        name, action, active
+        position: {x,y}
+        predecessors: []
+        conditions: states / custom / else
+        input: ...
+
+ACTIONS
+  dynatrace.automations:run-javascript
+  dynatrace.servicenow:snow-create-incident
+  snow-comment-on-incident / snow-search-incidents / snow-resolve-incident
+
+TEMPLATES
+  '{{ result("prepare-payload").problemId }}'
+  '{{ result("search-snow-incident")[0].number }}'
+  else: SKIP when search empty
+
+Reference YAML:
+  Daily Files/2026-09-17/22-yaml-with-all-example-data/
+This guide:
+  Daily Files/2026-09-18/1-workflow-yaml-syntax-explained/

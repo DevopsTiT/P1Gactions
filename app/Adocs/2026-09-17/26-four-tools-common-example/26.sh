@@ -1,0 +1,6 @@
+echo "Example: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/26-four-tools-common-example/26-four-tools-common-example.md"
+echo "Dynatrace=detect ServiceNow=ticket PagerDuty=page Splunk=logs"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/26-four-tools-common-example"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/26-four-tools-common-example"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/26-four-tools-common-example"
+echo "Do not commit/push unless user asks"

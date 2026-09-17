@@ -1,0 +1,29 @@
+ServiceNow common functions and how to use
+
+Core SRE functions:
+  Create INC → Assign → Comment → Search → Resolve
+
+HUMAN (UI):
+  Incident → Create New → fill fields → Submit
+  Open INC → set Assignment group → Save
+  Work notes → Save
+  Filter/search by number or correlation_id
+  Resolve → resolution code + notes → Save
+
+DYNATRACE (your pack):
+  snow-create-incident   = Create
+  snow-comment-on-incident = Comment
+  snow-search-incidents  = Search (correlation_id)
+  snow-resolve-incident  = Resolve
+
+Setup:
+  Connection to https://silvastg.service-now.com
+  Allowlist silvastg.service-now.com
+  Classic ITSM OFF
+  Real group sys_ids in assignMap
+
+API under the hood:
+  POST/GET/PUT /api/now/v2/table/incident
+
+Full write-up:
+  Daily Files/2026-09-17/28-snow-common-functions-how-to/
