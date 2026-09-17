@@ -1,6 +1,0 @@
-echo "ServiceNow explained: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/27-servicenow-explained/27-servicenow-explained.md"
-echo "Focus: Incident INC + Connector Table API; classic ITSM OFF"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/27-servicenow-explained"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/27-servicenow-explained"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/27-servicenow-explained"
-echo "Do not commit/push unless user asks"

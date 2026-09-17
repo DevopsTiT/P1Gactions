@@ -1,7 +1,0 @@
-echo "Explain: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/34-latest-workflow-yaml-explained/34-latest-workflow-yaml-explained.md"
-echo "OPEN YAML: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/22-yaml-with-all-example-data/1-open-with-example-data.workflow.yaml"
-echo "CLOSE YAML: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/22-yaml-with-all-example-data/2-close-with-example-data.workflow.yaml"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/34-latest-workflow-yaml-explained"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/34-latest-workflow-yaml-explained"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/34-latest-workflow-yaml-explained"
-echo "Do not commit/push unless user asks"

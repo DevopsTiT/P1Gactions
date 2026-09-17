@@ -1,6 +1,0 @@
-echo "Guide: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-18/2-dynatrace-log-query-how-to-top10/2-dynatrace-log-query-how-to-top10.md"
-echo "DQL file: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-18/2-dynatrace-log-query-how-to-top10/2-ten-common-log-queries.dql"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-18/2-dynatrace-log-query-how-to-top10"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-18/2-dynatrace-log-query-how-to-top10"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-18/2-dynatrace-log-query-how-to-top10"
-echo "Do not commit/push unless user asks"

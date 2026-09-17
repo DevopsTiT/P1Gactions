@@ -1,8 +1,0 @@
-echo "Architecture+APIs: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/20-dynatrace-snow-pd-architecture/20-dynatrace-snow-pd-architecture.md"
-echo "API catalog: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/23-architecture-all-apis-involved/23-architecture-all-apis-involved.md"
-echo "SNOW: POST/GET/PUT /api/now/v2/table/incident"
-echo "PD: POST https://events.pagerduty.com/v2/enqueue"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/23-architecture-all-apis-involved"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/23-architecture-all-apis-involved" "app/Adocs/2026-09-17/20-dynatrace-snow-pd-architecture"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/23-architecture-all-apis-involved" "app/Adocs/2026-09-17/20-dynatrace-snow-pd-architecture"
-echo "Do not commit/push unless user asks"

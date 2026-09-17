@@ -1,6 +1,0 @@
-echo "Detailed SRE jobs: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/32-dynatrace-sre-jobs-day-to-day/32-dynatrace-sre-jobs-day-to-day.md"
-echo "Parent §5: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/30-dynatrace-components-how-to-use/30-dynatrace-components-how-to-use.md"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/32-dynatrace-sre-jobs-day-to-day"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/32-dynatrace-sre-jobs-day-to-day" "app/Adocs/2026-09-17/30-dynatrace-components-how-to-use"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/32-dynatrace-sre-jobs-day-to-day"
-echo "Do not commit/push unless user asks"

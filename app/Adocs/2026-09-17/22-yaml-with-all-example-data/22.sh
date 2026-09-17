@@ -1,8 +1,0 @@
-echo "OPEN: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/22-yaml-with-all-example-data/1-open-with-example-data.workflow.yaml"
-echo "CLOSE: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/22-yaml-with-all-example-data/2-close-with-example-data.workflow.yaml"
-echo "Fake PD key and SNOW sys_ids are embedded — replace before production"
-echo "Map Connection SNOW-Silva-STG-Connector in UI; password not in YAML"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/22-yaml-with-all-example-data"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/22-yaml-with-all-example-data"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/22-yaml-with-all-example-data"
-echo "Do not commit/push unless user asks"
