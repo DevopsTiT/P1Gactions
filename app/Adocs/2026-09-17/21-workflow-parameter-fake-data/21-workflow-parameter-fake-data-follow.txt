@@ -1,0 +1,35 @@
+Parameters needed + fake examples (ServiceNow Connector + PagerDuty)
+
+YOU FILL (once):
+  Connection URL: https://silvastg.service-now.com
+  Connection user/pass: Tech_DynatraceJP_WS / FakePassw0rd!NotReal
+  __PD_ROUTING_KEY__: R03AMPLEFAKEROUTINGKEY00000000000
+  __SNOW_CALLER_SYS_ID__: a1b2c3d4e5f6789012345678abcdef01
+  __SNOW_GROUP_SYS_ID_EIP__: 11111111111111111111111111111111
+  __SNOW_BIZ_SYS_ID_EIP__: 22222222222222222222222222222222
+  (same pattern for CCI + default)
+  Allowlist: silvastg.service-now.com + events.pagerduty.com
+  Classic ITSM: OFF
+
+DYNATRACE FILLS (Problem event fake):
+  problemId: P-240917001
+  title: Failure rate increase on checkout API
+  severity: ERROR
+  tags: app:EIP
+  url: https://abc12345.apps.dynatrace.com/#problems/...
+
+PREPARE COMPUTES (fake):
+  impact=2 urgency=3 pLevel=P3
+  group=EIP-Support
+  dedupKey=dt-problem-P-240917001
+  shortDescription=[Dynatrace] Failure rate increase on checkout API — EIP
+
+SNOW CREATE (fake result): INC0017788
+
+PD trigger: same routing_key + dedup_key above
+
+CLOSE: search correlation_id=P-240917001 → resolve INC + PD resolve
+
+Full tables + JSON:
+  Daily Files/2026-09-17/21-workflow-parameter-fake-data/
+  fake-filled-examples.json

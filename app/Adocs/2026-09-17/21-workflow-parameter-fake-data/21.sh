@@ -1,0 +1,7 @@
+echo "Params + fake data: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/21-workflow-parameter-fake-data/21-workflow-parameter-fake-data.md"
+echo "Fake JSON: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/21-workflow-parameter-fake-data/fake-filled-examples.json"
+echo "Edit YAML placeholders in: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/19-snow-connector-workflow-again/"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/21-workflow-parameter-fake-data"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/21-workflow-parameter-fake-data"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-17/21-workflow-parameter-fake-data"
+echo "Do not commit/push unless user asks"
