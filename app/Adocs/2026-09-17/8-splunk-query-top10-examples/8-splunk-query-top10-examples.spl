@@ -1,0 +1,58 @@
+# Splunk SPL — Top 10 examples
+# Paste into Search & Reporting. Set time range in UI (e.g. Last 15 minutes).
+# Replace index= / sourcetype= with your real values.
+
+# ===== 1) Latest events =====
+index=main
+| head 100
+
+# ===== 2) Keyword ERROR =====
+index=main "ERROR"
+| sort - _time
+| head 100
+
+# ===== 3) Host + keyword =====
+index=main host=web01 ("timeout" OR "timed out")
+| table _time, host, source, _raw
+| sort - _time
+
+# ===== 4) Count by host =====
+index=main (ERROR OR FATAL OR status=500)
+| stats count as errors by host
+| sort - errors
+
+# ===== 5) Timechart errors =====
+index=main ERROR
+| timechart span=5m count as errors
+
+# ===== 6) Top status codes =====
+index=web sourcetype=access_combined
+| top limit=10 status
+
+# ===== 7) Eval/where high counts =====
+index=main ERROR
+| stats count as errors by host
+| where errors > 10
+| sort - errors
+
+# ===== 8) Rex extract action =====
+index=aws "action:"
+| rex field=_raw "action:(?<action>\w+)"
+| table _time, action, _raw
+| head 100
+
+# ===== 9) Stats by action + cmxDocumentId =====
+index=aws sourcetype=aws:cloudwatchlogs ("action:" AND "cmxDocumentId:")
+| rex field=_raw "action:(?<action>\w+)"
+| rex field=_raw "cmxDocumentId:(?<cmxDocumentId>\w+)"
+| stats count as cnt by action, cmxDocumentId
+| sort - cnt
+| head 100
+
+# ===== 10) Failed uploads by document =====
+index=aws sourcetype=aws:cloudwatchlogs "UPLOAD_FAILED"
+| rex field=_raw "cmxDocumentId:(?<cmxDocumentId>\w+)"
+| stats count as failed by cmxDocumentId
+| where failed > 0
+| sort - failed
+| head 100

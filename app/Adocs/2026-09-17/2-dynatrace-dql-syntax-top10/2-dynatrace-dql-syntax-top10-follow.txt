@@ -1,0 +1,30 @@
+Dynatrace DQL syntax + Top 10 examples
+
+Shape:
+fetch <source>
+| filter ...
+| parse ...
+| stats ...
+| sort ...
+| limit ...
+
+Key commands: fetch, filter, parse, fields, stats, sort, limit
+Key ops: ==, and, or, contains(field, "text")
+Parse bits: LD, WORD:name, 'literal:'
+
+Top 10:
+1) Latest 100 logs
+2) Error logs
+3) Filter AWS Lambda log group
+4) contains(content, "UPLOAD_FAILED")
+5) Parse action + cmxDocumentId
+6) Count by action
+7) Errors by host.name
+8) Failed uploads per document (stats + failed > 0)
+9) Pending uploads (stats + started, no complete/fail)
+10) Slow spans (duration > 2000ms)
+
+Copy-paste file:
+Daily Files/2026-09-17/2-dynatrace-dql-syntax-top10/2-dynatrace-dql-top10-examples.dql
+
+Run in: Dynatrace → Logs or Notebooks (set time range in UI)

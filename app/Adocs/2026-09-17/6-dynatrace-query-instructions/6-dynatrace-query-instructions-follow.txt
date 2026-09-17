@@ -1,0 +1,39 @@
+Dynatrace query instructions (DQL)
+
+WHERE
+- Logs app (fast)
+- Notebooks (save/share)
+- Dashboards / log alerts (later)
+
+HOW (UI)
+1) Open Logs or Notebooks
+2) Set time range (Last 15 minutes)
+3) Paste DQL
+4) Run
+5) Open one row to learn real field names
+6) Tighten filter/parse/stats
+7) Save notebook or make alert
+
+SYNTAX
+fetch <source>
+| filter ...
+| parse ...
+| stats ...
+| sort ...
+| limit ...
+
+STARTERS
+fetch logs | sort timestamp desc | limit 100
+filter ERROR / contains(content, "UPLOAD_FAILED")
+CDUS log group filter
+parse action + cmxDocumentId
+stats failed > 0
+stats pending (started, no complete/fail)
+
+NOT THE SAME AS
+Workflows (automation) or classic Problem notifications
+
+Files:
+Daily Files/2026-09-17/6-dynatrace-query-instructions/
+Examples DQL:
+Daily Files/2026-09-17/2-dynatrace-dql-syntax-top10/2-dynatrace-dql-top10-examples.dql

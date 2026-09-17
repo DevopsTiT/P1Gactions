@@ -1,0 +1,148 @@
+# Dynatrace Automation workflow template — AGO Problem CLOSED → resolve SNOW + PD
+# Problem CLOSED → search INC by correlation_id → resolve SNOW (Connection) + resolve PD
+# Same sync keys as open workflow: correlation_id=ProblemID, dedup_key=dt-problem-<ProblemID>
+# BEFORE IMPORT: map ServiceNow Connection; replace __PD_ROUTING_KEY__
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+      - id: dynatrace.servicenow
+        version: ^2.1.0
+  inputs:
+    - type: connection
+      schema: app:dynatrace.servicenow:connection
+      targets:
+        - tasks.search-snow-incident.connectionId
+        - tasks.resolve-snow-incident.connectionId
+workflow:
+  title: AGO - Problem closed resolve ServiceNow (Connection) and PagerDuty
+  description: >-
+    When Dynatrace Problem closes, find ServiceNow INC by correlation_id via
+    Connection, resolve it, and resolve PagerDuty with the same dedup_key.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND
+        (event.status == "CLOSED" OR event.status_transition == "RESOLVED" OR
+        event.status_transition == "CLOSED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-close-ids:
+      name: prepare-close-ids
+      description: Build problemId and dedupKey from closed Problem event.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const problemId =
+              ev["display_id"] ||
+              ev["problem.id"] ||
+              ev["event.id"] ||
+              ev.pid ||
+              "unknown-problem";
+            return {
+              problemId,
+              dedupKey: "dt-problem-" + problemId,
+              closeNotes: "Resolved automatically: Dynatrace Problem closed (" + problemId + ")"
+            };
+          }
+
+    search-snow-incident:
+      name: search-snow-incident
+      description: Find INC by correlation_id using ServiceNow Connection.
+      action: dynatrace.servicenow:snow-search-incidents
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-close-ids
+      conditions:
+        states:
+          prepare-close-ids: OK
+      input:
+        connectionId: ""
+        sysparmQuery: 'correlation_id={{ result("prepare-close-ids").problemId }}'
+        sysparmLimit: "1"
+        sysparmFields: number,sys_id,correlation_id,state
+
+    resolve-snow-incident:
+      name: resolve-snow-incident
+      description: Resolve found ServiceNow INC via Connection.
+      action: dynatrace.servicenow:snow-resolve-incident
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - search-snow-incident
+      conditions:
+        states:
+          search-snow-incident: OK
+        custom: '{{ result("search-snow-incident") | length > 0 }}'
+        else: SKIP
+      input:
+        connectionId: ""
+        number: '{{ result("search-snow-incident")[0].number }}'
+        resolutionNotes: '{{ result("prepare-close-ids").closeNotes }}'
+        resolutionCode: Solved (Permanently)
+
+    resolve-pagerduty:
+      name: resolve-pagerduty
+      description: Resolve PagerDuty with same dedup_key (PD key still in script or UI).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 3
+      predecessors:
+        - prepare-close-ids
+      conditions:
+        states:
+          prepare-close-ids: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-close-ids");
+            const pdKey = "__PD_ROUTING_KEY__";
+
+            const pdRes = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                routing_key: pdKey,
+                event_action: "resolve",
+                dedup_key: p.dedupKey
+              })
+            });
+            const pdText = await pdRes.text();
+            if (!pdRes.ok) throw new Error("PD resolve failed: " + pdText);
+            return { problemId: p.problemId, dedupKey: p.dedupKey, pagerduty: pdText };
+          }

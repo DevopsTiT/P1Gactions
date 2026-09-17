@@ -1,0 +1,34 @@
+Splunk query instructions (SPL)
+
+WHERE: Search & Reporting app
+
+HOW:
+1) Open Search & Reporting
+2) Time picker = Last 15 minutes
+3) Type: index=<idx> sourcetype=<st> keywords field=value
+4) Run
+5) Click event → learn fields
+6) Add | stats / | table / | timechart
+7) Save As report / dashboard / alert
+
+SYNTAX:
+index=main ERROR host=web01
+| stats count by host
+| sort - count
+
+COMMON COMMANDS:
+table, stats, timechart, top, sort, head, eval, rex, where
+
+STARTERS:
+index=main | head 100
+index=main "ERROR" | head 100
+index=main ERROR | stats count by host
+index=main ERROR | timechart span=5m count
+index=aws "action:" | rex ... | stats count by action
+
+VS DYNATRACE:
+SPL index=... | stats   ≈   DQL fetch logs | stats
+Time picker in both UIs
+
+Files:
+Daily Files/2026-09-17/7-splunk-query-instructions/

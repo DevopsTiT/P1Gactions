@@ -1,0 +1,10 @@
+echo "Upload OPEN: ago-problem-to-snow-pagerduty.workflow-template.yaml"
+echo "Upload CLOSE: ago-problem-closed-resolve-snow-pd.workflow-template.yaml"
+echo "Connection URL: https://silvastg.service-now.com"
+echo "Classic servicenowstg: set Send incidents ITSM OFF to avoid duplicate INC"
+echo "Allowlist: silvastg.service-now.com and events.pagerduty.com"
+echo "Replace __PD_ROUTING_KEY__ and __SNOW_*_SYS_ID__ in prepare assignMap"
+echo "Folder: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-17/9-ago-snow-pd-parallel-workflow"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-17/9-ago-snow-pd-parallel-workflow"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" commit -m "docs: AGO Problem to ServiceNow and PagerDuty parallel workflows"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" push

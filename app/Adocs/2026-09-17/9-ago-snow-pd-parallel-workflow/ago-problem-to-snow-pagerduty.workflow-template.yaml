@@ -1,0 +1,329 @@
+# Dynatrace Automation workflow template — AGO Problem → SNOW INC + PagerDuty (parallel)
+# Problem OPEN → prepare → parallel SNOW Create Incident (Connection) + PagerDuty → cross-link comment
+#
+# Matches requirement:
+#   - Problem triggers workflow
+#   - ServiceNow INC + PagerDuty in parallel
+#   - Sync: correlation_id=ProblemID, PD dedup_key=dt-problem-<ProblemID>, comment cross-link
+#   - Ticket fields: caller, business service, assignment, P3/P4, DT link, app, L1-L3, runbook
+#
+# BEFORE IMPORT:
+#   1) Settings → Connections → ServiceNow to https://silvastg.service-now.com
+#      (same instance as classic notification servicenowstg / Tech_DynatraceJP_WS)
+#   2) If this workflow creates ITSM INC: turn OFF "Send incidents into ServiceNow ITSM"
+#      on classic Problem notification servicenowstg (avoid duplicate INC)
+#   3) Replace __PD_ROUTING_KEY__ and __SNOW_*_SYS_ID__ / assignMap
+#   4) Allowlist: silvastg.service-now.com + events.pagerduty.com
+#   5) On Upload, map ServiceNow Connection to all SNOW tasks
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+      - id: dynatrace.servicenow
+        version: ^2.1.0
+  inputs:
+    - type: connection
+      schema: app:dynatrace.servicenow:connection
+      targets:
+        - tasks.create-servicenow-incident.connectionId
+        - tasks.cross-link-snow-pd.connectionId
+workflow:
+  title: AGO - Problem to ServiceNow (Connection) and PagerDuty
+  description: >-
+    On Dynatrace Problem open, create ServiceNow Incident via Connection
+    and PagerDuty in parallel, then comment cross-link. No SNOW password in script.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE" AND
+        (event.status_transition == "CREATED" OR event.status_transition == "UPDATED" OR
+        event.status_transition == "REOPENED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-payload:
+      name: prepare-payload
+      description: Map Problem fields to SNOW/PD payload (app, P3/P4, L1-L3, runbook).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+
+            const title =
+              ev["event.name"] ||
+              ev["problem.title"] ||
+              ev.title ||
+              "Dynatrace Problem";
+            const problemId =
+              ev["display_id"] ||
+              ev["problem.id"] ||
+              ev["event.id"] ||
+              ev.pid ||
+              "unknown-problem";
+            const problemUrl =
+              ev["problem.url"] ||
+              ev["event.url"] ||
+              ev.url ||
+              "";
+            const severity = String(
+              ev["problem.severity"] ||
+                ev["event.severity"] ||
+                ev.severity ||
+                "ERROR"
+            ).toUpperCase();
+
+            const tags = ev["entity_tags"] || ev.tags || [];
+            const tagList = Array.isArray(tags) ? tags : [tags];
+
+            function tagValue(key) {
+              for (const t of tagList) {
+                const s = String(t);
+                if (s.startsWith(key + ":")) return s.slice(key.length + 1);
+                if (typeof t === "object" && t && t.key === key) return t.value;
+              }
+              return null;
+            }
+
+            const app = tagValue("app") || tagValue("AGO_GLOBAL_APP") || "unknown-app";
+
+            const assignMap = {
+              EIP: {
+                groupName: "EIP-Support",
+                groupSysId: "__SNOW_GROUP_SYS_ID_EIP__",
+                bizName: "EIP Checkout",
+                bizSysId: "__SNOW_BIZ_SYS_ID_EIP__",
+                l1: "EIP-L1",
+                l2: "EIP-L2",
+                l3: "EIP-L3",
+                runbook: "https://confluence.example/runbooks/eip"
+              },
+              CCI: {
+                groupName: "CCI-Support",
+                groupSysId: "__SNOW_GROUP_SYS_ID_CCI__",
+                bizName: "CCI FA Comm Calc",
+                bizSysId: "__SNOW_BIZ_SYS_ID_CCI__",
+                l1: "CCI-L1",
+                l2: "CCI-L2",
+                l3: "CCI-L3",
+                runbook: "https://confluence.example/runbooks/cci"
+              },
+              default: {
+                groupName: "Ops-Default",
+                groupSysId: "__SNOW_GROUP_SYS_ID_DEFAULT__",
+                bizName: "Unknown Business Service",
+                bizSysId: "__SNOW_BIZ_SYS_ID_DEFAULT__",
+                l1: "Ops-L1",
+                l2: "Ops-L2",
+                l3: "Ops-L3",
+                runbook: "https://confluence.example/runbooks/default"
+              }
+            };
+            const meta = assignMap[app] || assignMap.default;
+
+            let impact = "3";
+            let urgency = "3";
+            let pLevel = "P4";
+            let pdSeverity = "warning";
+            if (severity.includes("AVAILABILITY") || severity.includes("CRITICAL")) {
+              impact = "2";
+              urgency = "2";
+              pLevel = "P3";
+              pdSeverity = "critical";
+            } else if (severity.includes("ERROR")) {
+              impact = "2";
+              urgency = "3";
+              pLevel = "P3";
+              pdSeverity = "error";
+            }
+
+            const description = [
+              "Caller: Dynatrace Workflow (auto)",
+              "Business service: " + meta.bizName + " (sys_id=" + meta.bizSysId + ")",
+              "App: " + app,
+              "Priority intent: " + pLevel + " (impact=" + impact + ", urgency=" + urgency + ")",
+              "",
+              "Dynatrace Problem: " + problemUrl,
+              "Problem ID: " + problemId,
+              "",
+              "Who can help:",
+              "- L1: " + meta.l1,
+              "- L2: " + meta.l2,
+              "- L3: " + meta.l3,
+              "",
+              "Runbook / SOP: " + meta.runbook
+            ].join("\n");
+
+            return {
+              caller: "Dynatrace Workflow",
+              callerSysId: "__SNOW_CALLER_SYS_ID__",
+              app,
+              businessServiceName: meta.bizName,
+              businessServiceSysId: meta.bizSysId,
+              assignmentGroupName: meta.groupName,
+              assignmentGroupSysId: meta.groupSysId,
+              impact,
+              urgency,
+              pLevel,
+              l1: meta.l1,
+              l2: meta.l2,
+              l3: meta.l3,
+              runbookUrl: meta.runbook,
+              problemId,
+              problemUrl,
+              problemTitle: title,
+              pdSeverity,
+              dedupKey: "dt-problem-" + problemId,
+              shortDescription: "[Dynatrace] " + title + " — " + app,
+              description,
+              category: "Software",
+              subcategory: "Application"
+            };
+          }
+
+    create-servicenow-incident:
+      name: create-servicenow-incident
+      description: Create ServiceNow Incident via Connection (no password in file).
+      action: dynatrace.servicenow:snow-create-incident
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-payload
+      conditions:
+        states:
+          prepare-payload: OK
+      input:
+        connectionId: ""
+        correlationId: '{{ result("prepare-payload").problemId }}'
+        caller: '{{ result("prepare-payload").caller }}'
+        category: '{{ result("prepare-payload").category }}'
+        subCategory: '{{ result("prepare-payload").subcategory }}'
+        impact: '{{ result("prepare-payload").impact }}'
+        urgency: '{{ result("prepare-payload").urgency }}'
+        group:
+          id: '{{ result("prepare-payload").assignmentGroupSysId }}'
+          displayName: '{{ result("prepare-payload").assignmentGroupName }}'
+        shortDescription: '{{ result("prepare-payload").shortDescription }}'
+        description: '{{ result("prepare-payload").description }}'
+
+    create-pagerduty-incident:
+      name: create-pagerduty-incident
+      description: Trigger PagerDuty Events API v2 (parallel with ServiceNow).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 2
+      predecessors:
+        - prepare-payload
+      conditions:
+        states:
+          prepare-payload: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-payload");
+
+            const routingKey = "__PD_ROUTING_KEY__";
+
+            const body = {
+              routing_key: routingKey,
+              event_action: "trigger",
+              dedup_key: p.dedupKey,
+              client: "Dynatrace",
+              client_url: p.problemUrl,
+              links: [
+                { href: p.problemUrl, text: "Open Dynatrace Problem" },
+                { href: p.runbookUrl, text: "Runbook" }
+              ],
+              payload: {
+                summary: p.shortDescription,
+                source: p.app,
+                severity: p.pdSeverity,
+                component: p.app,
+                group: p.assignmentGroupName,
+                class: "dynatrace-problem",
+                custom_details: {
+                  problem_id: p.problemId,
+                  problem_url: p.problemUrl,
+                  business_service: p.businessServiceName,
+                  assignment_group: p.assignmentGroupName,
+                  priority_intent: p.pLevel,
+                  l1: p.l1,
+                  l2: p.l2,
+                  l3: p.l3,
+                  runbook: p.runbookUrl,
+                  caller: p.caller
+                }
+              }
+            };
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }
+            if (!res.ok) {
+              throw new Error("PagerDuty trigger failed HTTP " + res.status + ": " + text);
+            }
+            return {
+              status: json.status,
+              dedupKey: json.dedup_key || p.dedupKey,
+              message: json.message,
+              raw: json
+            };
+          }
+
+    cross-link-snow-pd:
+      name: cross-link-snow-pd
+      description: Comment on ServiceNow INC with PagerDuty dedup_key (Connection).
+      action: dynatrace.servicenow:snow-comment-on-incident
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - create-servicenow-incident
+        - create-pagerduty-incident
+      conditions:
+        states:
+          create-servicenow-incident: OK
+          create-pagerduty-incident: OK
+      input:
+        connectionId: ""
+        number: '{{ result("create-servicenow-incident").number }}'
+        comment: |
+          PagerDuty sync: dedup_key={{ result("create-pagerduty-incident").dedupKey }}
+          | Dynatrace Problem={{ result("prepare-payload").problemUrl }}
+          | Runbook={{ result("prepare-payload").runbookUrl }}
+          | Problem ID={{ result("prepare-payload").problemId }}

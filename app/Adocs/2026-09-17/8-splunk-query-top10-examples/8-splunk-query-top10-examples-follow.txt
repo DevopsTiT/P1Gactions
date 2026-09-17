@@ -1,0 +1,17 @@
+Splunk Top 10 SPL examples
+
+UI: Search & Reporting, Last 15 minutes, replace index=
+
+1) index=main | head 100
+2) index=main "ERROR" | sort - _time | head 100
+3) index=main host=web01 ("timeout" OR "timed out") | table _time, host, source, _raw
+4) index=main (ERROR OR FATAL OR status=500) | stats count as errors by host | sort - errors
+5) index=main ERROR | timechart span=5m count as errors
+6) index=web sourcetype=access_combined | top limit=10 status
+7) index=main ERROR | stats count as errors by host | where errors > 10
+8) index=aws "action:" | rex field=_raw "action:(?<action>\w+)" | table _time, action, _raw
+9) index=aws ... action + cmxDocumentId | stats count by action, cmxDocumentId
+10) index=aws "UPLOAD_FAILED" | rex cmxDocumentId | stats count as failed by cmxDocumentId
+
+File:
+Daily Files/2026-09-17/8-splunk-query-top10-examples/8-splunk-query-top10-examples.spl

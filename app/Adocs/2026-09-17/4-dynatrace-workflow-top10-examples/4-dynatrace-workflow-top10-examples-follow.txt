@@ -1,0 +1,26 @@
+Dynatrace Workflow — Top 10 examples + syntax
+
+What: trigger → tasks (Automations/Workflows)
+Prefer: YAML upload
+
+Skeleton:
+metadata + workflow(title, schemaVersion, trigger, tasks)
+task fields: name, action, position(y>=1), predecessors, conditions, input
+categories: { error: true, ... } not []
+
+Top 10:
+1) Hello — schedule + JS return message
+2) Problem OPEN filterQuery (ACTIVE + CREATED/UPDATED/REOPENED)
+3) Problem CLOSED filterQuery
+4) Restrict by entityTags (e.g. env:prod)
+5) prepare-payload JS (problemId, title, dedupKey)
+6) HTTP POST via fetch (allowlist host)
+7) Parallel tasks after prepare
+8) Join when both OK
+9) ServiceNow snow-create-incident + Connection
+10) PagerDuty trigger/resolve (events.pagerduty.com)
+
+Template: {{ result("prepare-payload").problemId }}
+
+Files:
+Daily Files/2026-09-17/4-dynatrace-workflow-top10-examples/
