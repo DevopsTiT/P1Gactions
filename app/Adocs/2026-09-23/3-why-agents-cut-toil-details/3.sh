@@ -1,5 +1,0 @@
-echo "WHY details: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/3-why-agents-cut-toil-details/3-why-agents-cut-toil-details.md"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/3-why-agents-cut-toil-details"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-23/3-why-agents-cut-toil-details"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-23/3-why-agents-cut-toil-details"
-echo "Do not commit/push unless user asks"

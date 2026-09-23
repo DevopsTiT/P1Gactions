@@ -1,5 +1,0 @@
-echo "Pipeline details: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/4-design-overview-pipeline-details/4-design-overview-pipeline-details.md"
-ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/4-design-overview-pipeline-details"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-23/4-design-overview-pipeline-details"
-git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-23/4-design-overview-pipeline-details"
-echo "Do not commit/push unless user asks"
