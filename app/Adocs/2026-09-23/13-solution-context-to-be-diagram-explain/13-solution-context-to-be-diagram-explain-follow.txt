@@ -1,0 +1,36 @@
+Solution Context Diagram — TO-BE (explain)
+
+WHAT IT IS
+Target picture: Dynatrace still creates the incident;
+PagerDuty still pages; NEW assist layer = four Advance agents.
+Humans still decide.
+
+KEY MESSAGE
+- Agents assist beside the human after DT creates the incident
+- Optional Event Orchestration cuts noise before agents run
+- Humans confirm remediations / own blast radius
+
+LEFT (inputs)
+- Dynatrace: Problem + problem URL in PD payload
+- Optional EO: route / pause / group
+- Ops HQ: Teams / PD web access
+
+CENTER
+PagerDuty Incident hub — agents attach here
+SRE · Scribe · Shift · Insights
+
+RIGHT (agents)
+- SRE: triage + runbook — 4 Actions/ask
+- Scribe: meeting transcript — ~6/30m + 2
+- Shift: coverage/override — 0 Actions
+- Insights: MTTR Q&A — 0 Actions
+
+YELLOW BOX
+Human decides → confirm remediations → own blast radius
+→ Resolve → SRE memory
+
+VS AS-IS
+Detect + page same. Assist was human-only; TO-BE adds four agents.
+
+Full write-up:
+Daily Files/2026-09-23/13-solution-context-to-be-diagram-explain/

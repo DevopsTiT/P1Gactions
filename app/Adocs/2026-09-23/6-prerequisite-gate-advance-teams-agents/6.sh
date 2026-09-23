@@ -1,0 +1,5 @@
+echo "Gate explain: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/6-prerequisite-gate-advance-teams-agents/6-prerequisite-gate-advance-teams-agents.md"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/6-prerequisite-gate-advance-teams-agents"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-23/6-prerequisite-gate-advance-teams-agents"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-23/6-prerequisite-gate-advance-teams-agents"
+echo "Do not commit/push unless user asks"

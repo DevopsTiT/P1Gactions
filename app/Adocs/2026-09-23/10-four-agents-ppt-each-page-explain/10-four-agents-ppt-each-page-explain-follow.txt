@@ -1,0 +1,31 @@
+Four Agents PPT — each page explain (42 slides)
+
+Source: warp /Tasks/19-Dynatrace-PagerDuty-Four-Agents-Whole-Pack-NoFooter.pptx
+
+HOW TO READ
+- Part A (1–14): narrative / Summary Sheet / AS-IS / TO-BE / agents / cost
+- Part B (15–22): ARB diagrams / Impact / Alignment / HLD / hub / checklist
+- Part C (23–42): Teams-only POC §0→SRE→Scribe→Shift→Insights
+
+SPINE
+Dynatrace detects → PagerDuty pages → four Advance agents assist → human owns remediations
+
+HARD GATE
+Without PagerDuty Advance, agent toggles do nothing.
+Always use TEST Service + Level-1 test schedule — never prod pages.
+
+FOUR AGENTS (quick)
+- SRE: triage/runbook — 4 AI Actions/ask — Teams EA
+- Scribe: meeting notes — ~6/30m +2 summary — strong Teams
+- Shift: coverage — 0 Actions — Slack-first; Teams use Path B (Calendar+web)
+- Insights: MTTR Q&A — 0 Actions — Teams Q&A OK; weekly DMs Slack-first
+
+DYNATRACE TIP
+DT creates the incident (ingress). Put problem URL in custom_details.
+DT is usually NOT the main SRE connector — enrich Grafana/Datadog/CloudWatch/Confluence/GitHub.
+
+TEAMS POC AFTERNOON
+0 enablement 30–60m → 1 SRE 15–20m → 2 Scribe 15–20m → 3 Shift Path B 10–15m → 4 Insights 10–15m
+
+Full write-up:
+Daily Files/2026-09-23/10-four-agents-ppt-each-page-explain/

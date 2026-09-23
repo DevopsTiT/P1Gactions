@@ -1,0 +1,16 @@
+WHY line explained in detail
+
+"Dynatrace finds the problem; humans still dig docs, take notes, fix coverage, and report trends. Agents cut that toil."
+
+DT = detection (Problem) — already solved
+Humans after page still:
+  dig docs      → SRE Agent (triage, runbooks)
+  take notes    → Scribe Agent (bridge transcript/summary)
+  fix coverage  → Shift Agent (OOO, substitutes) Slack-first
+  report trends → Insights Agent (MTTR, noise tips)
+
+Agents assist; human confirms remediations.
+Not replaced: ack, prod decisions, SNOW process.
+
+Full:
+  Daily Files/2026-09-23/3-why-agents-cut-toil-details/

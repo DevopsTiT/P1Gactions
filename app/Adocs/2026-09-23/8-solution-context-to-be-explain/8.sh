@@ -1,0 +1,6 @@
+echo "TO-BE explain: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/8-solution-context-to-be-explain/8-solution-context-to-be-explain.md"
+echo "AS-IS: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/7-solution-context-as-is-explain/"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/8-solution-context-to-be-explain"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-23/8-solution-context-to-be-explain"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-23/8-solution-context-to-be-explain"
+echo "Do not commit/push unless user asks"

@@ -1,0 +1,6 @@
+echo "Explain: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/2-architecture-design-summary-sheet-explain/2-architecture-design-summary-sheet-explain.md"
+echo "PPT: /Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-08-31/19-dynatrace-pd-four-agents-whole-ppt-nofooter/19-Dynatrace-PagerDuty-Four-Agents-Whole-Pack-NoFooter.pptx"
+ls "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-23/2-architecture-design-summary-sheet-explain"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" add "app/Adocs/2026-09-23/2-architecture-design-summary-sheet-explain"
+git -C "/Users/k/Codes/Pra/P1GithubActions/P1Gactions" status --short "app/Adocs/2026-09-23/2-architecture-design-summary-sheet-explain"
+echo "Do not commit/push unless user asks"
