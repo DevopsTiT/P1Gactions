@@ -1,0 +1,26 @@
+SILVA HTTP + PagerDuty sync workflows (no SNOW connector)
+
+WHY
+Cannot use snow-* connector → use run-javascript HTTP to SILVA + PD.
+
+FILES
+1-open-silva-http-and-pagerduty.workflow.yaml
+2-close-silva-http-and-pagerduty.workflow.yaml
+
+SYNC
+correlation_id = <problemId>
+dedup_key = dt-problem-<problemId>
+
+SETUP
+1. Allowlist silvastg.service-now.com + events.pagerduty.com
+2. Replace __SNOW_PASSWORD__ and __PD_ROUTING_KEY__ in BOTH files
+3. Classic SNOW ITSM notification OFF (no duplicates)
+4. Import + Activate both workflows
+5. Test open Problem → INC + PD page
+6. Close Problem → both resolve
+
+SANDBOX TIP (from chat)
+EU STG worked; Sandbox may still need outbound whitelist on that tenant.
+
+Full write-up:
+Daily Files/2026-09-24/1-silva-http-snow-pd-sync-workflows/
