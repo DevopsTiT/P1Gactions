@@ -1,0 +1,12 @@
+All Dynatrace queries in Markdown
+
+OPEN
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-24/6-all-dynatrace-queries-md/6-all-dynatrace-queries.md
+
+Also mirrored:
+app/Adocs/2026-09-24/6-all-dynatrace-queries-md/
+AIProjects/Files/2026-09-24/6-all-dynatrace-queries-md/
+and next to the .dql in 5-splunk-alerts-all-to-dql/
+
+CONTENT
+Discover helper + 45 DQL query sections (```dql fences)

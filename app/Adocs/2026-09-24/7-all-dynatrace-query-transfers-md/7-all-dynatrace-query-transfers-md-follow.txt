@@ -1,0 +1,12 @@
+All Dynatrace query transfers (your cmx style)
+
+OPEN
+Daily Files/2026-09-24/7-all-dynatrace-query-transfers-md/7-all-dynatrace-query-transfers.md
+
+Layout per alert:
+  N) service
+  Alert name
+  Splunk
+  DQL (contains aws.log_group + content)
+
+Compass ??? filled with Glue path + skipping table.

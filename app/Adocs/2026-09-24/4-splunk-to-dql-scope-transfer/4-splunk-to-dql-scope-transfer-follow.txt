@@ -1,0 +1,35 @@
+Splunk → Dynatrace: is scope different?
+
+YES. That is why Splunk has many rows and Dynatrace has few.
+
+SPLUNK
+index="cs-digital-document-management" "error"
+| search message="*error*" AND message!="*elivery not possible*"
+= whole INDEX + error text + exclude
+
+YOUR DQL
+filter aws.log_group …/cs-digital-document-management-prod
+= ONE prod Lambda log group only (narrower)
+
+TEXT FILTERS
+contains(content,"error") + not contains(…"elivery not possible")
+= OK transfer of the message logic
+
+BETTER TRANSFER
+1) Discover:
+fetch logs
+| filter contains(aws.log_group, "cs-digital-document-management")
+| summarize count=count(), by:{aws.log_group, log.source}
+
+2) Wider (closer to index):
+fetch logs
+| filter contains(aws.log_group, "cs-digital-document-management")
+| filter contains(content, "error", caseSensitive: false)
+| filter not contains(content, "elivery not possible", caseSensitive: false)
+
+3) Only then add prod if Splunk was prod-only too.
+
+Also match the same time range in both UIs.
+
+Full write-up:
+Daily Files/2026-09-24/4-splunk-to-dql-scope-transfer/

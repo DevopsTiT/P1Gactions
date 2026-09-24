@@ -1,0 +1,35 @@
+# Discover scope for Splunk index cs-digital-document-management
+fetch logs
+| filter contains(aws.log_group, "cs-digital-document-management")
+   or contains(content, "cs-digital-document-management")
+   or contains(log.source, "cs-digital-document-management")
+| summarize count = count(), by: { aws.log_group, log.source }
+| sort count desc
+| limit 50
+
+# Closer transfer of Splunk index scope + error filters (not only -prod)
+fetch logs
+| filter contains(aws.log_group, "cs-digital-document-management")
+| filter contains(content, "error", caseSensitive: false)
+| filter not contains(content, "elivery not possible", caseSensitive: false)
+| sort timestamp desc
+| limit 1000
+
+# If you intentionally want prod only (after confirming Splunk was prod-only)
+fetch logs
+| filter contains(aws.log_group, "cs-digital-document-management")
+| filter contains(aws.log_group, "prod")
+| filter contains(content, "error", caseSensitive: false)
+| filter not contains(content, "elivery not possible", caseSensitive: false)
+| sort timestamp desc
+| limit 1000
+
+# Alternate scope if aws.log_group is empty / not Lambda-only
+fetch logs
+| filter contains(log.source, "cs-digital-document-management")
+   or contains(dt.source_entity.name, "cs-digital-document-management")
+   or contains(k8s.deployment.name, "cs-digital-document-management")
+| filter contains(content, "error", caseSensitive: false)
+| filter not contains(content, "elivery not possible", caseSensitive: false)
+| sort timestamp desc
+| limit 1000

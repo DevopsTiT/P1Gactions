@@ -1,0 +1,31 @@
+Splunk → Dynatrace: ALL alerts from 1 copy.sh
+
+FILE
+Daily Files/2026-09-24/5-splunk-alerts-all-to-dql/5-all-splunk-alerts-to-dql.dql
+
+RULE
+index → contains(aws.log_group|log.source, "<index>")
+message → contains(content, "...")
+logGroup → contains(aws.log_group, "/aws/...")
+
+SECTIONS
+1 cci-fa-comm-calc
+2 cmx-sharepoint-api
+3 compass-sales Glue skip
+4 cs-digital-document-management (2)
+5 customer-process-api (2) — TODO Got unex*
+6 document-upload-api (5) — some TODOs
+7 eopt-serverless (2)
+8 gov-inquiry-system (summaries + errors)
+9 hpm-sharepoint-api
+10 hpm-survey-monkey
+11 innorules
+12 message-box-api
+13 myaxa-onboarding-batch (5)
+14 pmt-api (many + memory)
+15 recruitimp-serverless (2)
+16 sa-support-batches (3)
+
+USE
+Paste ONE query at a time. Same time range as Splunk.
+If few rows → discover scope (seq 4).
