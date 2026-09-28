@@ -1,0 +1,25 @@
+Workflow now reads event metadata at start (seq 25 OPEN YAML)
+
+readEventMeta(event), no API call:
+- entity_tags "[Context]key:value" -> tag list
+- dt.cost.product, dt.cost.costcenter, k8s.namespace.name, k8s.cluster.name -> tag list
+- affected_entity_types has HOST -> affected_entity_names = host
+- dt.security.context -> most specific (ALJ_EIP_PRD) -> env suffix PRD
+
+Per SILVA field, first hit wins:
+- Business service: SYSTEM_MAP -> tag snow-service / ago_axa_businessservice / business-service -> default
+- Offering: SYSTEM_MAP -> tag snow-offering -> default only with default service
+- Assignment group: tag ago_axa_supportgroup / support-group -> map L2 -> default L2
+- Environment: SYSTEM_MAP -> tag ago_axaenvironmentname / env -> security context -> Development
+  (only sent if in SILVA_ENVIRONMENTS = Production, Development)
+
+Settings to edit:
+const META_KEYS = { businessService: [...], serviceOffering: [...], assignmentGroup: [...], environment: [...], system: ["system","app","dt.cost.product"] };
+const SILVA_ENVIRONMENTS = ["Production", "Development"];
+
+Ticket work notes now show "Event metadata used at workflow start" with each value and its source,
+plus "Tag keys" = which tag names exist. Use that to add real names to META_KEYS or SYSTEM_MAP.
+
+Limit: the events seen so far have no SILVA service/group name in them.
+To route purely from metadata, add Dynatrace tags (auto-tag rule) like snow-service:ALJ_EIP_PRD
+or AGO_AXA_SUPPORTGROUP:<group>, or a system tag + SYSTEM_MAP row.
