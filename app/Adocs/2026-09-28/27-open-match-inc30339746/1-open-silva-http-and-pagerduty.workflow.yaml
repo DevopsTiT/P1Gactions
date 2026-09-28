@@ -1,0 +1,806 @@
+# OPEN — Problem ACTIVE → SILVA (HTTP, no SNOW connector) + PagerDuty (parallel)
+# Ticket is built like the classic integration ticket INC30339531:
+#   Short description "[DYNATRACE JAPAN][<host display name>] - <root-cause event description>"
+#     e.g. "[DYNATRACE JAPAN][WRGCRAPP01.axa-id.intraxa] - Garbage collection is suspending process ..."
+#   Summary "<event description>\nAdditional Information:\n{json}" with the same keys as the example:
+#     correlation_id, discovered_name, dynatrace_severity, environmentId, environmentName,
+#     event_properties, ip_addresses, isRootCause, managementZones, metricName, problemDescription,
+#     problem_displayId, problem_id, tags, u_business_service, u_external_url
+#   Configuration item = host (looked up in cmdb_ci, sent by sys_id). With no map/tag business service,
+#     nothing is sent for business service / offering, so SILVA derives them from the CI
+#     (example: CI wrgcrapp01 -> "Third Party Services Monitoring Application").
+#     If SILVA leaves them blank: svc_ci_assoc lookup, then the defaults.
+#   Assignment group from tag AGO_AXA_SUPPORTGROUP (then AGO_DEFAULT_ASSIGNMENT_GROUP, map, default L2)
+#   Environment from tag AGO_AXAENVIRONMENTNAME (Integration-Test -> "Integration / Test"), then env tag,
+#     then security context, then FIXED_ENVIRONMENT
+#   Contact type Event, Company AXA GROUP OPERATIONS, Category / Subcategory Other, Impact / Urgency 4 - Low
+#   Checked against a second classic ticket INC30339746 (custom alert, host TS12.hk.intraxa):
+#     isRootCause "false" when the problem has no root cause entity, event_properties sorted by key,
+#     "title" (dt.event.title) after tags, JSON printed as "key" : value
+# Where the data comes from:
+#   Trigger event (entity_tags, security context, affected entities)       -> read first, no API
+#   Problems API getProblem(event.id)  -> title, severityLevel, impactLevel, root cause, evidence, zones
+#   Root-cause evidence event          -> event_properties, dt.event.description, metric selector
+#   Entities API getEntity(root / host) -> host display name, IP addresses, entity tags
+# Sync keys (unchanged, CLOSE depends on them):
+#   SNOW correlation_id field = <display_id>   (the JSON correlation_id shows the entity id, like the example)
+#   PD  dedup_key             = dt-problem-<display_id>
+# BEFORE ACTIVATE:
+#   1) External requests allowlist: silvastg.service-now.com , events.pagerduty.com
+#   2) Workflow actor needs problems read and entities read permissions
+#   3) SNOW password and PD routing key are filled in (local copy only — never commit this file)
+#   4) Keep classic SNOW Problem notification ITSM OFF (avoid duplicate INC)
+#
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Problem OPEN to SILVA HTTP and PagerDuty (sync)
+  description: >-
+    No ServiceNow connector. On Problem open, build the SILVA incident like the classic
+    Dynatrace integration (host as CI, tags for group and environment, Additional Information
+    JSON) and send it by HTTP, plus a PagerDuty trigger in parallel. Same problemId syncs both sides.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE" AND
+        (event.status_transition == "CREATED" OR event.status_transition == "UPDATED" OR
+        event.status_transition == "REOPENED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-payload:
+      name: prepare-payload
+      description: Extract event, problem and entity metadata and build the SILVA incident like INC30339531.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient, monitoredEntitiesClient } from '@dynatrace-sdk/client-classic-environment-v2';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          // ---------- settings (edit) ----------
+          // Any group name here overrides all routing (testing only)
+          const TEST_ASSIGNMENT_GROUP = "";
+          // Only used when the ticket lands in DEFAULT_GROUPS.L2 (a person must be a member of the group)
+          const ASSIGNED_TO = "Shuge KUI";
+          const FIXED_SHORT_DESCRIPTION = "";
+          const SHORT_PREFIX = "[DYNATRACE JAPAN]";
+          const CONTACT_TYPE = "Event";
+          const COMPANY = "AXA GROUP OPERATIONS";
+          const CATEGORY = "Other";
+          const SUBCATEGORY = "Other";
+          const APPLICATION = "EIP";
+          // Shown as environmentName in the Additional Information JSON
+          const DT_ENVIRONMENT_NAME = "AXA AS STG";
+          // Used only when neither the map, a tag, the CI nor svc_ci_assoc gives a business service
+          const BUSINESS_SERVICE = "uk-sap-fscd-dev";
+          const SERVICE_OFFERING = "uk-sap-fscd-dev - AXA GROUP OPERATIONS - Development - Standard";
+          // true = send only the CI and let SILVA fill business service / offering from the CMDB (like the example)
+          const LET_SILVA_DERIVE_SERVICE = true;
+          const SEND_CONFIGURATION_ITEM = true;
+          // "4" + "4" gives Priority "4 - Low"; "" derives them from the Dynatrace severity
+          const FIXED_IMPACT = "4";
+          const FIXED_URGENCY = "4";
+          // Default when metadata has no usable environment
+          const FIXED_ENVIRONMENT = "Development";
+          // Environment is mandatory on SILVA and an unknown label is dropped; only these are sent
+          const SILVA_ENVIRONMENTS = ["Production", "Development", "Integration / Test"];
+          // Tag value (lower case) -> SILVA environment label
+          const ENVIRONMENT = {
+            "production": "Production", prod: "Production", prd: "Production",
+            "development": "Development", dev: "Development",
+            "integration-test": "Integration / Test", "integration / test": "Integration / Test",
+            "integration": "Integration / Test", "test": "Integration / Test", tst: "Integration / Test"
+          };
+          // Data map: system -> SILVA values (whole-word match; "" falls back)
+          const SYSTEM_MAP = {
+            EIP: {
+              businessService: "ALJ_EIP_PRD",
+              serviceOffering: "",
+              l1Group: "",
+              l2Group: "",
+              environment: "Production"
+            }
+          };
+          // Tag names (lower case) read for each field; first one with a value wins
+          const META_KEYS = {
+            businessService: ["snow-service", "ago_axa_businessservice", "business-service", "u_business_service"],
+            serviceOffering: ["snow-offering", "ago_axa_serviceoffering", "service-offering"],
+            assignmentGroup: ["ago_axa_supportgroup", "ago_default_assignment_group", "support-group", "assignment-group"],
+            environment: ["ago_axaenvironmentname", "env", "environment"],
+            system: ["system", "app", "dt.cost.product"]
+          };
+          const META_FIELDS = ["dt.cost.product", "dt.cost.costcenter", "k8s.namespace.name", "k8s.cluster.name"];
+          const DEFAULT_GROUPS = {
+            L1: "Dynatrace Support",
+            L2: "Ops_Middleware_Monitoring_AXAJP",
+            L3: ""
+          };
+          const DEFAULT_TIER = "L2";
+          const IMPACT_LABEL = { "1": "1 - Critical", "2": "2 - High", "3": "3 - Medium", "4": "4 - Low" };
+          const DASHBOARD_URL = "";
+          const PD_SERVICE_URL = "";
+          // SILVA description field limit
+          const DESCRIPTION_MAX = 12000;
+          // -------------------------------------
+
+          function tagValue(tags, key) {
+            const hit = (tags || []).find(t => String(t.key || "").toLowerCase() === key && t.value);
+            return hit ? String(hit.value) : "";
+          }
+
+          function firstTag(tags, keys) {
+            for (const k of keys) {
+              const v = tagValue(tags, k);
+              if (v) return { value: v, from: "tag " + k };
+            }
+            return { value: "", from: "" };
+          }
+
+          // Everything the trigger event itself says, before any API call
+          function readEventMeta(ev) {
+            const tagList = [];
+            const rawTags = [];
+            const seen = {};
+            const add = (k, v, raw) => {
+              const key = String(k || "").trim();
+              const value = String(v || "").trim();
+              const id = key.toLowerCase() + "=" + value;
+              if (!key || seen[id]) return;
+              seen[id] = true;
+              tagList.push({ key: key, value: value });
+              rawTags.push(raw || (value ? key + ":" + value : key));
+            };
+            for (const s of [].concat(ev["entity_tags"] || [])) {
+              const x = String(s).replace(/^\[[^\]]+\]/, "");
+              const i = x.indexOf(":");
+              if (i > 0) add(x.slice(0, i), x.slice(i + 1), x); else add(x, "", x);
+            }
+            for (const f of META_FIELDS) {
+              for (const v of [].concat(ev[f] || [])) add(f, v);
+            }
+            const affectedTypes = [].concat(ev["affected_entity_types"] || []).map(String);
+            const affectedNames = [].concat(ev["affected_entity_names"] || []).map(String);
+            const hosts = [].concat(ev["host.name"] || [], ev["dt.entity.host.name"] || []);
+            if (affectedTypes.some(t => /host/i.test(t))) hosts.push(...affectedNames);
+            const securityContext = [].concat(ev["dt.security.context"] || []).map(String);
+            const specific = securityContext.slice().sort((a, b) => b.split("_").length - a.split("_").length)[0] || "";
+            return {
+              tagList: tagList,
+              rawTags: rawTags,
+              hosts: hosts.map(String).filter(isHostName),
+              affectedTypes: affectedTypes,
+              affectedNames: affectedNames,
+              affectedIds: [].concat(ev["affected_entity_ids"] || []).map(String),
+              rootCauseId: String(ev["root_cause_entity_id"] || ""),
+              rootCause: String(ev["root_cause_entity_name"] || ""),
+              securityContext: securityContext,
+              contextEnv: specific.includes("_") ? specific.split("_").pop().toLowerCase() : "",
+              eventKeys: Object.keys(ev).sort()
+            };
+          }
+
+          // Service or pod names like "[APP.TST] nginx pod-*" are not hosts
+          function isHostName(h) {
+            return !!h && !/[\s*,\[\]]/.test(String(h));
+          }
+
+          function systemCandidates(meta, tags) {
+            const out = [];
+            for (const key of META_KEYS.system) {
+              for (const t of tags) {
+                if (String(t.key || "").toLowerCase() === key && t.value) out.push(String(t.value));
+              }
+            }
+            return out.concat(meta.securityContext, meta.rootCause || [], meta.affectedNames).filter(Boolean);
+          }
+
+          function findSystem(candidates) {
+            const keys = Object.keys(SYSTEM_MAP);
+            for (const v of candidates) {
+              const whole = String(v).toUpperCase();
+              const words = whole.split(/[^A-Z0-9]+/);
+              const key = keys.find(k => whole === k.toUpperCase() || words.includes(k.toUpperCase()));
+              if (key) return Object.assign({ key: key, matchedOn: String(v) }, SYSTEM_MAP[key]);
+            }
+            return null;
+          }
+
+          function toEnv(value) {
+            const v = String(value || "").trim();
+            if (!v) return "";
+            return ENVIRONMENT[v.toLowerCase()] || (SILVA_ENVIRONMENTS.includes(v) ? v : "");
+          }
+
+          function firstHostId(entity) {
+            const rel = (entity && entity.fromRelationships) || {};
+            for (const k of Object.keys(rel)) {
+              const hit = [].concat(rel[k] || []).find(r => r && /^HOST-/.test(String(r.id || "")));
+              if (hit) return hit.id;
+            }
+            return "";
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const meta = readEventMeta(ev);
+            const envUrl = getEnvironmentUrl().replace(/\/$/, "");
+            const environmentId = (envUrl.match(/^https?:\/\/([^.]+)/) || [])[1] || "";
+
+            // --- Problems API ---
+            let prob = {};
+            let problemApi = "ok";
+            try {
+              prob = await problemsClient.getProblem({ problemId: ev["event.id"] });
+            } catch (e) {
+              prob = {};
+              problemApi = "failed: " + String((e && e.message) || e).slice(0, 200);
+            }
+
+            const problemTitle = prob.title || ev["event.name"] || ev["problem.title"] || "Dynatrace Problem";
+            const problemId = ev["display_id"] || prob.displayId || ev["event.id"] || "unknown-problem";
+            const problemInternalId = prob.problemId || ev["event.id"] || "";
+            const problemUrl = ev["problem.url"] || ev["event.url"] ||
+              (ev["event.id"] ? envUrl + "/ui/apps/dynatrace.davis.problems/problem/" + ev["event.id"] : "");
+            const impactLevel = String(prob.impactLevel || [].concat(ev["dt.davis.impact_level"] || [])[0] || "").toUpperCase();
+
+            const rootRef = prob.rootCauseEntity || (prob.affectedEntities || [])[0] || null;
+            const rootId = (rootRef && rootRef.entityId && rootRef.entityId.id) ||
+              meta.rootCauseId || meta.affectedIds[0] || "";
+            const rootName = (rootRef && rootRef.name) || meta.rootCause || meta.affectedNames[0] || "";
+
+            // Root-cause evidence event carries the detailed description and properties
+            const details = (prob.evidenceDetails && prob.evidenceDetails.details) || [];
+            const rootEvent =
+              details.find(d => d.evidenceType === "EVENT" && d.rootCauseRelevant) ||
+              details.find(d => d.evidenceType === "EVENT") || null;
+            // Classic tickets list the properties sorted by key
+            const eventProps = ((rootEvent && rootEvent.data && rootEvent.data.properties) || [])
+              .map(x => ({ key: String(x.key), value: String(x.value) }))
+              .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+            const propValue = k => { const h = eventProps.find(x => x.key === k); return h ? h.value : ""; };
+            const eventDescription = propValue("dt.event.description") || (rootEvent && rootEvent.displayName) || "";
+
+            // --- Entities API: root entity, then its host ---
+            let entityApi = rootId ? "ok" : "no entity id";
+            let rootEntity = null;
+            let hostEntity = null;
+            if (rootId) {
+              try {
+                rootEntity = await monitoredEntitiesClient.getEntity({ entityId: rootId });
+                if (String(rootEntity.type || "") === "HOST") {
+                  hostEntity = rootEntity;
+                } else {
+                  const hostId = firstHostId(rootEntity);
+                  if (hostId) hostEntity = await monitoredEntitiesClient.getEntity({ entityId: hostId });
+                }
+              } catch (e) {
+                entityApi = "failed: " + String((e && e.message) || e).slice(0, 200);
+              }
+            }
+            const entityTags = ((rootEntity && rootEntity.tags) || [])
+              .map(t => ({ key: t.key, value: t.value || "", raw: t.stringRepresentation || t.key }));
+
+            const tags = meta.tagList.concat(prob.entityTags || [], entityTags);
+            const tagStrings = meta.rawTags.length ? meta.rawTags : entityTags.map(t => t.raw);
+
+            // Host: entity API, then event, then host + AGO_DOMAIN tags, then "on host X" in the text
+            const hostTag = tagValue(tags, "host");
+            const domainTag = tagValue(tags, "ago_domain");
+            const hostFromTags = isHostName(hostTag) ? (domainTag && !hostTag.includes(".") ? hostTag + "." + domainTag : hostTag) : "";
+            const hostFromText = ((eventDescription || problemTitle).match(/on host (\S+)/i) || [])[1] || "";
+            const hostName = (hostEntity && hostEntity.displayName) || meta.hosts[0] || hostFromTags || hostFromText || "";
+            const hostProps = (hostEntity && hostEntity.properties) || {};
+            const ipAddresses = [].concat(hostProps.ipAddress || hostProps.ipAddresses || []).map(String);
+            const zones = (prob.managementZones || []).map(z => z.name)
+              .concat(((rootEntity && rootEntity.managementZones) || []).map(z => z.name))
+              .filter((z, i, a) => z && a.indexOf(z) === i);
+
+            // --- Severity ---
+            const severity = String(
+              prob.severityLevel || ev["event.category"] || ev["problem.severity"] || "ERROR"
+            ).toUpperCase();
+            let pdSeverity = "warning";
+            let snowImpact = "3";
+            let snowUrgency = "3";
+            if (severity.includes("AVAILABILITY")) {
+              pdSeverity = "critical"; snowImpact = "1"; snowUrgency = "1";
+            } else if (severity.includes("ERROR")) {
+              pdSeverity = "error"; snowImpact = "2"; snowUrgency = "2";
+            } else if (severity.includes("CUSTOM") || severity.includes("INFO")) {
+              pdSeverity = "info"; snowImpact = "4"; snowUrgency = "4";
+            }
+            if (FIXED_IMPACT) snowImpact = FIXED_IMPACT;
+            if (FIXED_URGENCY) snowUrgency = FIXED_URGENCY;
+
+            // --- Routing from metadata ---
+            const system = findSystem(systemCandidates(meta, tags));
+
+            const envTag = firstTag(tags, META_KEYS.environment);
+            const envFromTag = toEnv(envTag.value);
+            const envFromContext = toEnv(meta.contextEnv);
+            const envWanted = (system && toEnv(system.environment)) || envFromTag || envFromContext;
+            const environment = envWanted || FIXED_ENVIRONMENT;
+            const environmentSource = (system && toEnv(system.environment)) ? "map"
+              : envFromTag ? envTag.from + " = " + envTag.value
+              : envFromContext ? "security context"
+              : "default" + (envTag.value ? " (tag value " + envTag.value + " not in ENVIRONMENT map)" : "");
+
+            const bsTag = firstTag(tags, META_KEYS.businessService);
+            const businessService = (system && system.businessService) || bsTag.value || BUSINESS_SERVICE;
+            const businessServiceSource = (system && system.businessService) ? "map" : (bsTag.value ? bsTag.from : "default");
+            const soTag = firstTag(tags, META_KEYS.serviceOffering);
+            const serviceOffering = system
+              ? (system.serviceOffering || soTag.value || "")
+              : (soTag.value || (bsTag.value ? "" : SERVICE_OFFERING));
+
+            const groups = {
+              L1: (system && system.l1Group) || DEFAULT_GROUPS.L1,
+              L2: (system && system.l2Group) || DEFAULT_GROUPS.L2,
+              L3: DEFAULT_GROUPS.L3
+            };
+            const tier = snowImpact === "1" && environment === "Production" ? "L2" : DEFAULT_TIER;
+            const groupTag = firstTag(tags, META_KEYS.assignmentGroup);
+            const routedGroup = groupTag.value || groups[tier];
+            const groupSource = groupTag.value ? groupTag.from
+              : ((system && (tier === "L1" ? system.l1Group : system.l2Group)) ? "map " + tier : "default " + tier);
+            const assignmentGroup = TEST_ASSIGNMENT_GROUP || routedGroup;
+            const assignedTo = assignmentGroup === DEFAULT_GROUPS.L2 ? ASSIGNED_TO : "";
+            const groupNote = TEST_ASSIGNMENT_GROUP
+              ? assignmentGroup + " (fixed; normal routing: " + routedGroup + ")"
+              : assignmentGroup;
+            const escalation = "L1 " + groups.L1 + " -> L2 " + groups.L2 + (groups.L3 ? " -> L3 " + groups.L3 : "");
+            const application = (system && system.key) || tagValue(tags, "app") || APPLICATION;
+            const systemNote = system ? system.key + " (matched on " + system.matchedOn + ")" : "no SYSTEM_MAP match";
+
+            // --- Text like INC30339531 ---
+            const headline = eventDescription || problemTitle;
+            const where = rootName || hostName || "unknown entity";
+            const shortDescription = (FIXED_SHORT_DESCRIPTION ||
+              SHORT_PREFIX + "[" + (hostName || where) + "] - " + headline).slice(0, 160);
+
+            const additionalInformation = {
+              correlation_id: rootId || problemId,
+              discovered_name: rootName,
+              dynatrace_severity: severity,
+              environmentId: environmentId,
+              environmentName: DT_ENVIRONMENT_NAME,
+              event_properties: eventProps,
+              ip_addresses: ipAddresses,
+              // "false" when the entity is only affected, e.g. custom alerts without a root cause (INC30339746)
+              isRootCause: prob.rootCauseEntity ? "true" : "false",
+              managementZones: zones,
+              metricName: propValue("dt.event.metric_selector") || propValue("dt.event.metric_key") || "",
+              problemDescription: "OPEN " + (impactLevel ? impactLevel + " " : "") + "Problem " + problemId + ": " + problemTitle,
+              problem_displayId: problemId,
+              problem_id: problemInternalId,
+              tags: tagStrings,
+              title: propValue("dt.event.title") || undefined,
+              u_business_service: businessServiceSource === "default" ? "<<UNKNOWN>>" : businessService,
+              u_external_url: problemUrl || "<<UNKNOWN>>"
+            };
+            // Same layout as the classic integration: "key" : value
+            const prettyJson = JSON.stringify(additionalInformation, null, 2)
+              .replace(/^(\s*)"([^"]+)":/gm, '$1"$2" :');
+            const notificationDescription = (headline + "\nAdditional Information:\n" + prettyJson)
+              .slice(0, DESCRIPTION_MAX);
+
+            const cause = [headline];
+            const customerNotes = [
+              "=== Dynatrace alert " + problemId + " ===",
+              "Cause   : " + headline,
+              "Problem : " + problemTitle,
+              "Entity  : " + where + (hostName && hostName !== where ? " on host " + hostName : ""),
+              "Link    : " + (problemUrl || "n/a"),
+              PD_SERVICE_URL ? "PagerDuty : " + PD_SERVICE_URL + " (dedup_key dt-problem-" + problemId + ")" : "",
+              DASHBOARD_URL ? "Dashboard : " + DASHBOARD_URL : ""
+            ].filter(Boolean).join("\n").slice(0, 3900);
+
+            const tagKeys = Array.from(new Set(tags.map(t => String(t.key))));
+            const metaNote = [
+              "Metadata used",
+              "  Host              : " + (hostName || "none") + (ipAddresses.length ? " (" + ipAddresses.join(", ") + ")" : ""),
+              "  Assignment group  : " + routedGroup + " (" + groupSource + ")",
+              "  Environment       : " + environment + " (" + environmentSource + ")",
+              "  Business service  : " + (businessServiceSource === "default" && LET_SILVA_DERIVE_SERVICE
+                ? "from CI in SILVA, fallback " + businessService
+                : businessService + " (" + businessServiceSource + ")"),
+              "  System            : " + systemNote,
+              "  Severity          : " + severity,
+              "  Problems API      : " + problemApi,
+              "  Entities API      : " + entityApi,
+              "  Tag keys (" + tagKeys.length + ")    : " + (tagKeys.join(", ") || "none")
+            ].join("\n").slice(0, 3000);
+
+            return {
+              problemId: problemId,
+              problemUrl: problemUrl,
+              problemTitle: problemTitle,
+              hostName: hostName,
+              ipAddresses: ipAddresses,
+              sendConfigurationItem: SEND_CONFIGURATION_ITEM,
+              letSilvaDeriveService: LET_SILVA_DERIVE_SERVICE,
+              severity: severity,
+              pdSeverity: pdSeverity,
+              impactLabel: IMPACT_LABEL[snowImpact],
+              urgencyLabel: IMPACT_LABEL[snowUrgency],
+              contactType: CONTACT_TYPE,
+              company: COMPANY,
+              environment: environment,
+              businessService: businessService,
+              businessServiceSource: businessServiceSource,
+              serviceOffering: serviceOffering,
+              defaultBusinessService: BUSINESS_SERVICE,
+              defaultServiceOffering: SERVICE_OFFERING,
+              application: application,
+              category: CATEGORY,
+              subcategory: SUBCATEGORY,
+              assignmentGroup: assignmentGroup,
+              assignedTo: assignedTo,
+              groupNote: groupNote,
+              escalation: escalation,
+              where: where,
+              cause: cause,
+              dashboard: DASHBOARD_URL,
+              customerNotes: customerNotes,
+              notificationDescription: notificationDescription,
+              shortDescription: shortDescription,
+              metaNote: metaNote,
+              systemNote: systemNote,
+              extraction: {
+                problemApi: problemApi,
+                entityApi: entityApi,
+                rootId: rootId,
+                rootName: rootName,
+                hostName: hostName,
+                ipAddresses: ipAddresses,
+                eventDescription: eventDescription,
+                eventPropertyCount: eventProps.length,
+                tagCount: tags.length,
+                sources: {
+                  assignmentGroup: groupSource,
+                  environment: environmentSource,
+                  businessService: businessServiceSource
+                },
+                eventKeys: meta.eventKeys
+              },
+              additionalInformation: additionalInformation,
+              // SYNC KEYS — must match CLOSE workflow
+              correlationId: problemId,
+              dedupKey: "dt-problem-" + problemId,
+              silvaBaseUrl: "https://silvastg.service-now.com",
+              silvaUsername: "Tech_DynatraceJP_WS"
+            };
+          }
+
+    post-silva-incident-http:
+      name: post-silva-incident-http
+      description: >-
+        HTTP POST to SILVA/SNOW (no snow connector). Host sent as CI by sys_id so SILVA derives
+        business service and offering; blanks are filled afterwards from svc_ci_assoc or defaults.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-payload
+      conditions:
+        states:
+          prepare-payload: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          const NONE = { sysId: "", status: 0, matches: 0 };
+
+          function basicAuthHeader(user, pass) {
+            const token = Buffer.from(String(user) + ":" + String(pass)).toString("base64");
+            return "Basic " + token;
+          }
+
+          async function getRows(baseUrl, headers, table, query, fields, limit) {
+            const url = baseUrl + "/api/now/v2/table/" + table +
+              "?sysparm_query=" + encodeURIComponent(query) +
+              "&sysparm_fields=" + fields + "&sysparm_limit=" + limit +
+              "&sysparm_exclude_reference_link=true";
+            try {
+              const res = await fetch(url, { method: "GET", headers: headers });
+              const text = await res.text();
+              let json = {};
+              try { json = JSON.parse(text); } catch (e) { json = {}; }
+              return { status: res.status, rows: json.result || [], error: res.ok ? "" : text.slice(0, 200) };
+            } catch (e) {
+              return { status: 0, rows: [], error: String((e && e.message) || e).slice(0, 200) };
+            }
+          }
+
+          // cmdb_ci_service also returns child classes, so one name can match several records
+          async function lookupSysId(baseUrl, headers, table, name) {
+            if (!name) return NONE;
+            const r = await getRows(baseUrl, headers, table,
+              "name=" + name, "sys_id,name,sys_class_name,operational_status", 10);
+            const pick = r.rows.find(x => String(x.operational_status) === "1") || r.rows[0];
+            return {
+              sysId: pick ? pick.sys_id : "",
+              status: r.status,
+              matches: r.rows.length,
+              classes: r.rows.map(x => x.sys_class_name),
+              error: r.error
+            };
+          }
+
+          // CMDB may store the host short, full or in fqdn (example CI: wrgcrapp01.axa-id.intraxa)
+          async function lookupCi(baseUrl, headers, host) {
+            if (!host) return Object.assign({ name: "" }, NONE);
+            const full = String(host).toLowerCase();
+            const shortName = full.split(".")[0];
+            const r = await getRows(baseUrl, headers, "cmdb_ci",
+              "name=" + full + "^ORname=" + host + "^ORname=" + shortName + "^ORfqdn=" + full,
+              "sys_id,name,sys_class_name,install_status", 5);
+            const pick = r.rows.find(x => String(x.install_status) === "1") || r.rows[0];
+            return {
+              sysId: pick ? pick.sys_id : "",
+              name: pick ? pick.name : "",
+              ciClass: pick ? pick.sys_class_name : "",
+              status: r.status,
+              matches: r.rows.length,
+              error: r.error
+            };
+          }
+
+          async function lookupServiceForCi(baseUrl, headers, ciSysId) {
+            if (!ciSysId) return NONE;
+            const r = await getRows(baseUrl, headers, "svc_ci_assoc", "ci_id=" + ciSysId, "service_id", 5);
+            const ids = r.rows.map(x => x.service_id).filter(Boolean);
+            return { sysId: ids[0] || "", status: r.status, matches: ids.length, error: r.error };
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-payload");
+
+            const baseUrl = String(p.silvaBaseUrl || "https://silvastg.service-now.com").replace(/\/$/, "");
+            const username = p.silvaUsername || "Tech_DynatraceJP_WS";
+            const password = "JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}";
+            const headers = {
+              Authorization: basicAuthHeader(username, password),
+              "Content-Type": "application/json",
+              Accept: "application/json"
+            };
+
+            const ciLookup = p.sendConfigurationItem
+              ? await lookupCi(baseUrl, headers, p.hostName)
+              : Object.assign({ name: "" }, NONE);
+            // Like the classic integration: with a known CI and no explicit service, let SILVA derive it
+            const deriveFromCi = !!(p.letSilvaDeriveService && p.businessServiceSource === "default" && ciLookup.sysId);
+            const bsLookup = deriveFromCi ? NONE : await lookupSysId(baseUrl, headers, "cmdb_ci_service", p.businessService);
+            const soLookup = deriveFromCi || !p.serviceOffering ? NONE
+              : await lookupSysId(baseUrl, headers, "service_offering", p.serviceOffering);
+
+            const body = {
+              short_description: p.shortDescription,
+              description: p.notificationDescription,
+              correlation_id: p.correlationId,
+              impact: p.impactLabel,
+              urgency: p.urgencyLabel,
+              caller_id: username,
+              contact_type: p.contactType,
+              company: p.company,
+              u_host: p.hostName,
+              u_environment: p.environment,
+              category: p.category,
+              subcategory: p.subcategory,
+              assignment_group: p.assignmentGroup,
+              comments: p.customerNotes,
+              work_notes:
+                "Opened by Dynatrace workflow (HTTP, no SNOW connector). " +
+                "Sync correlation_id=" + p.correlationId +
+                " PD dedup_key=" + p.dedupKey +
+                " problem_url=" + p.problemUrl +
+                "\n\n" + (p.metaNote || "")
+            };
+            if (ciLookup.sysId) body.cmdb_ci = ciLookup.sysId;
+            if (!deriveFromCi) {
+              body.business_service = bsLookup.sysId || p.businessService;
+              if (p.serviceOffering) body.service_offering = soLookup.sysId || p.serviceOffering;
+            }
+            if (p.assignedTo) body.assigned_to = p.assignedTo;
+
+            const res = await fetch(
+              baseUrl + "/api/now/v2/table/incident" +
+                "?sysparm_input_display_value=true&sysparm_display_value=true&sysparm_exclude_reference_link=true",
+              { method: "POST", headers: headers, body: JSON.stringify(body) }
+            );
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }
+            if (!res.ok) {
+              throw new Error(
+                "SILVA/SNOW HTTP create failed HTTP " + res.status + ": " + text +
+                " | Check External requests allowlist for silvastg.service-now.com"
+              );
+            }
+            const row = json.result || json;
+
+            // Fill what is still blank after insert rules ran (raw sys_ids, no display-value flag)
+            const fixBody = {};
+            let cmdbService = NONE;
+            let fallback = { businessService: NONE, serviceOffering: NONE };
+            if (deriveFromCi && !row.business_service) {
+              cmdbService = await lookupServiceForCi(baseUrl, headers, ciLookup.sysId);
+              if (cmdbService.sysId) {
+                fixBody.business_service = cmdbService.sysId;
+              } else {
+                fallback.businessService = await lookupSysId(baseUrl, headers, "cmdb_ci_service", p.defaultBusinessService);
+                fallback.serviceOffering = await lookupSysId(baseUrl, headers, "service_offering", p.defaultServiceOffering);
+                if (fallback.businessService.sysId) fixBody.business_service = fallback.businessService.sysId;
+                if (fallback.serviceOffering.sysId && !row.service_offering) fixBody.service_offering = fallback.serviceOffering.sysId;
+              }
+            }
+            if (!deriveFromCi) {
+              if (bsLookup.sysId) fixBody.business_service = bsLookup.sysId;
+              if (soLookup.sysId) fixBody.service_offering = soLookup.sysId;
+            }
+            if (ciLookup.sysId && !row.cmdb_ci) fixBody.cmdb_ci = ciLookup.sysId;
+
+            let serviceFix = { attempted: false };
+            if (row.sys_id && Object.keys(fixBody).length) {
+              const fixRes = await fetch(
+                baseUrl + "/api/now/v2/table/incident/" + row.sys_id +
+                  "?sysparm_display_value=true&sysparm_exclude_reference_link=true",
+                { method: "PATCH", headers: headers, body: JSON.stringify(fixBody) }
+              );
+              const fixText = await fixRes.text();
+              let fixJson = {};
+              try { fixJson = JSON.parse(fixText); } catch (e) { fixJson = { raw: fixText }; }
+              const fixRow = fixJson.result || {};
+              serviceFix = {
+                attempted: true,
+                status: fixRes.status,
+                sent: fixBody,
+                error: fixRes.ok ? "" : fixText.slice(0, 300)
+              };
+              if (fixRes.ok) {
+                row.business_service = fixRow.business_service || row.business_service;
+                row.service_offering = fixRow.service_offering || row.service_offering;
+                row.cmdb_ci = fixRow.cmdb_ci || row.cmdb_ci;
+              }
+            }
+
+            const stored = {
+              environment: row.u_environment || "",
+              businessService: row.business_service || "",
+              serviceOffering: row.service_offering || "",
+              configurationItem: row.cmdb_ci || "",
+              assignmentGroup: row.assignment_group || "",
+              assignedTo: row.assigned_to || "",
+              impact: row.impact || "",
+              urgency: row.urgency || "",
+              priority: row.priority || "",
+              category: row.category || "",
+              subcategory: row.subcategory || "",
+              contactType: row.contact_type || "",
+              company: row.company || ""
+            };
+            return {
+              created: true,
+              incidentNumber: row.number || "",
+              incidentSysId: row.sys_id || "",
+              stored: stored,
+              notFilled: Object.keys(stored).filter(k => !stored[k]),
+              businessServiceFrom: deriveFromCi
+                ? (fixBody.business_service ? (cmdbService.sysId ? "svc_ci_assoc" : "default") : "SILVA from CI")
+                : p.businessServiceSource,
+              ciLookup: ciLookup,
+              cmdbService: cmdbService,
+              serviceLookup: { businessService: bsLookup, serviceOffering: soLookup, fallback: fallback },
+              serviceFix: serviceFix,
+              extraction: p.extraction,
+              correlationId: p.correlationId,
+              dedupKey: p.dedupKey,
+              raw: json
+            };
+          }
+
+    trigger-pagerduty:
+      name: trigger-pagerduty
+      description: HTTP POST PagerDuty Events API v2 trigger (parallel with SILVA).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 2
+      predecessors:
+        - prepare-payload
+      conditions:
+        states:
+          prepare-payload: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-payload");
+            const routingKey = "222651dbacb04403c0bf52d3b48499e8";
+
+            const links = [];
+            if (p.problemUrl) links.push({ href: p.problemUrl, text: "Dynatrace problem" });
+            if (/^https?:\/\//.test(p.dashboard || "")) links.push({ href: p.dashboard, text: "Dashboard" });
+
+            const body = {
+              routing_key: routingKey,
+              event_action: "trigger",
+              dedup_key: p.dedupKey,
+              client: "Dynatrace",
+              client_url: p.problemUrl,
+              payload: {
+                summary: p.shortDescription,
+                source: p.hostName || "dynatrace",
+                severity: p.pdSeverity,
+                group: p.environment,
+                component: p.application,
+                custom_details: {
+                  problem_id: p.problemId,
+                  problem_title: p.problemTitle,
+                  problem_url: p.problemUrl,
+                  host_name: p.hostName,
+                  ip_addresses: (p.ipAddresses || []).join(", "),
+                  affected_entity: p.where,
+                  environment: p.environment,
+                  business_service: p.businessServiceSource === "default" ? "derived by SILVA from CI" : p.businessService,
+                  assignment_group: p.groupNote,
+                  impact: p.impactLabel,
+                  urgency: p.urgencyLabel,
+                  severity: p.severity,
+                  snow_correlation_id: p.correlationId
+                }
+              },
+              links: links
+            };
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = { raw: text }; }
+            if (!res.ok) {
+              throw new Error(
+                "PagerDuty trigger failed HTTP " + res.status + ": " + text +
+                " | Check External requests allowlist for events.pagerduty.com"
+              );
+            }
+            return {
+              status: json.status || "ok",
+              dedupKey: json.dedup_key || p.dedupKey,
+              correlationId: p.correlationId,
+              raw: json
+            };
+          }

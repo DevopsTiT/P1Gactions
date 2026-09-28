@@ -1,0 +1,26 @@
+How each field is derived (current OPEN workflow, seq 27)
+
+ENVIRONMENT
+1. SYSTEM_MAP row environment
+2. Tag AGO_AXAENVIRONMENTNAME (Integration-Test -> Integration / Test, Development -> Development)
+3. Tag env (PRD / TST / DEV)
+4. Security context suffix (_PRD / _TST)
+5. Default Development
+Only Production, Development, Integration / Test are sent (SILVA drops unknown labels).
+
+BUSINESS SERVICE (+ OFFERING)
+No tag holds it (u_business_service = <<UNKNOWN>> in both examples).
+1. SYSTEM_MAP row (EIP -> ALJ_EIP_PRD) or tag snow-service -> send it
+2. Else host found in SILVA CMDB -> send only the CI -> SILVA fills the service itself
+   (both examples: Third Party Services Monitoring Application)
+3. Still blank -> svc_ci_assoc (host -> service)
+4. Still blank / host not found -> uk-sap-fscd-dev
+
+ASSIGNMENT GROUP
+1. TEST_ASSIGNMENT_GROUP (testing only, now "")
+2. Tag AGO_AXA_SUPPORTGROUP (example 2: InfraSupport_Dist-WindowsHK_L2_ASIA)
+3. Tag AGO_DEFAULT_ASSIGNMENT_GROUP
+4. SYSTEM_MAP l2Group
+5. Default Ops_Middleware_Monitoring_AXAJP (then assigned to Shuge KUI)
+
+Check on a ticket: work notes "Metadata used" shows each value and its source.
