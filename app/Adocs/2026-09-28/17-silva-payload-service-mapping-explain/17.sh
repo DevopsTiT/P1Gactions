@@ -1,0 +1,5 @@
+curl -s -H "Authorization: Api-Token __DT_API_TOKEN__" "https://__DT_TENANT__.live.dynatrace.com/api/v2/entities/SERVICE-4C92DDBDD78986D0?fields=+tags,+fromRelationships,+toRelationships"
+curl -s -H "Authorization: Api-Token __DT_API_TOKEN__" "https://__DT_TENANT__.live.dynatrace.com/api/v2/entities/PROCESS_GROUP-FBFA7DE3E44C269C?fields=+tags,+fromRelationships"
+curl -s -H "Authorization: Api-Token __DT_API_TOKEN__" "https://__DT_TENANT__.live.dynatrace.com/api/v2/problems/P-260915351?fields=+evidenceDetails,+impactAnalysis"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/cmdb_ci?sysparm_query=nameLIKEcompass&sysparm_fields=name,sys_class_name,sys_id&sysparm_limit=20"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/cmdb_ci_service?sysparm_query=nameLIKEcompass&sysparm_fields=name,sys_id&sysparm_limit=20"

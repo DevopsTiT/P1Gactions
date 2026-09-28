@@ -1,0 +1,39 @@
+Abhay's request, in short:
+- Put SILVA values in a data map keyed by Dynatrace system
+- L2 SILVA group is sent by default
+- Example: system EIP -> business service ALJ_EIP_PRD
+- If the business service changes, edit only the map
+
+Done in the new YAMLs (folder 20-silva-system-data-map):
+
+const SYSTEM_MAP = {
+  EIP: {
+    businessService: "ALJ_EIP_PRD",
+    serviceOffering: "",
+    l1Group: "",
+    l2Group: "",
+    environment: "Production"
+  }
+};
+const DEFAULT_GROUPS = { L1: "Dynatrace Support", L2: "Ops_Middleware_Monitoring_AXAJP", L3: "__L3_GROUP__" };
+const DEFAULT_TIER = "L2";
+
+How the system is found (in order):
+1. tag system
+2. tag app
+3. tag dt.cost.product
+4. dt.security.context (ALJ_EIP_PRD contains the word EIP)
+5. root cause / affected entity names
+
+Match = whole word, so EIP matches ALJ_EIP_PRD but not RECEIPT.
+
+Routing:
+- Group: TEST_ASSIGNMENT_GROUP (now "") -> tag AGO_AXA_SUPPORTGROUP -> map l2Group -> Ops_Middleware_Monitoring_AXAJP
+- Business service: map -> snow-service tag -> uk-sap-fscd-dev
+- Offering: map; mapped system without offering sends none; unmapped keeps uk-sap-fscd-dev offering
+- Assigned to Shuge KUI only when group is Ops_Middleware_Monitoring_AXAJP
+- No match -> same result as before
+
+To add a system: add a row in SYSTEM_MAP in OPEN, and the same key + businessService in CLOSE.
+
+Still needed from Abhay: EIP L2 group name and EIP service offering name.

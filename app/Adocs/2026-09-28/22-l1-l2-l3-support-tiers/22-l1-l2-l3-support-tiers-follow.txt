@@ -1,0 +1,17 @@
+L1 / L2 / L3 = support levels. A ticket starts low and moves up only if needed.
+
+L1 (first line): service desk / NOC / monitoring. Checks the alert, follows a runbook, restarts, escalates with notes.
+L2 (second line): the team that runs the app or platform (e.g. EIP support). Reads logs, fixes config, rolls back, scales. Fixes most incidents.
+L3 (third line): developers, architects, vendor. Code bugs, patches, design changes.
+
+Analogy: reception nurse (L1) -> general doctor (L2) -> specialist (L3).
+
+In our workflow:
+- DEFAULT_GROUPS.L1 = "Dynatrace Support" (used only if DEFAULT_TIER = "L1")
+- DEFAULT_GROUPS.L2 = "Ops_Middleware_Monitoring_AXAJP" (default)
+- DEFAULT_GROUPS.L3 = placeholder, only shown in notes
+- DEFAULT_TIER = "L2" (Abhay: pass L2 by default)
+- Production impact 1 -> always L2
+- The workflow sets only the first group; moving to L3 is done by people in SILVA.
+
+Next: ask Abhay for the EIP L2 group and the L3 group names.

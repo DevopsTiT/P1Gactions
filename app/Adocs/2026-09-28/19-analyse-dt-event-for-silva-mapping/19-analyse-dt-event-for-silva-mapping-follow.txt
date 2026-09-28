@@ -1,0 +1,26 @@
+Is this JSON what SILVA receives?
+No. It is the Dynatrace problem event that triggers the workflow. SILVA only gets the incident fields that prepare-payload builds from it.
+
+Useful fields in this event:
+- dt.cost.product: COMPASSPROXY (and ILLUSTRATION-PROPOSAL-AXA-COMPASS) -> business service key
+- app: COMPASSPROXY -> backup key
+- env: TST -> SILVA environment Test
+- bu: NB-IT-COMPASS-AXAJP -> owner hint
+- company / dt.cost.costcenter: ALJ
+- dt.security.context: ALJ_APPLICATION_COMPASSPROXY_TST -> app plus env in one value
+
+Ignore:
+- host: tag = pod names, not in the CMDB, never send as cmdb_ci
+- [Kubernetes]app:compass-proxy-ccifa-1..11 = too many, they change
+
+Steps:
+1. In SILVA, search cmdb_ci_service.list with Name contains compass
+2. Read that record's support_group -> this is the assignment group
+3. Search service_offering.list with Name contains compass, pick the Test/Dev one
+4. Ask the team which product owns it (COMPASSPROXY or ILLUSTRATION-PROPOSAL)
+5. Put the names into SERVICE_MAP in the OPEN YAML, keep current defaults as fallback
+
+Command example (replace the password):
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/cmdb_ci_service?sysparm_query=nameLIKEcompass&sysparm_fields=name,sys_id,support_group,assignment_group,operational_status&sysparm_display_value=true&sysparm_exclude_reference_link=true&sysparm_limit=200"
+
+The rest of the commands are in 19.sh.
