@@ -1,0 +1,13 @@
+Seq 14: default Development + business service as in the screenshot
+
+Folder: Daily Files/2026-09-28/14-open-close-default-development/
+
+OPEN settings now:
+const BUSINESS_SERVICE = "QA Platforms";
+const SERVICE_OFFERING = "QA Platforms - AXA GROUP OPERATIONS - Production - ToD Web subscription";
+const FIXED_ENVIRONMENT = "Development";
+const DEFAULT_ENVIRONMENT = "Development";
+
+The offering record is marked Production. If notFilled lists serviceOffering,
+SILVA probably filters offerings by environment: ask the admin for the Development offering or use Production.
+CLOSE: unchanged (business service QA Platforms).
