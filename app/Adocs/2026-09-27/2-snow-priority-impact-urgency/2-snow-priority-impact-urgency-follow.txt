@@ -1,0 +1,17 @@
+ServiceNow priority = impact x urgency
+
+Impact: how big (1 high, 3 low)
+Urgency: how fast (1 high, 3 low)
+
+Default matrix:
+I1U1 P1 | I1U2 P2 | I1U3 P3
+I2U1 P2 | I2U2 P3 | I2U3 P4
+I3U1 P3 | I3U2 P4 | I3U3 P5
+
+Out of box 5 levels; many companies show only P1-P4.
+Do not send priority in API - SNOW recalculates. Send impact + urgency.
+
+Our workflow:
+CRITICAL/AVAILABILITY -> 1/1 -> P1
+ERROR -> 2/2 -> P3
+other -> 3/3 -> P5 (or P4)

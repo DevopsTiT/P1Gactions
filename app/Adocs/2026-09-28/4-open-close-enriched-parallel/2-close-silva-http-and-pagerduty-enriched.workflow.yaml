@@ -1,0 +1,343 @@
+# CLOSE (enriched) — Problem CLOSED → resolve SILVA INC + resolve PagerDuty IN PARALLEL
+# Based on: 2026-09-24/1-silva-http-snow-pd-sync-workflows/2-close-silva-http-and-pagerduty.workflow.yaml
+# Same shape as before:
+#   prepare-close-ids ──► resolve-silva-incident-http   (x:0, y:2)
+#                    └──► resolve-pagerduty             (x:1, y:2)   ← same time
+#
+# Enrichment added:
+#   close_notes: duration, cause, evidence
+#   closing notes block: classification at close, outcome, Dynatrace link, PagerDuty link, service, dashboard
+#   Resolution Type set; state change verified
+#
+# Sync keys (same as OPEN):
+#   SNOW correlation_id (External Ticket Number) = <problemId>
+#   PD   dedup_key                               = dt-problem-<problemId>
+#
+# BEFORE ACTIVATE:
+#   1) Same __SNOW_PASSWORD__, __PD_ROUTING_KEY__, __PD_API_KEY__ as OPEN
+#   2) Allowlist: silvastg.service-now.com , events.pagerduty.com , api.pagerduty.com
+#   3) Confirm close_code and Resolution Type labels (u_resolution_type column name)
+#   4) RESOLVE_MODE: "auto" (set Resolved) or "comment-only" (team resolves)
+#
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Problem CLOSE resolve SILVA HTTP and PagerDuty (sync, enriched)
+  description: >-
+    No ServiceNow connector. On Problem close, resolve SILVA/SNOW INC by correlation_id with
+    enriched close notes and a closing notes block, and resolve PagerDuty with matching
+    dedup_key — both at the same time.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND
+        (event.status == "CLOSED" OR event.status_transition == "RESOLVED" OR
+        event.status_transition == "CLOSED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-close-ids:
+      name: prepare-close-ids
+      description: Same sync keys as OPEN (correlationId + dedupKey) plus duration, cause, service, dashboard.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          const DASHBOARD_BY_APP = {
+            "policy-db": "https://abc12345.apps.dynatrace.com/ui/apps/dynatrace.dashboards/dashboard/__POLICY_DB_DASHBOARD_ID__"
+          };
+          const DASHBOARD_BY_ZONE = {
+            "JP-Prod": "https://abc12345.apps.dynatrace.com/ui/apps/dynatrace.dashboards/dashboard/__JP_PROD_OVERVIEW_ID__"
+          };
+
+          function tagValue(tags, key) {
+            const hit = (tags || []).find(t => (t.key || "").toLowerCase() === key);
+            return hit ? (hit.value || "") : "";
+          }
+          function duration(ms) {
+            if (!ms || ms < 0) return "unknown";
+            const m = Math.round(ms / 60000);
+            return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min";
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const internalId = ev["event.id"];
+            const problemId = ev["display_id"] || ev["problem.id"] || internalId || "unknown-problem";
+
+            const prob = await problemsClient.getProblem({ problemId: internalId });
+            const problemUrl = getEnvironmentUrl().replace(/\/$/, "") +
+              "/ui/apps/dynatrace.davis.problems/problem/" + internalId;
+            const root = prob.rootCauseEntity || (prob.affectedEntities || [])[0] || {};
+            const all = [root, ...(prob.affectedEntities || []), ...(prob.impactedEntities || [])];
+            const hostEntity = all.find(e => e.entityId && e.entityId.type === "HOST");
+            const serviceEntity = all.find(e => e.entityId && e.entityId.type === "SERVICE");
+            const hostName = hostEntity ? hostEntity.name : "";
+            const where = root.name || hostName || "unknown entity";
+            const tags = prob.entityTags || [];
+            const zones = (prob.managementZones || []).map(z => z.name);
+            const app = tagValue(tags, "app");
+            const evidence = ((prob.evidenceDetails && prob.evidenceDetails.details) || [])
+              .filter(d => d.rootCauseRelevant !== false).map(d => d.displayName).slice(0, 3);
+
+            const start = prob.startTime || 0;
+            const end = prob.endTime && prob.endTime > 0 ? prob.endTime : Date.now();
+            const startIso = new Date(start).toISOString();
+            const endIso = new Date(end).toISOString();
+            const dur = duration(end - start);
+            const title = prob.title || "Dynatrace Problem";
+
+            return {
+              problemId: problemId,
+              problemUrl: problemUrl,
+              title: title,
+              where: where,
+              hostName: hostName,
+              dtService: serviceEntity ? serviceEntity.name : "",
+              duration: dur,
+              startTime: startIso,
+              endTime: endIso,
+              dashboard: tagValue(tags, "dashboard") || DASHBOARD_BY_APP[app] ||
+                zones.map(z => DASHBOARD_BY_ZONE[z]).find(Boolean) || "",
+              runbook: tagValue(tags, "runbook"),
+              correlationId: problemId,
+              dedupKey: "dt-problem-" + problemId,
+              closeNotes: [
+                "[RESOLVED] Dynatrace Problem closed " + problemId + " at " + endIso,
+                "Duration: " + dur + " (" + startIso + " to " + endIso + ")",
+                "Cause: " + title + " on " + where
+              ].concat(evidence.map(e => "- " + e)).concat([
+                "Recovery confirmed by Dynatrace: the problem condition is no longer detected.",
+                "Dynatrace: " + problemUrl,
+                "If a permanent fix is needed, raise a Problem record."
+              ]).join("\n"),
+              silvaBaseUrl: "https://silvastg.service-now.com",
+              silvaUsername: "Tech_DynatraceJP_WS"
+            };
+          }
+
+    resolve-silva-incident-http:
+      name: resolve-silva-incident-http
+      description: >-
+        GET INC by correlation_id then PATCH Resolved with enriched close notes and closing notes
+        block (HTTP, no connector). Runs at the same time as resolve-pagerduty.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-close-ids
+      conditions:
+        states:
+          prepare-close-ids: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          const RESOLVE_MODE = "auto";
+          const NOTES_FIELD = "comments";
+          const RESOLUTION_TYPE_FIELD = "u_resolution_type";
+          const RESOLUTION_TYPE_VALUE = "Automatic";
+          const PD_API_KEY = "__PD_API_KEY__";
+
+          function basicAuthHeader(user, pass) {
+            const token = Buffer.from(String(user) + ":" + String(pass)).toString("base64");
+            return "Basic " + token;
+          }
+
+          async function pdLink(dedupKey) {
+            try {
+              const res = await fetch("https://api.pagerduty.com/incidents?incident_key=" + encodeURIComponent(dedupKey) +
+                "&statuses[]=triggered&statuses[]=acknowledged&statuses[]=resolved&date_range=all", {
+                headers: { Authorization: "Token token=" + PD_API_KEY, Accept: "application/vnd.pagerduty+json;version=2" }
+              });
+              if (!res.ok) return "";
+              const inc = ((await res.json()).incidents || [])[0];
+              return inc ? inc.html_url : "";
+            } catch (e) { return ""; }
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-close-ids");
+
+            const baseUrl = String(p.silvaBaseUrl || "https://silvastg.service-now.com").replace(/\/$/, "");
+            const headers = {
+              Authorization: basicAuthHeader(p.silvaUsername || "Tech_DynatraceJP_WS", "__SNOW_PASSWORD__"),
+              "Content-Type": "application/json",
+              Accept: "application/json"
+            };
+
+            const q = encodeURIComponent("correlation_id=" + p.correlationId + "^ORDERBYDESCsys_created_on");
+            const searchUrl = baseUrl + "/api/now/v2/table/incident?sysparm_query=" + q +
+              "&sysparm_limit=1&sysparm_display_value=all&sysparm_exclude_reference_link=true" +
+              "&sysparm_fields=number,sys_id,state,u_environment,business_service,category,subcategory,priority,impact,assignment_group";
+
+            const searchRes = await fetch(searchUrl, { method: "GET", headers: headers });
+            const searchText = await searchRes.text();
+            let searchJson = {};
+            try { searchJson = JSON.parse(searchText); } catch (e) { searchJson = { raw: searchText }; }
+            if (!searchRes.ok) {
+              throw new Error(
+                "SILVA search failed HTTP " + searchRes.status + ": " + searchText +
+                " | Allowlist silvastg.service-now.com?"
+              );
+            }
+
+            const rows = searchJson.result || [];
+            if (!rows.length) {
+              // OPEN may have skipped (retired host) — do not fail CLOSE hard
+              return {
+                found: false,
+                correlationId: p.correlationId,
+                note: "No INC for correlation_id (SILVA may have skipped create)"
+              };
+            }
+
+            const row = rows[0];
+            const v = f => (row[f] && row[f].value) || "";
+            const d = f => (row[f] && row[f].display_value) || "";
+            if (["6", "7", "8"].includes(v("state"))) {
+              return { found: true, skipped: true, number: v("number"), note: "INC already " + d("state") };
+            }
+
+            const pd = await pdLink(p.dedupKey);
+            const show = x => x || "NOT SET";
+            const note = [
+              "=== Dynatrace alert closed (" + p.problemId + ") ===",
+              "",
+              "Ticket classification at close",
+              "  Environment      : " + show(d("u_environment")),
+              "  Business service : " + show(d("business_service")),
+              "  Category         : " + show(d("category")),
+              "  Subcategory      : " + show(d("subcategory")),
+              "  Priority         : " + show(d("priority")),
+              "  Impact           : " + show(d("impact")),
+              "  Assignment group : " + show(d("assignment_group")),
+              "",
+              "Outcome",
+              "  Status   : " + (RESOLVE_MODE === "auto" ? "Resolved automatically" : "Dynatrace recovered - please verify and resolve"),
+              "  Duration : " + p.duration,
+              "  Cause    : " + p.title + " on " + p.where,
+              "",
+              "Links",
+              "  Dynatrace problem : " + p.problemUrl,
+              "  PagerDuty incident: " + (pd || "not found (dedup_key " + p.dedupKey + ")"),
+              "",
+              "Which service",
+              "  Business service  : " + show(d("business_service")),
+              "  Dynatrace service : " + (p.dtService || "n/a"),
+              "  Affected entity   : " + p.where + (p.hostName && p.hostName !== p.where ? " on host " + p.hostName : ""),
+              "",
+              "Dashboard to confirm recovery",
+              "  " + (p.dashboard || "None tagged - add Dynatrace tag \"dashboard:<url>\""),
+              p.runbook ? "  Runbook: " + p.runbook : null
+            ].filter(x => x !== null).join("\n").slice(0, 3900);
+
+            const patchBody = { [NOTES_FIELD]: note };
+            if (RESOLVE_MODE === "auto") {
+              patchBody.state = "6";
+              patchBody.close_code = "Solved (Permanently)";
+              patchBody.close_notes = p.closeNotes.slice(0, 3900);
+              patchBody[RESOLUTION_TYPE_FIELD] = RESOLUTION_TYPE_VALUE;
+            }
+
+            const patchRes = await fetch(baseUrl + "/api/now/v2/table/incident/" + v("sys_id") + "?sysparm_input_display_value=true", {
+              method: "PATCH",
+              headers: headers,
+              body: JSON.stringify(patchBody)
+            });
+            const patchText = await patchRes.text();
+            if (!patchRes.ok) {
+              throw new Error("SILVA resolve failed HTTP " + patchRes.status + ": " + patchText);
+            }
+            const after = (JSON.parse(patchText).result) || {};
+            const stateNow = typeof after.state === "object" ? after.state.value : after.state;
+            if (RESOLVE_MODE === "auto" && String(stateNow) !== "6") {
+              throw new Error("INC " + v("number") + " did not move to Resolved (state " + stateNow +
+                "). SILVA may require other close fields.");
+            }
+
+            return {
+              found: true,
+              number: v("number"),
+              sysId: v("sys_id"),
+              mode: RESOLVE_MODE,
+              pdLink: pd,
+              correlationId: p.correlationId,
+              dedupKey: p.dedupKey
+            };
+          }
+
+    resolve-pagerduty:
+      name: resolve-pagerduty
+      description: HTTP POST PagerDuty resolve with same dedup_key as OPEN (parallel with SILVA).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 2
+      predecessors:
+        - prepare-close-ids
+      conditions:
+        states:
+          prepare-close-ids: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("prepare-close-ids");
+            const routingKey = "__PD_ROUTING_KEY__";
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                routing_key: routingKey,
+                event_action: "resolve",
+                dedup_key: p.dedupKey,
+                payload: {
+                  summary: "[RESOLVED] " + p.title + " - " + p.where + " (duration " + p.duration + ")",
+                  source: p.where,
+                  severity: "info"
+                }
+              })
+            });
+            const text = await res.text();
+            if (!res.ok) {
+              throw new Error(
+                "PD resolve failed HTTP " + res.status + ": " + text +
+                " | Allowlist events.pagerduty.com?"
+              );
+            }
+            return { dedupKey: p.dedupKey, correlationId: p.correlationId, raw: text };
+          }

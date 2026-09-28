@@ -1,0 +1,21 @@
+SILVA ticket fields and notes v2
+
+REQUIREMENT
+Fields clearly show: env, business service, category, subcategory, priority, impact, assignment group
+Customer notes list: cause, Dynatrace link, PagerDuty link, which service, which dashboard
+Pic 2: assignment group must be an exact active sys_user_group (19,609 groups)
+
+TASKS
+1 enrich-problem: cause evidence, top error, dashboard (tag > app map > zone map), DT service
+2 cmdb-lookup: CI, support group, business service (retired skip)
+3 resolve-assignment-group: CI group > snow-group tag > zone map > "Dynatrace Support"; verify active; send sys_id
+4 build-and-post-silva: env, business service, offering, category, subcategory, impact, urgency, group, CI
+5 trigger-pagerduty: Events API dedup_key dt-problem-<id>
+6 get-pagerduty-link: REST GET /incidents?incident_key=... -> html_url (retry 10s x5)
+7 write-ticket-notes: read back display values incl priority -> PATCH comments block
+
+NOTES BLOCK
+Ticket classification (8 lines) / Cause / Links (DT, PD) / Which service / Dashboard + runbook / Defaults used
+
+NOTES_FIELD: comments (customer visible, default) or work_notes (internal)
+SETUP: allowlist api.pagerduty.com too; 3 credential IDs; PD subdomain; dashboard IDs; group names

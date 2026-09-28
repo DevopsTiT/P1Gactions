@@ -1,0 +1,9 @@
+# Enriched OPEN/CLOSE checks - STG only - you run
+diff "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-24/1-silva-http-snow-pd-sync-workflows/1-open-silva-http-and-pagerduty.workflow.yaml" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-28/4-open-close-enriched-parallel/1-open-silva-http-and-pagerduty-enriched.workflow.yaml"
+diff "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-24/1-silva-http-snow-pd-sync-workflows/2-close-silva-http-and-pagerduty.workflow.yaml" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-28/4-open-close-enriched-parallel/2-close-silva-http-and-pagerduty-enriched.workflow.yaml"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_user_group?sysparm_query=name%3DDynatrace%20Support%5Eactive%3Dtrue&sysparm_fields=sys_id,name"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=correlation_id%3DP-260915195&sysparm_fields=number,state,u_environment,business_service,category,subcategory,priority,impact,urgency,assignment_group&sysparm_display_value=true"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_journal_field?sysparm_query=element_id%3D__SYS_ID__%5Eelement%3Dcomments%5EORDERBYDESCsys_created_on&sysparm_fields=sys_created_on,value&sysparm_limit=3"
+curl -s -H "Authorization: Token token=__PD_API_KEY__" -H "Accept: application/vnd.pagerduty+json;version=2" "https://api.pagerduty.com/incidents?incident_key=dt-problem-P-260915195&date_range=all"
+curl -s -H "Authorization: Token token=__PD_API_KEY__" -H "Accept: application/vnd.pagerduty+json;version=2" "https://api.pagerduty.com/incidents/__PD_INCIDENT_ID__/notes"
+# git add/commit/push only if user asks

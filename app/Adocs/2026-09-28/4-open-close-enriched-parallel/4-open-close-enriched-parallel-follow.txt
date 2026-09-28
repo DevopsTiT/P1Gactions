@@ -1,0 +1,14 @@
+Open and close enriched (parallel, based on Sep 24)
+
+OPEN
+prepare-payload: + Problems API, tags, cause, dashboard, CMDB CI, verified group (sys_id), env, business service, offering, category/subcategory, impact/urgency
+post-silva-incident-http (x0,y2) + trigger-pagerduty (x1,y2): SAME TIME
+add-cross-links: PD REST html_url -> SNOW comments block (classification, cause, DT link, PD link, service, dashboard) -> PD note with INC number
+Retired CI -> skip both
+
+CLOSE
+prepare-close-ids: + duration, cause, evidence, dashboard, multi-line close notes
+resolve-silva-incident-http (x0,y2) + resolve-pagerduty (x1,y2): SAME TIME
+SILVA task: skip if resolved; PD link lookup; PATCH state 6, close_code, close_notes, u_resolution_type, closing block; verify
+
+NEW PLACEHOLDERS: __PD_API_KEY__, __PD_FROM_EMAIL__ ; allowlist api.pagerduty.com

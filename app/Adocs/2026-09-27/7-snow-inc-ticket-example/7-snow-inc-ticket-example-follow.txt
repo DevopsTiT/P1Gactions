@@ -1,0 +1,27 @@
+Example SNOW INC: INC0098765
+
+Number INC0098765 | State Resolved | Priority 3 - Moderate (impact 2, urgency 2)
+Caller Tech_DynatraceJP_WS | Contact type Monitoring | Category Software / Performance
+Service Online Payments | CI ip-10-20-3-41.ap-northeast-1.compute.internal
+Group Payments SRE | Assigned Taro Yamada
+Short desc: [Dynatrace][prod] Response time degradation on checkout-api
+Correlation ID P-2609271234 | Problem PRB0004321 | Change CHG0031337
+Resolution: Solved (Permanently) - rolled back v2.3.1 to v2.3.0, DB pool 20 -> 40
+
+Timeline (JST)
+21:41 created by SILVA + work note (logs, deploy)
+21:41 group set from CI; PD triggered
+21:44 Taro In Progress
+21:47 note p95 1.8s, spike after deploy
+21:52 emergency CHG rollback
+22:03 rollback done
+22:10 pool raised, p95 260ms
+22:12 customer comment
+22:15 PRB created
+22:18 Dynatrace closed -> Resolved auto; PD resolved
++3 days Closed
+
+MTTA 2m50s | MTTR 37m28s
+
+Work notes = internal; Additional comments = customer-visible
+API raw vs display: state 6 = Resolved, priority 3 = Moderate

@@ -1,0 +1,20 @@
+ITSM and ITOM explained
+
+ITSM = serve people (tickets, process, approvals) -> Incident, Problem, Change, Request, Knowledge, SLA
+ITOM = run machines (signals, inventory, automation) -> Discovery, CMDB, Service Mapping, Event Mgmt, AIOps, Automation, MID Server
+Rule: ITOM sees, ITSM acts. CMDB links them.
+
+ITSM chain: Incident -> Problem (root cause) -> Change (fix) -> KB
+Change types: Standard (pre-approved), Normal (review/CAB), Emergency (fast)
+ITSM metrics: MTTA, MTTR, SLA breach, change success, reopen, backlog
+
+ITOM event pipeline: em_event -> event rules -> em_alert (dedup by message_key) -> correlation -> Incident; severity 0 clear closes
+ITOM metrics: event-to-alert, alert-to-incident, CMDB completeness/freshness, auto-remediation
+
+YOUR SETUP
+Dynatrace (detect) -> SILVA -> CMDB check (retired skip) -> ITSM Incident; PagerDuty pages
+Dynatrace classic toggles: ITSM off (avoid duplicates), ITOM off unless SNOW team wants em_event
+Alternative design: Dynatrace -> em_event -> alert -> Incident (if SNOW wants all tools correlated)
+
+MISTAKES
+Both ITSM+ITOM on = duplicates; stale CMDB = wrong team/skips; no message_key = alert flood; no clear = stuck open

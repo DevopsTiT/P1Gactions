@@ -1,0 +1,307 @@
+# ENRICH — SILVA already created the INC → workflow finds it and adds Dynatrace context
+# Use when SILVA owns INC creation (gatekeeper) and you can only UPDATE the ticket afterwards.
+# BEFORE ACTIVATE:
+#   1) External requests allowlist: silvastg.service-now.com
+#   2) Credential vault (Username/Password) for Tech_DynatraceJP_WS → replace __SNOW_CREDENTIAL_ID__
+#   3) SNOW user needs write on incident.work_notes (and the u_ fields you fill); confirm with SILVA owners
+#   4) Confirm SILVA stores the Dynatrace problem id in correlation_id (or change FIND_FIELD below)
+#   5) Entity tags on hosts/services: app, env, owner, runbook
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Enrich existing SILVA INC with Dynatrace context
+  description: >-
+    After SILVA creates the incident, find it by correlation_id, add a Dynatrace
+    enrichment work note (root cause, impact, logs, deploys, runbook), fill empty
+    custom fields, and comment the INC number back on the Dynatrace problem.
+    Re-runs on problem UPDATED only when the facts changed.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE" AND
+        (event.status_transition == "CREATED" OR event.status_transition == "UPDATED" OR
+        event.status_transition == "REOPENED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    collect-context:
+      name: collect-context
+      description: Gather problem facts, tags, top error logs, and recent deployments.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+          import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          async function runDql(query) {
+            const start = await queryExecutionClient.queryExecute({
+              body: { query, requestTimeoutMilliseconds: 30000, maxResultRecords: 50 }
+            });
+            if (start.result) return start.result.records || [];
+            let poll = await queryExecutionClient.queryPoll({ requestToken: start.requestToken });
+            while (poll.state === 'RUNNING' || poll.state === 'NOT_STARTED') {
+              await new Promise(r => setTimeout(r, 1000));
+              poll = await queryExecutionClient.queryPoll({ requestToken: start.requestToken });
+            }
+            return (poll.result && poll.result.records) || [];
+          }
+
+          function tagValue(tags, key) {
+            const hit = (tags || []).find(t => (t.key || '').toLowerCase() === key);
+            return hit ? (hit.value || '') : '';
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const internalId = ev['event.id'];
+            const displayId = ev['display_id'] || internalId;
+            const prob = await problemsClient.getProblem({ problemId: internalId });
+
+            const root = prob.rootCauseEntity || (prob.affectedEntities || [])[0] || {};
+            const rootId = root.entityId ? root.entityId.id : '';
+            const all = [root, ...(prob.affectedEntities || []), ...(prob.impactedEntities || [])];
+            const hostEntity = all.find(e => e.entityId && e.entityId.type === 'HOST');
+            const hostName = hostEntity ? hostEntity.name : (root.name || '');
+            const tags = prob.entityTags || [];
+
+            const logs = rootId ? await runDql(
+              `fetch logs, from:now()-30m
+               | filter dt.source_entity == "${rootId}" or host.name == "${hostName}"
+               | filter loglevel == "ERROR" or loglevel == "SEVERE"
+               | summarize count = count(), by:{content}
+               | sort count desc
+               | limit 3`
+            ) : [];
+
+            const deploys = rootId ? await runDql(
+              `fetch events, from:now()-2h
+               | filter event.type == "CUSTOM_DEPLOYMENT"
+               | filter in("${rootId}", affected_entity_ids)
+               | fields timestamp, event.name, deployment.version
+               | sort timestamp desc
+               | limit 3`
+            ) : [];
+
+            return {
+              transition: ev['event.status_transition'] || '',
+              problemId: displayId,
+              internalId,
+              title: prob.title,
+              problemUrl: `${getEnvironmentUrl().replace(/\/$/, '')}/ui/apps/dynatrace.davis.problems/problem/${internalId}`,
+              startTime: new Date(prob.startTime).toISOString(),
+              severity: prob.severityLevel || '',
+              impactLevel: prob.impactLevel || '',
+              rootName: root.name || '',
+              hostName,
+              env: tagValue(tags, 'env'),
+              app: tagValue(tags, 'app'),
+              owner: tagValue(tags, 'owner'),
+              runbook: tagValue(tags, 'runbook'),
+              impacted: (prob.impactedEntities || []).map(e => e.name).slice(0, 10),
+              evidence: ((prob.evidenceDetails && prob.evidenceDetails.details) || []).map(d => d.displayName).slice(0, 5),
+              zones: (prob.managementZones || []).map(z => z.name),
+              logs: logs.map(l => ({ count: l.count, content: String(l.content).slice(0, 300) })),
+              deploys: deploys.map(d => ({ time: d.timestamp, name: d['event.name'], version: d['deployment.version'] }))
+            };
+          }
+
+    find-silva-incident:
+      name: find-silva-incident
+      description: >-
+        Find the INC SILVA created (by correlation_id). SILVA may be a little late,
+        so this task throws until found and the workflow retries it.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - collect-context
+      conditions:
+        states:
+          collect-context: OK
+      retry:
+        count: 6
+        delay: 30
+        failedLoopIterationsOnly: true
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { credentialVaultClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          const FIND_FIELD = 'correlation_id';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const c = await ex.result('collect-context');
+            const cred = await credentialVaultClient.getCredentialsDetails({ id: '__SNOW_CREDENTIAL_ID__' });
+            const auth = 'Basic ' + Buffer.from(cred.username + ':' + cred.password).toString('base64');
+            const base = 'https://silvastg.service-now.com';
+
+            const q = encodeURIComponent(`${FIND_FIELD}=${c.problemId}^ORDERBYDESCsys_created_on`);
+            const res = await fetch(
+              `${base}/api/now/v2/table/incident?sysparm_query=${q}&sysparm_limit=1` +
+              `&sysparm_fields=sys_id,number,state,cmdb_ci,assignment_group,u_host,u_environment,u_application,u_dynatrace_problem_url,u_dt_enrich_sig` +
+              `&sysparm_exclude_reference_link=true`,
+              { headers: { Authorization: auth, Accept: 'application/json' } }
+            );
+            if (!res.ok) throw new Error(`SNOW GET HTTP ${res.status}: ${await res.text()}`);
+            const row = ((await res.json()).result || [])[0];
+            if (!row) throw new Error(`No INC yet for ${FIND_FIELD}=${c.problemId} (SILVA may still be creating it, or skipped it)`);
+
+            return {
+              sysId: row.sys_id,
+              number: row.number,
+              state: row.state,
+              current: row
+            };
+          }
+
+    enrich-silva-incident:
+      name: enrich-silva-incident
+      description: >-
+        PATCH the INC: add one enrichment work note and fill custom fields that are empty.
+        Skips the note when nothing changed since the last enrichment.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - find-silva-incident
+      conditions:
+        states:
+          find-silva-incident: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { credentialVaultClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          function signature(c) {
+            return [c.rootName, c.impacted.join('|'), c.evidence.join('|'), c.deploys.map(d => d.version).join('|')].join('#');
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const c = await ex.result('collect-context');
+            const inc = await ex.result('find-silva-incident');
+            const cred = await credentialVaultClient.getCredentialsDetails({ id: '__SNOW_CREDENTIAL_ID__' });
+            const auth = 'Basic ' + Buffer.from(cred.username + ':' + cred.password).toString('base64');
+            const base = 'https://silvastg.service-now.com';
+
+            if (['6', '7', '8'].includes(String(inc.state))) {
+              return { patched: false, reason: 'INC already resolved, closed, or canceled', number: inc.number };
+            }
+
+            const sig = signature(c);
+            const changed = inc.current.u_dt_enrich_sig !== sig;
+
+            const note = [
+              `[DT-ENRICH] ${c.transition || 'UPDATE'} from Dynatrace workflow`,
+              `Problem: ${c.problemId} (${c.severity}, impact level ${c.impactLevel}) started ${c.startTime}`,
+              `Link: ${c.problemUrl}`,
+              `Root cause: ${c.rootName || 'not identified'}`,
+              `Host: ${c.hostName || 'n/a'}   App: ${c.app || 'n/a'}   Env: ${c.env || 'n/a'}   Owner: ${c.owner || 'n/a'}`,
+              `Management zones: ${c.zones.join(', ') || 'n/a'}`,
+              '',
+              'Impacted entities:',
+              ...(c.impacted.length ? c.impacted.map(n => `- ${n}`) : ['- none listed']),
+              '',
+              'Evidence:',
+              ...(c.evidence.length ? c.evidence.map(e => `- ${e}`) : ['- none listed']),
+              '',
+              'Top error logs (last 30 min):',
+              ...(c.logs.length ? c.logs.map(l => `- [${l.count}x] ${l.content}`) : ['- none found']),
+              '',
+              'Deployments (last 2 h):',
+              ...(c.deploys.length ? c.deploys.map(d => `- ${d.time} ${d.name} ${d.version || ''}`) : ['- none found']),
+              '',
+              `Runbook: ${c.runbook || 'none tagged'}`
+            ].join('\n').slice(0, 3900);
+
+            const body = {};
+            if (changed) {
+              body.work_notes = note;
+              body.u_dt_enrich_sig = sig;
+            }
+            const fillIfEmpty = {
+              u_host: c.hostName,
+              u_environment: c.env,
+              u_application: c.app,
+              u_dynatrace_problem_url: c.problemUrl
+            };
+            for (const [k, v] of Object.entries(fillIfEmpty)) {
+              if (v && !inc.current[k]) body[k] = v;
+            }
+            if (Object.keys(body).length === 0) {
+              return { patched: false, reason: 'nothing new', number: inc.number };
+            }
+
+            const res = await fetch(`${base}/api/now/v2/table/incident/${inc.sysId}`, {
+              method: 'PATCH',
+              headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`SNOW PATCH HTTP ${res.status}: ${await res.text()}`);
+            return { patched: true, number: inc.number, fields: Object.keys(body) };
+          }
+
+    comment-back-dynatrace:
+      name: comment-back-dynatrace
+      description: Add the INC number and link as a comment on the Dynatrace problem (once).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 3
+      predecessors:
+        - find-silva-incident
+      conditions:
+        states:
+          find-silva-incident: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const c = await ex.result('collect-context');
+            const inc = await ex.result('find-silva-incident');
+
+            const existing = await problemsClient.getComments({ problemId: c.internalId, pageSize: 50 });
+            const already = (existing.comments || []).some(x => String(x.content).includes(inc.number));
+            if (already) return { commented: false, reason: 'already linked' };
+
+            const link = `https://silvastg.service-now.com/nav_to.do?uri=incident.do?sys_id=${inc.sysId}`;
+            await problemsClient.createComment({
+              problemId: c.internalId,
+              body: { message: `ServiceNow ${inc.number}: ${link}`, context: 'SILVA' }
+            });
+            return { commented: true, number: inc.number };
+          }

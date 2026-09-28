@@ -1,0 +1,17 @@
+SNOW APIs in detail
+
+URL: https://silvastg.service-now.com/api/now/v2/table/<table>[/<sys_id>]
+Headers: Accept: application/json, Content-Type: application/json, Authorization: Basic ...
+
+CREATE  POST  /incident  body {short_description, correlation_id, impact, urgency}  -> 201 {result:{sys_id, number}}
+FIND    GET   /incident?sysparm_query=correlation_id=P-12345^active=true&sysparm_fields=sys_id,number&sysparm_limit=1 -> 200 {result:[...]}
+READ    GET   /incident/{sys_id}
+RESOLVE PATCH /incident/{sys_id} {state:"6", close_code, close_notes}
+
+sysparm: query, fields, limit, offset, display_value, exclude_reference_link, input_display_value
+Operators: = != ^ ^OR LIKE STARTSWITH IN ISEMPTY ORDERBYDESC
+
+Codes: 200 ok, 201 created, 400 body, 401 login, 403 role, 404 path/sys_id, 429 rate, 5xx SNOW, network=allowlist
+Empty list = not found (200), treat as soft miss.
+
+Other APIs: em_event (ITOM), Import Set, Scripted REST (SILVA), stats, attachment, CMDB instance.

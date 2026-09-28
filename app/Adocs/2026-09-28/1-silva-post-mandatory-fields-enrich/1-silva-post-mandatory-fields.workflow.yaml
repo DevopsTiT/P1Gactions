@@ -1,0 +1,523 @@
+# OPEN — Dynatrace Problem → HTTP POST to SILVA with ALL mandatory form fields filled
+# Based on real STG ticket INC30339599: Environment, Business service, Category, Subcategory,
+# Assignment group, Configuration item came in EMPTY because the form's "*" mandatory rule
+# only applies in the browser, not to API calls.
+#
+# BEFORE ACTIVATE:
+#   1) External requests allowlist: silvastg.service-now.com , events.pagerduty.com
+#   2) Credential vault IDs: __SNOW_CREDENTIAL_ID__ (Username/Password), __PD_CREDENTIAL_ID__ (Token)
+#   3) Run 1.sh sys_dictionary + sys_choice queries and fix FIELD names + CHOICE values in build-silva-payload
+#   4) Entity tags (Dynatrace auto-tagging): env, app, owner, runbook, snow-group, snow-service, snow-offering
+#   5) Update CLOSE workflow to search the same field used for External Ticket Number
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Problem OPEN to SILVA with mandatory fields enriched
+  description: >-
+    Enrich the Dynatrace problem, look up CMDB, fill every mandatory SILVA incident field
+    (caller, environment, business service, service offering, category, subcategory,
+    short description, summary, assignment group) plus CI, contact type, external ticket
+    number, then POST, verify the ticket, and page PagerDuty.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE" AND
+        (event.status_transition == "CREATED" OR event.status_transition == "REOPENED")
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    enrich-problem:
+      name: enrich-problem
+      description: Problem facts, tags, top error logs, recent deploys.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+          import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          async function runDql(query) {
+            const start = await queryExecutionClient.queryExecute({
+              body: { query, requestTimeoutMilliseconds: 30000, maxResultRecords: 50 }
+            });
+            if (start.result) return start.result.records || [];
+            let poll = await queryExecutionClient.queryPoll({ requestToken: start.requestToken });
+            while (poll.state === 'RUNNING' || poll.state === 'NOT_STARTED') {
+              await new Promise(r => setTimeout(r, 1000));
+              poll = await queryExecutionClient.queryPoll({ requestToken: start.requestToken });
+            }
+            return (poll.result && poll.result.records) || [];
+          }
+
+          function tagValue(tags, key) {
+            const hit = (tags || []).find(t => (t.key || '').toLowerCase() === key);
+            return hit ? (hit.value || '') : '';
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const ev = ex.event() || {};
+            const internalId = ev['event.id'];
+            const displayId = ev['display_id'] || internalId;
+            const prob = await problemsClient.getProblem({ problemId: internalId });
+
+            const root = prob.rootCauseEntity || (prob.affectedEntities || [])[0] || {};
+            const rootId = root.entityId ? root.entityId.id : '';
+            const rootType = root.entityId ? root.entityId.type : '';
+            const all = [root, ...(prob.affectedEntities || []), ...(prob.impactedEntities || [])];
+            const hostEntity = all.find(e => e.entityId && e.entityId.type === 'HOST');
+            const hostName = hostEntity ? hostEntity.name : (rootType === 'HOST' ? root.name : '');
+            const tags = prob.entityTags || [];
+
+            const logs = rootId ? await runDql(
+              `fetch logs, from:now()-30m
+               | filter dt.source_entity == "${rootId}" or host.name == "${hostName}"
+               | filter loglevel == "ERROR" or loglevel == "SEVERE"
+               | summarize count = count(), by:{content}
+               | sort count desc
+               | limit 3`
+            ) : [];
+
+            const deploys = rootId ? await runDql(
+              `fetch events, from:now()-2h
+               | filter event.type == "CUSTOM_DEPLOYMENT"
+               | filter in("${rootId}", affected_entity_ids)
+               | fields timestamp, event.name, deployment.version
+               | sort timestamp desc
+               | limit 3`
+            ) : [];
+
+            return {
+              problemId: displayId,
+              internalId,
+              title: prob.title,
+              problemUrl: `${getEnvironmentUrl().replace(/\/$/, '')}/ui/apps/dynatrace.davis.problems/problem/${internalId}`,
+              startTime: new Date(prob.startTime).toISOString(),
+              severity: prob.severityLevel || 'ERROR',
+              impactLevel: prob.impactLevel || 'INFRASTRUCTURE',
+              rootName: root.name || '',
+              rootType,
+              hostName,
+              env: tagValue(tags, 'env').toLowerCase(),
+              app: tagValue(tags, 'app'),
+              owner: tagValue(tags, 'owner'),
+              runbook: tagValue(tags, 'runbook'),
+              snowGroup: tagValue(tags, 'snow-group'),
+              snowService: tagValue(tags, 'snow-service'),
+              snowOffering: tagValue(tags, 'snow-offering'),
+              zones: (prob.managementZones || []).map(z => z.name),
+              impacted: (prob.impactedEntities || []).map(e => e.name).slice(0, 10),
+              evidence: ((prob.evidenceDetails && prob.evidenceDetails.details) || []).map(d => d.displayName).slice(0, 5),
+              logs: logs.map(l => ({ count: l.count, content: String(l.content).slice(0, 300) })),
+              deploys: deploys.map(d => ({ time: d.timestamp, name: d['event.name'], version: d['deployment.version'] }))
+            };
+          }
+
+    cmdb-lookup:
+      name: cmdb-lookup
+      description: Find CI; take support group and business service from CMDB. Retired CI means skip.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - enrich-problem
+      conditions:
+        states:
+          enrich-problem: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { credentialVaultClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result('enrich-problem');
+            const name = p.hostName || p.rootName;
+            if (!name) return { found: false, skip: false };
+
+            const cred = await credentialVaultClient.getCredentialsDetails({ id: '__SNOW_CREDENTIAL_ID__' });
+            const auth = 'Basic ' + Buffer.from(cred.username + ':' + cred.password).toString('base64');
+            const base = 'https://silvastg.service-now.com';
+            const short = name.split('.')[0];
+            const q = encodeURIComponent(`name=${name}^ORname=${short}^ORfqdn=${name}`);
+
+            const res = await fetch(
+              `${base}/api/now/v2/table/cmdb_ci?sysparm_query=${q}&sysparm_limit=1` +
+              `&sysparm_fields=sys_id,name,sys_class_name,install_status,support_group,u_business_service,company` +
+              `&sysparm_display_value=all&sysparm_exclude_reference_link=true`,
+              { headers: { Authorization: auth, Accept: 'application/json' } }
+            );
+            if (!res.ok) throw new Error(`CMDB lookup HTTP ${res.status}: ${await res.text()}`);
+            const row = ((await res.json()).result || [])[0];
+            if (!row) return { found: false, skip: false };
+
+            const v = f => (row[f] && row[f].value) || '';
+            const d = f => (row[f] && row[f].display_value) || '';
+            return {
+              found: true,
+              skip: v('install_status') === '7',
+              ciSysId: v('sys_id'),
+              ciName: d('name'),
+              ciClass: v('sys_class_name'),
+              supportGroup: d('support_group'),
+              businessService: d('u_business_service')
+            };
+          }
+
+    build-silva-payload:
+      name: build-silva-payload
+      description: Map every mandatory SILVA field; record which ones fell back to defaults.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - cmdb-lookup
+      conditions:
+        states:
+          cmdb-lookup: OK
+        custom: '{{ result("cmdb-lookup").skip == false }}'
+        else: SKIP
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // Column names — confirm with 1.sh (sys_dictionary by label)
+          const FIELD = {
+            caller: 'caller_id',
+            onBehalfOf: 'u_on_behalf_of',
+            contactType: 'contact_type',
+            company: 'company',
+            environment: 'u_environment',
+            businessService: 'business_service',
+            serviceOffering: 'service_offering',
+            ci: 'cmdb_ci',
+            category: 'category',
+            subcategory: 'subcategory',
+            shortDescription: 'short_description',
+            summary: 'description',
+            assignmentGroup: 'assignment_group',
+            impact: 'impact',
+            urgency: 'urgency',
+            externalTicket: 'correlation_id',
+            workNotes: 'work_notes'
+          };
+
+          // Display values — confirm with 1.sh (sys_choice / reference tables)
+          const CONST = {
+            caller: 'Dynatrace JP',
+            company: 'AXA GROUP OPERATIONS',
+            contactType: 'Monitoring'
+          };
+          const ENVIRONMENT = { prod: 'Production', stg: 'Staging', uat: 'UAT', dev: 'Development' };
+          const OFFERING_BY_ENV = {
+            prod: 'AXA GROUP OPERATIONS - Production',
+            stg: 'AXA GROUP OPERATIONS - Staging',
+            dev: 'AXA GROUP OPERATIONS - Development'
+          };
+          const CATEGORY = {
+            AVAILABILITY:        { category: 'Availability', subcategory: 'Outage' },
+            ERROR:               { category: 'Application',  subcategory: 'Error' },
+            PERFORMANCE:         { category: 'Performance',  subcategory: 'Slow response' },
+            RESOURCE_CONTENTION: { category: 'Capacity',     subcategory: 'Resource usage' },
+            CUSTOM_ALERT:        { category: 'Monitoring',   subcategory: 'Custom alert' }
+          };
+          const SUBCATEGORY_BY_KEYWORD = [
+            { match: /disk|file space|storage|volume/i, category: 'Capacity', subcategory: 'Disk space' },
+            { match: /memory|heap|oom/i,                category: 'Capacity', subcategory: 'Memory' },
+            { match: /cpu/i,                            category: 'Capacity', subcategory: 'CPU' },
+            { match: /sql|database|db /i,               category: 'Database', subcategory: 'Database' }
+          ];
+          const GROUP_BY_ZONE = {
+            'JP-Prod': 'JP Infra Operations',
+            'Payments': 'Payments SRE'
+          };
+          const SERVICE_BY_ZONE = {
+            'Payments': 'Online Payments'
+          };
+          const DEFAULT = {
+            environment: 'Production',
+            businessService: 'AXA GROUP OPERATIONS - Monitoring',
+            serviceOffering: 'AXA GROUP OPERATIONS - Production',
+            assignmentGroup: 'JP Monitoring Triage'
+          };
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result('enrich-problem');
+            const ci = await ex.result('cmdb-lookup');
+            const gaps = [];
+
+            const pick = (label, ...candidates) => {
+              const hit = candidates.find(c => c && c.value);
+              if (!hit) return '';
+              if (hit.fallback) gaps.push(`${label} defaulted to "${hit.value}"`);
+              return hit.value;
+            };
+            const zoneMap = map => { const z = p.zones.find(n => map[n]); return z ? map[z] : ''; };
+
+            const env = pick('Environment',
+              { value: ENVIRONMENT[p.env] },
+              { value: DEFAULT.environment, fallback: true });
+
+            const businessService = pick('Business service',
+              { value: ci.businessService },
+              { value: p.snowService },
+              { value: zoneMap(SERVICE_BY_ZONE) },
+              { value: DEFAULT.businessService, fallback: true });
+
+            const serviceOffering = pick('Service offering',
+              { value: p.snowOffering },
+              { value: OFFERING_BY_ENV[p.env] },
+              { value: DEFAULT.serviceOffering, fallback: true });
+
+            const assignmentGroup = pick('Assignment group',
+              { value: ci.supportGroup },
+              { value: p.snowGroup },
+              { value: zoneMap(GROUP_BY_ZONE) },
+              { value: DEFAULT.assignmentGroup, fallback: true });
+
+            const kw = SUBCATEGORY_BY_KEYWORD.find(k => k.match.test(p.title));
+            const cat = kw || CATEGORY[p.severity] || CATEGORY.CUSTOM_ALERT;
+            if (!kw && !CATEGORY[p.severity]) gaps.push(`Category defaulted to "${cat.category}/${cat.subcategory}"`);
+
+            if (!ci.found) gaps.push(`Configuration item not found in CMDB for "${p.hostName || p.rootName}"`);
+
+            const isProd = p.env === 'prod' || (!p.env && env === 'Production');
+            const impact = p.impactLevel === 'APPLICATION' ? '1' : p.impactLevel === 'SERVICES' ? '2' : (isProd ? '2' : '3');
+            const urgency = !isProd ? '3' : p.severity === 'AVAILABILITY' ? '1' : (p.severity === 'ERROR' || p.severity === 'PERFORMANCE') ? '2' : '3';
+
+            const where = p.rootName || p.hostName || 'unknown entity';
+            const shortDescription = `[Dynatrace] ${p.title} - ${where}`.slice(0, 160);
+
+            const summary = [
+              `[OPEN] ${p.problemId} | Problem ${p.title}`,
+              '',
+              `Severity: ${p.severity}   Impact level: ${p.impactLevel}   Started: ${p.startTime}`,
+              `Dynatrace link: ${p.problemUrl}`,
+              `Root cause entity: ${where} (${p.rootType || 'n/a'})`,
+              `Host: ${p.hostName || 'n/a'}   CI: ${ci.found ? ci.ciName : 'not found'}`,
+              `App: ${p.app || 'n/a'}   Env: ${p.env || 'n/a'}   Owner: ${p.owner || 'n/a'}`,
+              `Management zones: ${p.zones.join(', ') || 'n/a'}`,
+              '',
+              'Impacted:',
+              ...(p.impacted.length ? p.impacted.map(n => `- ${n}`) : ['- none listed']),
+              '',
+              'Evidence:',
+              ...(p.evidence.length ? p.evidence.map(e => `- ${e}`) : ['- none listed']),
+              '',
+              `Runbook: ${p.runbook || 'none tagged'}`
+            ].join('\n').slice(0, 3900);
+
+            const workNotes = [
+              'Top error logs (last 30 min):',
+              ...(p.logs.length ? p.logs.map(l => `- [${l.count}x] ${l.content}`) : ['- none found']),
+              '',
+              'Deployments (last 2 h):',
+              ...(p.deploys.length ? p.deploys.map(d => `- ${d.time} ${d.name} ${d.version || ''}`) : ['- none found']),
+              '',
+              gaps.length ? 'Enrichment gaps (please correct):' : 'Enrichment gaps: none',
+              ...gaps.map(g => `- ${g}`)
+            ].join('\n').slice(0, 3900);
+
+            const body = {
+              [FIELD.caller]: CONST.caller,
+              [FIELD.onBehalfOf]: CONST.caller,
+              [FIELD.contactType]: CONST.contactType,
+              [FIELD.company]: CONST.company,
+              [FIELD.environment]: env,
+              [FIELD.businessService]: businessService,
+              [FIELD.serviceOffering]: serviceOffering,
+              [FIELD.category]: cat.category,
+              [FIELD.subcategory]: cat.subcategory,
+              [FIELD.shortDescription]: shortDescription,
+              [FIELD.summary]: summary,
+              [FIELD.assignmentGroup]: assignmentGroup,
+              [FIELD.impact]: impact,
+              [FIELD.urgency]: urgency,
+              [FIELD.externalTicket]: p.problemId,
+              [FIELD.workNotes]: workNotes
+            };
+            if (ci.found) body[FIELD.ci] = ci.ciSysId;
+
+            const mandatory = ['caller', 'environment', 'businessService', 'serviceOffering', 'category',
+                               'subcategory', 'shortDescription', 'summary', 'assignmentGroup'];
+            const missing = mandatory.filter(k => !body[FIELD[k]]);
+            if (missing.length) throw new Error(`Mandatory still empty after mapping: ${missing.join(', ')}`);
+
+            return { body, gaps, field: FIELD, mandatory, problemId: p.problemId, problemUrl: p.problemUrl,
+                     title: p.title, where, urgency, env: p.env, owner: p.owner, runbook: p.runbook };
+          }
+
+    post-silva-incident:
+      name: post-silva-incident
+      description: HTTP POST to SILVA with display values accepted.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 4
+      predecessors:
+        - build-silva-payload
+      conditions:
+        states:
+          build-silva-payload: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { credentialVaultClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const b = await ex.result('build-silva-payload');
+            const cred = await credentialVaultClient.getCredentialsDetails({ id: '__SNOW_CREDENTIAL_ID__' });
+            const auth = 'Basic ' + Buffer.from(cred.username + ':' + cred.password).toString('base64');
+            const base = 'https://silvastg.service-now.com';
+
+            const res = await fetch(`${base}/api/now/v2/table/incident?sysparm_input_display_value=true`, {
+              method: 'POST',
+              headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify(b.body)
+            });
+            const text = await res.text();
+            if (!res.ok) throw new Error(`SILVA POST HTTP ${res.status}: ${text}`);
+            const row = JSON.parse(text).result || {};
+            return { number: row.number || '', sysId: row.sys_id || '' };
+          }
+
+    verify-mandatory:
+      name: verify-mandatory
+      description: >-
+        Read the ticket back. Display values that did not match a real record or choice
+        are silently dropped by SNOW; this catches them and writes a work note.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 5
+      predecessors:
+        - post-silva-incident
+      conditions:
+        states:
+          post-silva-incident: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { credentialVaultClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const b = await ex.result('build-silva-payload');
+            const inc = await ex.result('post-silva-incident');
+            const cred = await credentialVaultClient.getCredentialsDetails({ id: '__SNOW_CREDENTIAL_ID__' });
+            const auth = 'Basic ' + Buffer.from(cred.username + ':' + cred.password).toString('base64');
+            const base = 'https://silvastg.service-now.com';
+
+            const cols = b.mandatory.map(k => b.field[k]).concat([b.field.ci]).join(',');
+            const res = await fetch(
+              `${base}/api/now/v2/table/incident/${inc.sysId}?sysparm_fields=${cols}&sysparm_display_value=true&sysparm_exclude_reference_link=true`,
+              { headers: { Authorization: auth, Accept: 'application/json' } }
+            );
+            if (!res.ok) throw new Error(`Verify GET HTTP ${res.status}: ${await res.text()}`);
+            const row = (await res.json()).result || {};
+
+            const dropped = b.mandatory
+              .map(k => ({ k, col: b.field[k], sent: b.body[b.field[k]], got: row[b.field[k]] }))
+              .filter(x => x.sent && !x.got);
+
+            if (dropped.length) {
+              const note = 'Dynatrace workflow: these mandatory values were rejected by SNOW (no matching record or choice):\n' +
+                dropped.map(x => `- ${x.k} (${x.col}): sent "${x.sent}"`).join('\n');
+              await fetch(`${base}/api/now/v2/table/incident/${inc.sysId}`, {
+                method: 'PATCH',
+                headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ work_notes: note })
+              });
+            }
+            return { number: inc.number, ok: dropped.length === 0, dropped, gaps: b.gaps, stored: row };
+          }
+
+    trigger-pagerduty:
+      name: trigger-pagerduty
+      description: Page on-call with the INC number and enrichment.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 5
+      predecessors:
+        - post-silva-incident
+      conditions:
+        states:
+          post-silva-incident: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { credentialVaultClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const b = await ex.result('build-silva-payload');
+            const inc = await ex.result('post-silva-incident');
+            const cred = await credentialVaultClient.getCredentialsDetails({ id: '__PD_CREDENTIAL_ID__' });
+
+            const body = {
+              routing_key: cred.token,
+              event_action: 'trigger',
+              dedup_key: 'dt-problem-' + b.problemId,
+              client: 'Dynatrace',
+              client_url: b.problemUrl,
+              payload: {
+                summary: `${inc.number} ${b.title} - ${b.where}`.slice(0, 1000),
+                source: b.where,
+                severity: b.urgency === '1' ? 'critical' : b.urgency === '2' ? 'error' : 'warning',
+                group: b.env || undefined,
+                custom_details: {
+                  snow_incident: inc.number,
+                  problem_id: b.problemId,
+                  assignment_group: b.body[b.field.assignmentGroup],
+                  business_service: b.body[b.field.businessService],
+                  owner: b.owner,
+                  runbook: b.runbook,
+                  enrichment_gaps: b.gaps
+                }
+              },
+              links: [
+                { href: b.problemUrl, text: 'Dynatrace problem' },
+                { href: `https://silvastg.service-now.com/nav_to.do?uri=incident.do?sys_id=${inc.sysId}`, text: inc.number }
+              ]
+            };
+            const res = await fetch('https://events.pagerduty.com/v2/enqueue', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`PagerDuty HTTP ${res.status}: ${await res.text()}`);
+            return await res.json();
+          }

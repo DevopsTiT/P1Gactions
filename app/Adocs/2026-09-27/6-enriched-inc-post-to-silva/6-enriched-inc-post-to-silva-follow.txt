@@ -1,0 +1,27 @@
+Enriched INC to SILVA
+
+FLOW
+Problem -> enrich-problem -> cmdb-lookup (retired=skip) -> post-silva-enriched-incident -> trigger-pagerduty
+
+ENRICH SOURCES
+Problems API: root cause, impacted, evidence, zones, tags, start time
+Tags: app, env, owner, snow-group, runbook
+DQL logs: top 3 errors last 30 min
+DQL events: deployments last 2 h
+Rules: impact from impactLevel+env, urgency from severity (non-prod = 3)
+
+SNOW FIELDS
+short_description "[Dynatrace][prod] <title> on <root cause>"
+description = facts; work_notes = logs + deploys + sync keys
+correlation_id, contact_type=monitoring, category, subcategory, impact, urgency
+cmdb_ci, assignment_group (CI support group or snow-group tag), business_service
+u_host, u_environment, u_application, u_dynatrace_problem_url (confirm exist)
+
+SETUP
+allowlist silvastg.service-now.com + events.pagerduty.com
+credential vault IDs: __SNOW_CREDENTIAL_ID__, __PD_CREDENTIAL_ID__
+tag entities; confirm u_ fields with SILVA; classic ITSM toggle off
+
+FILES
+6-enriched-inc-post-to-silva.workflow.yaml
+6-enriched-inc-post-to-silva-sample-payload.json

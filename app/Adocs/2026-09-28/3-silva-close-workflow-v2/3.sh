@@ -1,0 +1,9 @@
+# CLOSE v2 checks - STG only - you run
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_choice?sysparm_query=name%3Dincident%5Eelement%3Dclose_code%5Einactive%3Dfalse&sysparm_fields=label,value"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_dictionary?sysparm_query=name%3Dincident%5Ecolumn_label%3DResolution%20Type&sysparm_fields=element,internal_type"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_choice?sysparm_query=name%3Dincident%5Eelement%3Du_resolution_type%5Einactive%3Dfalse&sysparm_fields=label,value"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=correlation_id%3DP-260915195&sysparm_fields=sys_id,number,state,close_code,close_notes,u_resolution_type&sysparm_display_value=true"
+curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" -H "Content-Type: application/json" -X PATCH "https://silvastg.service-now.com/api/now/v2/table/incident/__SYS_ID__?sysparm_input_display_value=true" -d '{"state":"6","close_code":"Solved (Permanently)","close_notes":"manual close test","u_resolution_type":"Automatic"}'
+curl -s -H "Content-Type: application/json" -X POST "https://events.pagerduty.com/v2/enqueue" -d '{"routing_key":"__PD_ROUTING_KEY__","event_action":"resolve","dedup_key":"dt-problem-P-260915195"}'
+curl -s -H "Authorization: Token token=__PD_API_KEY__" -H "Accept: application/vnd.pagerduty+json;version=2" "https://api.pagerduty.com/incidents?incident_key=dt-problem-P-260915195&statuses[]=resolved"
+# git add/commit/push only if user asks
