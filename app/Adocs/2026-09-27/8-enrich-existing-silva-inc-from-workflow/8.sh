@@ -1,6 +1,0 @@
-# Enrich existing SILVA INC - manual checks - STG only - you run
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=correlation_id%3DP-2609271234&sysparm_fields=sys_id,number,state,u_host,u_environment,u_application,u_dynatrace_problem_url,u_dt_enrich_sig&sysparm_limit=1"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_dictionary?sysparm_query=name%3Dincident%5Eelement%3Du_dt_enrich_sig&sysparm_fields=element,internal_type,max_length"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" -H "Content-Type: application/json" -X PATCH "https://silvastg.service-now.com/api/now/v2/table/incident/__SYS_ID__" -d '{"work_notes":"[DT-ENRICH] manual test from Dynatrace workflow","u_environment":"stg"}'
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_journal_field?sysparm_query=element_id%3D__SYS_ID__%5Eelement%3Dwork_notes%5EvalueSTARTSWITH%5BDT-ENRICH%5D%5EORDERBYDESCsys_created_on&sysparm_fields=sys_created_on,value&sysparm_limit=3"
-# git add/commit/push only if user asks

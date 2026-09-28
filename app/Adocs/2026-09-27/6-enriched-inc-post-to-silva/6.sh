@@ -1,6 +1,0 @@
-# Enriched INC test - STG only - you run
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_dictionary?sysparm_query=name%3Dincident%5EelementSTARTSWITHu_&sysparm_fields=element,column_label,internal_type,max_length"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/cmdb_ci?sysparm_query=name%3Dip-10-20-3-41.ap-northeast-1.compute.internal&sysparm_fields=sys_id,name,install_status,support_group&sysparm_display_value=true"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" -H "Content-Type: application/json" -X POST "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_input_display_value=true" --data @"/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-27/6-enriched-inc-post-to-silva/6-enriched-inc-post-to-silva-sample-payload.json"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=correlation_id%3DP-2609271234&sysparm_fields=number,priority,cmdb_ci,assignment_group,u_host,u_environment&sysparm_display_value=true"
-# git add/commit/push only if user asks

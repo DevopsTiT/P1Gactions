@@ -1,8 +1,0 @@
-# v2 checks - STG only - you run
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_user_group?sysparm_query=name%3DDynatrace%20Support%5Eactive%3Dtrue&sysparm_fields=sys_id,name,company,manager&sysparm_display_value=true"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_user_group?sysparm_query=nameLIKEDynatrace%5Eactive%3Dtrue&sysparm_fields=sys_id,name,company&sysparm_display_value=true&sysparm_limit=50"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_user_group?sysparm_query=company.name%3DAXA%20GROUP%20OPERATIONS%5Eactive%3Dtrue%5EnameLIKEJP&sysparm_fields=sys_id,name&sysparm_limit=100"
-curl -s -H "Authorization: Token token=__PD_API_KEY__" -H "Accept: application/vnd.pagerduty+json;version=2" "https://api.pagerduty.com/incidents?incident_key=dt-problem-P-260915195"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=correlation_id%3DP-260915195&sysparm_fields=number,u_environment,business_service,category,subcategory,priority,impact,urgency,assignment_group&sysparm_display_value=true"
-curl -s -u "Tech_DynatraceJP_WS:__SNOW_PASSWORD__" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_journal_field?sysparm_query=element_id%3D__SYS_ID__%5Eelement%3Dcomments%5EORDERBYDESCsys_created_on&sysparm_fields=sys_created_on,value&sysparm_limit=3"
-# git add/commit/push only if user asks
