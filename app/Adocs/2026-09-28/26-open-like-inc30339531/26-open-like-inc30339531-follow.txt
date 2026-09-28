@@ -1,0 +1,28 @@
+New OPEN workflow builds tickets like INC30339531 (folder 26-open-like-inc30339531)
+
+What the example shows:
+- CI = host wrgcrapp01.axa-id.intraxa
+- Business service / offering = derived by SILVA from the CI
+- Assignment group = tag AGO_AXA_SUPPORTGROUP (InfraSupport_Dist-WindowsID_L2_ASIA)
+- Environment = tag AGO_AXAENVIRONMENTNAME (Integration-Test -> Integration / Test)
+- Summary = event description + "Additional Information:" + JSON
+
+What the workflow now does:
+1. Reads trigger event (tags, security context, affected entities)
+2. Problems API: title, severityLevel, impactLevel, root cause, evidence, zones
+3. Root-cause event: event_properties, dt.event.description, metric selector
+4. Entities API: root entity -> host -> display name, IP addresses, tags
+5. Host fallback: host tag + AGO_DOMAIN, or "on host X" in the text
+6. Group from AGO_AXA_SUPPORTGROUP, env from AGO_AXAENVIRONMENTNAME
+7. Business service: map/tag if present, else not sent -> SILVA derives from CI
+   still blank -> svc_ci_assoc -> default uk-sap-fscd-dev
+8. Short description: [DYNATRACE JAPAN][<host>] - <event description>
+9. Summary JSON keys: correlation_id, discovered_name, dynatrace_severity, environmentId,
+   environmentName, event_properties, ip_addresses, isRootCause, managementZones, metricName,
+   problemDescription, problem_displayId, problem_id, tags, u_business_service, u_external_url
+
+CLOSE unchanged (SNOW correlation_id field still = display id).
+
+Check after test (post-silva-incident-http result):
+extraction.problemApi / entityApi = ok, extraction.hostName, ciLookup.matches = 1,
+businessServiceFrom = "SILVA from CI", notFilled empty.
