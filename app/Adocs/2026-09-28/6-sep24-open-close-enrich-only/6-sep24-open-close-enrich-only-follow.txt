@@ -1,0 +1,39 @@
+SEP 24 OPEN AND CLOSE — ENRICH ONLY
+
+SCOPE
+Same tasks, positions, parallel posting, sync keys, trigger and error handling as Sep 24.
+Only enrichment added. No new tasks.
+
+OPEN
+prepare-payload
+  + imports problemsClient, getEnvironmentUrl
+  + settings: APPLICATION "EIP", BUSINESS_SERVICE "EIP", ENVIRONMENT map, ASSIGNMENT_GROUP L1/L2/L3,
+    IMPACT_LABEL, category maps, DASHBOARD_URL, PD_SERVICE_URL
+  + Problems API (try/catch): tags, root cause, evidence, zones
+  + tier: production outage (impact 1) -> L2, else L1
+  + customerNotes: cause, links (DT, PagerDuty, dashboard), service, application, ticket fields, escalation
+post-silva-incident-http
+  + body: u_environment, business_service, category, subcategory, assignment_group, comments
+  + impact/urgency sent as labels
+  + URL: ?sysparm_input_display_value=true&sysparm_display_value=true&sysparm_exclude_reference_link=true
+  + returns stored values and notFilled
+trigger-pagerduty
+  + group, component, custom_details (env, service, app, category, impact, group, cause, dashboard), links
+
+CLOSE
+prepare-close-ids
+  + Problems API: title, root cause, evidence, duration
+  + closeNotes multi-line, customerNotes block
+resolve-silva-incident-http
+  + PATCH adds comments
+resolve-pagerduty
+  unchanged
+
+FILL BEFORE IMPORT
+__SNOW_PASSWORD__, __PD_ROUTING_KEY__, __EIP_L2_GROUP__, __EIP_L3_GROUP__, __EIP_DASHBOARD_URL__, __PD_SERVICE_URL__
+
+CONFIRM WITH SILVA
+impact labels (only "3 - Medium" confirmed), category labels, EIP service name, L2/L3 group names, u_environment column
+
+IF A FIELD IS STILL BLANK
+Read notFilled in the post-silva-incident-http result, fix that label.

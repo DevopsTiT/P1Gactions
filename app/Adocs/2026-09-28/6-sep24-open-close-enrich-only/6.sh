@@ -1,0 +1,11 @@
+diff "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-24/1-silva-http-snow-pd-sync-workflows/1-open-silva-http-and-pagerduty.workflow.yaml" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-28/6-sep24-open-close-enrich-only/1-open-silva-http-and-pagerduty.workflow.yaml"
+diff "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-24/1-silva-http-snow-pd-sync-workflows/2-close-silva-http-and-pagerduty.workflow.yaml" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-28/6-sep24-open-close-enrich-only/2-close-silva-http-and-pagerduty.workflow.yaml"
+rg -n "__[A-Z0-9_]+__" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-28/6-sep24-open-close-enrich-only/"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' "https://silvastg.service-now.com/api/now/v2/table/sys_choice?sysparm_query=name=incident^elementINimpact,urgency,category,subcategory^inactive=false&sysparm_fields=element,label,value,dependent_value&sysparm_limit=300"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' "https://silvastg.service-now.com/api/now/v2/table/cmdb_ci_service?sysparm_query=nameLIKEEIP&sysparm_fields=name,sys_id,operational_status&sysparm_limit=20"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' "https://silvastg.service-now.com/api/now/v2/table/sys_user_group?sysparm_query=active=true^nameLIKEEIP^ORname=Dynatrace%20Support&sysparm_fields=name,sys_id&sysparm_limit=50"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' "https://silvastg.service-now.com/api/now/v2/table/sys_dictionary?sysparm_query=name=incident^elementLIKEenvironment&sysparm_fields=element,column_label,internal_type,reference"
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=number=INC30339599&sysparm_display_value=true&sysparm_fields=number,u_environment,business_service,category,subcategory,impact,urgency,priority,assignment_group,correlation_id"
+cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git add app/Adocs/2026-09-28/6-sep24-open-close-enrich-only
+cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git commit -m "docs: enrich-only update of Sep 24 SILVA open and close workflows"
+cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git push
