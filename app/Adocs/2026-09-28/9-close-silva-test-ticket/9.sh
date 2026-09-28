@@ -1,7 +1,0 @@
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=assignment_group.name=testing%203122%5EORDERBYDESCsys_created_on&sysparm_limit=10&sysparm_display_value=true&sysparm_fields=number,sys_id,state,short_description,contact_type,correlation_id,sys_created_on"
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -X PATCH -H "Content-Type: application/json" -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident/__SYS_ID__" -d '{"state":"6","close_code":"Solved (Permanently)","close_notes":"Test ticket for Dynatrace integration. No action needed.","comments":"Test ticket created during Dynatrace integration testing. Closing."}'
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident/__SYS_ID__?sysparm_display_value=true&sysparm_fields=number,state,close_code,close_notes,resolved_at"
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_choice?sysparm_query=name=incident%5Eelement=close_code%5Einactive=false&sysparm_fields=label,value"
-cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git add app/Adocs/2026-09-28/9-close-silva-test-ticket
-cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git commit -m "Add guide for closing SILVA test ticket"
-cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git push
