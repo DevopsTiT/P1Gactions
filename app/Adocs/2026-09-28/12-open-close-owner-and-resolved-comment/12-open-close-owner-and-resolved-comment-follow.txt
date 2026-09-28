@@ -1,0 +1,19 @@
+Seq 12 OPEN + CLOSE YAMLs
+
+Folder: Daily Files/2026-09-28/12-open-close-owner-and-resolved-comment/
+Password and PagerDuty routing key already inside (Daily Files and AIProjects copies only).
+
+OPEN:
+- Title: [DYNATRACE JAPAN][<host>] - <problem title>  (FIXED_SHORT_DESCRIPTION = "")
+- Assignment group: Ops_Middleware_Monitoring_AXAJP
+- Assigned to: Shuge KUI  (new ASSIGNED_TO, sent as assigned_to)
+
+CLOSE:
+- Additional comments (customer visible): "Resolved"  (RESOLVE_COMMENT)
+- Work notes (internal): cause, duration, links, service
+- close_notes unchanged, state 6 Resolved
+
+Check:
+- Assigned to blank? notFilled lists assignedTo: name not unique or not in the group.
+- Before go-live: ASSIGNED_TO = "" so the group picks tickets up.
+- Old tickets without Assigned to may fail to resolve; assign by hand.
