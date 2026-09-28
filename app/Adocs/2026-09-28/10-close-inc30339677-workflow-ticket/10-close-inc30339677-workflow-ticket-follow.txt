@@ -1,0 +1,25 @@
+Close INC30339677 (created by the OPEN workflow)
+
+Key facts from the ticket:
+- correlation_id = P-260915247 (same as External Ticket Number)
+- problem_id = -7958242114081464045_1790571960000V2
+- Assignment group testing 3122, state New
+
+Best: close Dynatrace problem P-260915247 (or wait for it to clear).
+The CLOSE workflow then:
+- finds INC30339677 by correlation_id and sets Resolved (state 6)
+- resolves PagerDuty with dedup_key dt-problem-P-260915247
+SNOW later moves Resolved to Closed on its own.
+
+If the INC stays New after CLOSE runs, check the task result:
+- found=false: correlation_id field empty on INC
+- 401: password wrong
+- 403: API user has no write access
+- network error: allowlist silvastg.service-now.com
+
+Manual only: Resolve in SNOW form (Resolution code + notes), then resolve PagerDuty too.
+
+Commands (replace placeholders):
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=number=INC30339677&sysparm_display_value=true&sysparm_fields=number,sys_id,state,correlation_id,assignment_group,business_service,service_offering,short_description"
+curl -s -X POST -H "Authorization: Api-Token __DT_API_TOKEN__" -H "Content-Type: application/json" "https://__DT_TENANT__.live.dynatrace.com/api/v2/problems/-7958242114081464045_1790571960000V2/close" -d '{"message":"Closing test problem P-260915247 to trigger SILVA and PagerDuty close sync."}'
+curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/incident?sysparm_query=number=INC30339677&sysparm_display_value=true&sysparm_fields=number,state,close_code,close_notes,resolved_at"
