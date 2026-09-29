@@ -1,0 +1,12 @@
+Assignment group from tag
+
+The input tags show the group clearly:
+AGO_ORACLE_ASSIGNMENT_GROUP:Database_AXAJP
+AGO_DEFAULT_ASSIGNMENT_GROUP:Database_AXAJP
+
+v4 is updated:
+- The tag value always wins.
+- The SILVA lookup only adds the sys_id (5223d8c61b8f3c54688064e4604bcb12).
+- If the lookup fails, the name Database_AXAJP is still sent, with verified_in_silva false.
+
+Re-upload the seq 3 YAML and press Run.

@@ -1,0 +1,26 @@
+Extract v3 Tag Based Service Search
+File: 1-extract-v3-tag-based-service-search.workflow.yaml (nothing sent)
+
+Search terms from tags (Oracle example)
+group Database_AXAJP (AGO_DEFAULT_ASSIGNMENT_GROUP)
+dbType ORACLE (AGO_DB)
+envTag ACCEPTANCE (AGO_AXAPATCHENVIRONMENT_ORACLE)
+regionPrefix AP-SOUTHEAST (AGO_CSP_REGION_ORACLE minus -1)
+trigram ALJ, host deaa310b, domain AGO_DOMAIN tag or DOMAINS list
+
+Lookup order
+A SERVICE_MAP / service tag -> exact name
+B cmdb_ci name=host ^OR fqdn=host.<domain> (then starts with) -> CI business_service/service field -> svc_ci_assoc -> cmdb_rel_ci
+C query.sh searches, merged:
+  1 cmdb_ci_service assignment_group.nameLIKE group (^OR support_group)
+  2 nameLIKE dbType ^ nameLIKE envTag
+  3 nameLIKE dbType ^ nameLIKE regionPrefix
+  4 nameLIKE trigram
+  5 cmdb_ci_service_technical nameLIKE dbType ^ nameLIKE envTag
+  score: group 3, dbType 2, env 2, region 1, trigram 2, operational 1, business class 1, +1 per extra search
+  pick best if >= MIN_SCORE 5 and ahead of 2nd; else top 10 in lookup.service_candidates
+D offering by env; E group check
+
+Output: dynatrace_alert + servicenow_enrichment (pic 5) + decision + snow_incident_payload + pagerduty_payload + lookup
+Check: DOMAINS, ACCEPTANCE mapping, problems:read permission
+Test curls: 1.sh

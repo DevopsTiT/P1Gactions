@@ -1,0 +1,4 @@
+curl -s -G -u 'Tech_DynatraceJP_WS:<password>' 'https://silvastg.service-now.com/api/now/v2/table/sys_user_group' --data-urlencode 'sysparm_query=name=Database_AXAJP^active=true' --data-urlencode 'sysparm_fields=sys_id,name,active' | jq
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/3-extract-v4-business-service-and-group" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/4-assignment-group-from-tag" "/Users/k/Work/AIProjects/Files/2026-09-30/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/3-extract-v4-business-service-and-group" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/4-assignment-group-from-tag" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-09-30/"
+# Do NOT push app/Adocs: the workflow YAML contains the SNOW password
