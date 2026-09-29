@@ -1,0 +1,27 @@
+SNOW payload matching INC30340215
+
+Payload fields now sent:
+caller_id = Dynatrace JP
+u_on_behalf_of = Dynatrace JP
+contact_type = event
+company = business service company, else AXA GROUP OPERATIONS
+u_environment = environment label
+business_service = found service, else Third Party Services Monitoring Application
+service_offering = matching offering, else Third Party Services Monitoring Application
+cmdb_ci = host or DB CI if found
+category = other
+subcategory = other
+impact = 4
+urgency = 4
+assignment_group = group tag (Database_AXAJP sys_id)
+short_description = [DYNATRACE JAPAN][CI or host] - event name
+description = event text + Additional Information JSON (correlation_id, discovered_name, dynatrace_severity, environmentId, environmentName, event_properties)
+correlation_id = display_id
+
+New output: snow_form_check (one row per form field, ok / MISSING / empty).
+
+Confirm once with the GET in 6.sh:
+- real field names of On Behalf Of and Environment
+- stored values of category, subcategory, impact, urgency, contact type
+
+Do not push app/Adocs (password in YAML).

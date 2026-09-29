@@ -1,5 +1,23 @@
-# EXTRACT v4 — focus on the two values SNOW needs: BUSINESS SERVICE and ASSIGNMENT GROUP (read only)
-# Nothing is sent. The result says if the ticket is ready for SNOW and shows the SNOW / PagerDuty bodies.
+# OPEN v6 — full workflow: Davis problem -> SILVA incident (POST) -> PagerDuty trigger
+# Tasks (run in order):
+#   1 extract-event-tags   : parse tags and alert fields from the event
+#   2 resolve-snow-values  : GET lookups in SILVA (group, business service, offering, CI, company, default set)
+#   3 display-result       : build SNOW + PagerDuty bodies, snow_form_check, decision (no network)
+#   4 post-silva-incident  : duplicate check by correlation_id, then POST /incident
+#   5 trigger-pagerduty    : POST events.pagerduty.com/v2/enqueue (dedup_key dt-problem-<display_id>)
+# Tasks 4 and 5 do nothing when decision.create_incident is false (maintenance or missing mandatory field).
+# Set DRY_RUN = true in tasks 4 and 5 to test the whole chain without sending.
+# BEFORE ACTIVATE also allowlist: events.pagerduty.com
+#
+# Default set (from the SNOW form):
+#   Environment      = PoC / VoA / Demo
+#   Business service = QA Platforms
+#   Service Offering = QA Platforms - AXA GROUP OPERATIONS (record: ... - Production - ToD Web subscription)
+#   Assignment group = Ops_Middleware_Monitoring_AXAJP
+#   Company          = AXA GROUP OPERATIONS
+# If only one of the two is missing, the per-field fallbacks from v4 still apply.
+#
+# Task 3 says if the ticket is ready for SNOW and builds the bodies; tasks 4 and 5 send them.
 # Output (task display-result), most important first:
 #   snow_required  : assignment_group, business_service, service_offering, cmdb_ci, environment (name, sys_id, from)
 #   ready_for_snow : true / false,  missing : [...]
@@ -13,7 +31,7 @@
 #   - Maintenance: event field maintenance.is_under_maintenance, then the AGO_Maintenance tag
 # Test without a real problem: press Run (SAMPLE_EVENT = your Oracle event).
 # BEFORE ACTIVATE:
-#   1) External requests allowlist: silvastg.service-now.com
+#   1) External requests allowlist: silvastg.service-now.com and events.pagerduty.com
 #   2) Workflow Settings → Authorization: add environment-api:problems:read (step-1 result still shows it missing)
 #   3) SNOW password is filled in (local copy only — never commit this file)
 #
@@ -25,11 +43,11 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: AGO - Problem to SNOW business service and assignment group v4 (read only)
+  title: AGO - OPEN Problem to SILVA incident and PagerDuty v6
   description: >-
     Extracts every tag from the Davis problem, resolves the SNOW assignment group and business
-    service in SILVA (GET only, each value with its source), and returns a SNOW-ready summary plus
-    SNOW and PagerDuty payload previews. Nothing is posted.
+    service in SILVA (with a default set when nothing is found), creates the SILVA incident
+    (skips if one already exists for the problem) and triggers PagerDuty.
   schemaVersion: 3
   trigger:
     eventTrigger:
@@ -306,10 +324,11 @@ workflow:
             // ALJ: "<exact assignment group name in SILVA>"
           };
           const DEFAULT_GROUP = "Ops_Middleware_Monitoring_AXAJP";
-          // Business service and service offering are mandatory on the SNOW form.
-          // Used only when nothing else is found (INC30340215 used this one). Set "" to disable.
-          const DEFAULT_BUSINESS_SERVICE = "Third Party Services Monitoring Application";
-          const DEFAULT_SERVICE_OFFERING = "Third Party Services Monitoring Application";
+          // Default set, used as one block when BOTH business service and assignment group are not found.
+          // DEFAULT_BUSINESS_SERVICE is also the single-field fallback for the business service.
+          const DEFAULT_BUSINESS_SERVICE = "QA Platforms";
+          const DEFAULT_SERVICE_OFFERING = "QA Platforms - AXA GROUP OPERATIONS";   // offering name starts with this
+          const DEFAULT_ENVIRONMENT_LABEL = "PoC / VoA / Demo";
           const DOMAINS = ["axa-id.intraxa", "hk.intraxa", "jp.intraxa", "intraxa"];
           const MIN_SCORE = 5;
           const SERVICE_FIELDS = [
@@ -537,14 +556,39 @@ workflow:
               }
             }
 
-            // E) Mandatory-field fallback
+            const ci = cis[0] || null;
+            const defaultOffering = async () => {
+              const r = await getRows("default service offering", "service_offering",
+                "parent.name=" + DEFAULT_BUSINESS_SERVICE + "^nameSTARTSWITH" + DEFAULT_SERVICE_OFFERING,
+                ["sys_id", "name", "u_environment", "operational_status"], 5);
+              if (r.rows.length) return r.rows[0];
+              const r2 = await getRows("default service offering by name", "service_offering",
+                "nameSTARTSWITH" + DEFAULT_SERVICE_OFFERING, ["sys_id", "name", "u_environment", "operational_status"], 5);
+              return r2.rows[0] || null;
+            };
+
+            // ===== DEFAULT SET: both business service and assignment group not found =====
+            const defaultSet = !service && !group;
+            let offering = null;
+            let offeringFrom = "";
+            let environment = si.environment || {};
+            if (defaultSet) {
+              service = await serviceByName("default set business service", DEFAULT_BUSINESS_SERVICE);
+              method = "default set (DEFAULT_BUSINESS_SERVICE)";
+              const g = await groupByName("default set group", DEFAULT_GROUP);
+              group = Object.assign({ name: DEFAULT_GROUP, sys_id: "", company: null }, g || {}, { from: "default set (DEFAULT_GROUP)" });
+              offering = await defaultOffering();
+              offeringFrom = "default set (DEFAULT_SERVICE_OFFERING)";
+              environment = { tag_value: environment.tag_value || "", label: DEFAULT_ENVIRONMENT_LABEL, from: "default set" };
+            }
+
+            // E) Single-field fallback for the business service
             if (!service && DEFAULT_BUSINESS_SERVICE) {
               service = await serviceByName("default business service", DEFAULT_BUSINESS_SERVICE);
               if (service) method = "default (DEFAULT_BUSINESS_SERVICE)";
             }
 
             // ===== 3) Group fallback: service assignment group -> service support group -> CI support group -> default =====
-            const ci = cis[0] || null;
             if (!group && val(service, "assignment_group")) group = { name: dv(service, "assignment_group"), sys_id: val(service, "assignment_group"), from: "business service assignment group" };
             if (!group && val(service, "support_group")) group = { name: dv(service, "support_group"), sys_id: val(service, "support_group"), from: "business service support group" };
             if (!group && val(ci, "support_group")) group = { name: dv(ci, "support_group"), sys_id: val(ci, "support_group"), from: "CI support group" };
@@ -554,10 +598,8 @@ workflow:
             }
 
             // ===== 4) Offering for the environment =====
-            let offering = null;
-            const envLabel = (si.environment && si.environment.label) || "";
-            let offeringFrom = "";
-            if (service) {
+            const envLabel = environment.label || "";
+            if (!offering && service) {
               const r = await getRows("offerings of service", "service_offering",
                 "parent=" + val(service, "sys_id"), ["sys_id", "name", "u_environment", "operational_status"], 20);
               offering = r.rows.find(o => dv(o, "u_environment") === envLabel) ||
@@ -580,12 +622,11 @@ workflow:
             }
             if (!offering && DEFAULT_SERVICE_OFFERING) {
               offeringFrom = "default (DEFAULT_SERVICE_OFFERING)";
-              const r = await getRows("default service offering", "service_offering",
-                "name=" + DEFAULT_SERVICE_OFFERING, ["sys_id", "name", "u_environment", "operational_status"], 1);
-              offering = r.rows[0] || null;
+              offering = await defaultOffering();
             }
 
             const snowRequired = {
+              default_set_used: defaultSet,
               assignment_group: { name: group.name, sys_id: group.sys_id, from: group.from, verified_in_silva: !!group.sys_id },
               business_service: service
                 ? { name: dv(service, "name"), sys_id: val(service, "sys_id"), number: dv(service, "number"), from: method }
@@ -599,7 +640,7 @@ workflow:
                     ? { name: group.company.name, sys_id: group.company.sys_id, from: "assignment group company" }
                     : { name: "", sys_id: "", from: "not found (task 3 uses DEFAULT_COMPANY)" },
               cmdb_ci: { name: dv(ci, "name"), sys_id: val(ci, "sys_id"), class: dv(ci, "sys_class_name"), fqdn: dv(ci, "fqdn") },
-              environment: si.environment || {}
+              environment: environment
             };
 
             const enrichment = {
@@ -674,11 +715,13 @@ workflow:
           const IMPACT = "4";                            // label "4 - Low"
           const URGENCY = "4";                           // label "4 - Low"
           const DT_ENVIRONMENT_NAME = "AXA AS STG";      // environmentName in Additional Information
+          const DEFAULT_SET_ASSIGNED_TO = "";            // e.g. "Shuge KUI"; only used with the default set
           // SILVA environment label -> stored value of the incident Environment field
           const ENV_VALUE = {
             "Production": "Production",
             "Development": "Development",
-            "Integration / Test": "Integration / Test"
+            "Integration / Test": "Integration / Test",
+            "PoC / VoA / Demo": "PoC / VoA / Demo"
           };
           // ------------------------------------------------------------
 
@@ -730,6 +773,7 @@ workflow:
               impact: IMPACT,
               urgency: URGENCY,
               assignment_group: ref(req.assignment_group),
+              assigned_to: req.default_set_used && DEFAULT_SET_ASSIGNED_TO ? DEFAULT_SET_ASSIGNED_TO : undefined,
               short_description: shortDescription,
               description: (a.event_description || a.event_name) + "\nAdditional Information:\n" + JSON.stringify(additional, null, 2),
               correlation_id: a.problem_id
@@ -816,4 +860,161 @@ workflow:
 
             console.log(JSON.stringify(output, null, 2));
             return output;
+          }
+
+    post-silva-incident:
+      name: post-silva-incident
+      description: Skip if not allowed or already open for this problem; otherwise POST the incident to SILVA.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 4
+      predecessors:
+        - display-result
+      conditions:
+        states:
+          display-result: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit) ----------
+          const BASE_URL = "https://silvastg.service-now.com";
+          const USERNAME = "Tech_DynatraceJP_WS";
+          const PASSWORD = "JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}";
+          const DRY_RUN = false;            // true = build and log only, never POST
+          const ALLOW_SAMPLE_POST = false;  // manual Run uses SAMPLE_EVENT; keep false to avoid fake tickets
+          // -------------------------------------
+
+          const headers = {
+            Authorization: "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64"),
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          };
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const r = await ex.result("display-result");
+            const body = JSON.parse(JSON.stringify(r.snow_incident_payload));
+            const correlationId = body.correlation_id;
+
+            if (!r.decision.create_incident) {
+              return { action: "skipped", reason: r.decision.reason, correlation_id: correlationId };
+            }
+            if (r.lookup.used_sample_event && !ALLOW_SAMPLE_POST) {
+              return { action: "skipped", reason: "sample event (set ALLOW_SAMPLE_POST = true to post)", payload: body };
+            }
+
+            // Duplicate check: one open incident per Dynatrace problem
+            const q = BASE_URL + "/api/now/v2/table/incident?sysparm_query=" +
+              encodeURIComponent("correlation_id=" + correlationId + "^active=true") +
+              "&sysparm_fields=sys_id,number,state,assignment_group&sysparm_display_value=true&sysparm_limit=1";
+            const dupRes = await fetch(q, { method: "GET", headers: headers });
+            const dupJson = await dupRes.json().catch(() => ({}));
+            const existing = (dupJson.result || [])[0];
+            if (existing) {
+              return {
+                action: "exists",
+                number: existing.number,
+                sys_id: existing.sys_id,
+                state: existing.state,
+                correlation_id: correlationId
+              };
+            }
+
+            if (DRY_RUN) {
+              console.log(JSON.stringify(body, null, 2));
+              return { action: "dry_run", payload: body };
+            }
+
+            const res = await fetch(BASE_URL + "/api/now/v2/table/incident?sysparm_display_value=true&sysparm_exclude_reference_link=true", {
+              method: "POST",
+              headers: headers,
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = {}; }
+            if (!res.ok) {
+              throw new Error("SILVA POST failed " + res.status + ": " + text.slice(0, 500));
+            }
+            const inc = json.result || {};
+            const out = {
+              action: "created",
+              number: inc.number,
+              sys_id: inc.sys_id,
+              state: inc.state,
+              assignment_group: inc.assignment_group,
+              business_service: inc.business_service,
+              service_offering: inc.service_offering,
+              correlation_id: correlationId,
+              url: BASE_URL + "/nav_to.do?uri=incident.do?sys_id=" + inc.sys_id
+            };
+            console.log(JSON.stringify(out, null, 2));
+            return out;
+          }
+
+    trigger-pagerduty:
+      name: trigger-pagerduty
+      description: Send the PagerDuty trigger event with the SILVA incident number (same dedup_key as CLOSE).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 5
+      predecessors:
+        - post-silva-incident
+      conditions:
+        states:
+          post-silva-incident: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit) ----------
+          const ROUTING_KEY = "222651dbacb04403c0bf52d3b48499e8";
+          const DRY_RUN = false;
+          const SEND_WHEN_INCIDENT_EXISTS = false;  // false = do not re-page for an already open incident
+          // -------------------------------------
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const r = await ex.result("display-result");
+            const inc = await ex.result("post-silva-incident");
+
+            if (inc.action === "skipped") {
+              return { action: "skipped", reason: "SILVA step skipped: " + inc.reason };
+            }
+            if (inc.action === "exists" && !SEND_WHEN_INCIDENT_EXISTS) {
+              return { action: "skipped", reason: "incident " + inc.number + " already open" };
+            }
+
+            const event = JSON.parse(JSON.stringify(r.pagerduty_payload));
+            event.routing_key = ROUTING_KEY;
+            event.payload.custom_details.snow_incident = inc.number || "";
+            event.payload.custom_details.snow_incident_url = inc.url || "";
+            event.links = inc.url ? [{ href: inc.url, text: "SILVA " + inc.number }] : [];
+
+            if (DRY_RUN || inc.action === "dry_run") {
+              return { action: "dry_run", payload: Object.assign({}, event, { routing_key: "__hidden__" }) };
+            }
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(event)
+            });
+            const text = await res.text();
+            if (!res.ok) {
+              throw new Error("PagerDuty failed " + res.status + ": " + text.slice(0, 500));
+            }
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = {}; }
+            return {
+              action: "triggered",
+              status: json.status,
+              dedup_key: json.dedup_key || event.dedup_key,
+              snow_incident: inc.number
+            };
           }

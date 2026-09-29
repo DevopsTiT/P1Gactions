@@ -1,0 +1,18 @@
+First answer fallback by group
+
+New step D (before the static default):
+1. cmdb_ci_service assignment_group.nameLIKE<group>
+2. cmdb_ci_service support_group.nameLIKE<group>
+3. cmdb_ci_service nameLIKE<trigram>
+4. cmdb_ci_service nameLIKE<db type>
+First query with rows wins. Take the row whose name has the environment label, else the first row.
+
+Other empty columns:
+Offering: service + environment, service first row, group + environment, group first row, default.
+Company: service, CI, assignment group, AXA GROUP OPERATIONS.
+
+For the Oracle event (Integration / Test) step D would likely pick:
+Informatica - AXA DIRECT JAPAN - Integration / Test - Gold
+This is a guess. Check business_service.from and lookup.first_answer_rows. Fix with SERVICE_MAP if wrong.
+
+curl "URL rejected: Malformed input": use -G --data-urlencode (see 7.sh).

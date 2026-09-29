@@ -1,4 +1,12 @@
-# EXTRACT v4 — focus on the two values SNOW needs: BUSINESS SERVICE and ASSIGNMENT GROUP (read only)
+# EXTRACT v5 — v4 plus a DEFAULT SET when both business service and assignment group are not found (read only)
+# Default set (from the SNOW form):
+#   Environment      = PoC / VoA / Demo
+#   Business service = QA Platforms
+#   Service Offering = QA Platforms - AXA GROUP OPERATIONS (record: ... - Production - ToD Web subscription)
+#   Assignment group = Ops_Middleware_Monitoring_AXAJP
+#   Company          = AXA GROUP OPERATIONS
+# If only one of the two is missing, the per-field fallbacks from v4 still apply.
+#
 # Nothing is sent. The result says if the ticket is ready for SNOW and shows the SNOW / PagerDuty bodies.
 # Output (task display-result), most important first:
 #   snow_required  : assignment_group, business_service, service_offering, cmdb_ci, environment (name, sys_id, from)
@@ -25,7 +33,7 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: AGO - Problem to SNOW business service and assignment group v4 (read only)
+  title: AGO - Problem to SNOW business service and assignment group v5 default set (read only)
   description: >-
     Extracts every tag from the Davis problem, resolves the SNOW assignment group and business
     service in SILVA (GET only, each value with its source), and returns a SNOW-ready summary plus
@@ -306,10 +314,11 @@ workflow:
             // ALJ: "<exact assignment group name in SILVA>"
           };
           const DEFAULT_GROUP = "Ops_Middleware_Monitoring_AXAJP";
-          // Business service and service offering are mandatory on the SNOW form.
-          // Used only when nothing else is found (INC30340215 used this one). Set "" to disable.
-          const DEFAULT_BUSINESS_SERVICE = "Third Party Services Monitoring Application";
-          const DEFAULT_SERVICE_OFFERING = "Third Party Services Monitoring Application";
+          // Default set, used as one block when BOTH business service and assignment group are not found.
+          // DEFAULT_BUSINESS_SERVICE is also the single-field fallback for the business service.
+          const DEFAULT_BUSINESS_SERVICE = "QA Platforms";
+          const DEFAULT_SERVICE_OFFERING = "QA Platforms - AXA GROUP OPERATIONS";   // offering name starts with this
+          const DEFAULT_ENVIRONMENT_LABEL = "PoC / VoA / Demo";
           const DOMAINS = ["axa-id.intraxa", "hk.intraxa", "jp.intraxa", "intraxa"];
           const MIN_SCORE = 5;
           const SERVICE_FIELDS = [
@@ -537,14 +546,39 @@ workflow:
               }
             }
 
-            // E) Mandatory-field fallback
+            const ci = cis[0] || null;
+            const defaultOffering = async () => {
+              const r = await getRows("default service offering", "service_offering",
+                "parent.name=" + DEFAULT_BUSINESS_SERVICE + "^nameSTARTSWITH" + DEFAULT_SERVICE_OFFERING,
+                ["sys_id", "name", "u_environment", "operational_status"], 5);
+              if (r.rows.length) return r.rows[0];
+              const r2 = await getRows("default service offering by name", "service_offering",
+                "nameSTARTSWITH" + DEFAULT_SERVICE_OFFERING, ["sys_id", "name", "u_environment", "operational_status"], 5);
+              return r2.rows[0] || null;
+            };
+
+            // ===== DEFAULT SET: both business service and assignment group not found =====
+            const defaultSet = !service && !group;
+            let offering = null;
+            let offeringFrom = "";
+            let environment = si.environment || {};
+            if (defaultSet) {
+              service = await serviceByName("default set business service", DEFAULT_BUSINESS_SERVICE);
+              method = "default set (DEFAULT_BUSINESS_SERVICE)";
+              const g = await groupByName("default set group", DEFAULT_GROUP);
+              group = Object.assign({ name: DEFAULT_GROUP, sys_id: "", company: null }, g || {}, { from: "default set (DEFAULT_GROUP)" });
+              offering = await defaultOffering();
+              offeringFrom = "default set (DEFAULT_SERVICE_OFFERING)";
+              environment = { tag_value: environment.tag_value || "", label: DEFAULT_ENVIRONMENT_LABEL, from: "default set" };
+            }
+
+            // E) Single-field fallback for the business service
             if (!service && DEFAULT_BUSINESS_SERVICE) {
               service = await serviceByName("default business service", DEFAULT_BUSINESS_SERVICE);
               if (service) method = "default (DEFAULT_BUSINESS_SERVICE)";
             }
 
             // ===== 3) Group fallback: service assignment group -> service support group -> CI support group -> default =====
-            const ci = cis[0] || null;
             if (!group && val(service, "assignment_group")) group = { name: dv(service, "assignment_group"), sys_id: val(service, "assignment_group"), from: "business service assignment group" };
             if (!group && val(service, "support_group")) group = { name: dv(service, "support_group"), sys_id: val(service, "support_group"), from: "business service support group" };
             if (!group && val(ci, "support_group")) group = { name: dv(ci, "support_group"), sys_id: val(ci, "support_group"), from: "CI support group" };
@@ -554,10 +588,8 @@ workflow:
             }
 
             // ===== 4) Offering for the environment =====
-            let offering = null;
-            const envLabel = (si.environment && si.environment.label) || "";
-            let offeringFrom = "";
-            if (service) {
+            const envLabel = environment.label || "";
+            if (!offering && service) {
               const r = await getRows("offerings of service", "service_offering",
                 "parent=" + val(service, "sys_id"), ["sys_id", "name", "u_environment", "operational_status"], 20);
               offering = r.rows.find(o => dv(o, "u_environment") === envLabel) ||
@@ -580,12 +612,11 @@ workflow:
             }
             if (!offering && DEFAULT_SERVICE_OFFERING) {
               offeringFrom = "default (DEFAULT_SERVICE_OFFERING)";
-              const r = await getRows("default service offering", "service_offering",
-                "name=" + DEFAULT_SERVICE_OFFERING, ["sys_id", "name", "u_environment", "operational_status"], 1);
-              offering = r.rows[0] || null;
+              offering = await defaultOffering();
             }
 
             const snowRequired = {
+              default_set_used: defaultSet,
               assignment_group: { name: group.name, sys_id: group.sys_id, from: group.from, verified_in_silva: !!group.sys_id },
               business_service: service
                 ? { name: dv(service, "name"), sys_id: val(service, "sys_id"), number: dv(service, "number"), from: method }
@@ -599,7 +630,7 @@ workflow:
                     ? { name: group.company.name, sys_id: group.company.sys_id, from: "assignment group company" }
                     : { name: "", sys_id: "", from: "not found (task 3 uses DEFAULT_COMPANY)" },
               cmdb_ci: { name: dv(ci, "name"), sys_id: val(ci, "sys_id"), class: dv(ci, "sys_class_name"), fqdn: dv(ci, "fqdn") },
-              environment: si.environment || {}
+              environment: environment
             };
 
             const enrichment = {
@@ -674,11 +705,13 @@ workflow:
           const IMPACT = "4";                            // label "4 - Low"
           const URGENCY = "4";                           // label "4 - Low"
           const DT_ENVIRONMENT_NAME = "AXA AS STG";      // environmentName in Additional Information
+          const DEFAULT_SET_ASSIGNED_TO = "";            // e.g. "Shuge KUI"; only used with the default set
           // SILVA environment label -> stored value of the incident Environment field
           const ENV_VALUE = {
             "Production": "Production",
             "Development": "Development",
-            "Integration / Test": "Integration / Test"
+            "Integration / Test": "Integration / Test",
+            "PoC / VoA / Demo": "PoC / VoA / Demo"
           };
           // ------------------------------------------------------------
 
@@ -730,6 +763,7 @@ workflow:
               impact: IMPACT,
               urgency: URGENCY,
               assignment_group: ref(req.assignment_group),
+              assigned_to: req.default_set_used && DEFAULT_SET_ASSIGNED_TO ? DEFAULT_SET_ASSIGNED_TO : undefined,
               short_description: shortDescription,
               description: (a.event_description || a.event_name) + "\nAdditional Information:\n" + JSON.stringify(additional, null, 2),
               correlation_id: a.problem_id
