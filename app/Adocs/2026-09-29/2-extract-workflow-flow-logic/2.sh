@@ -1,4 +1,0 @@
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/cmdb_ci?sysparm_query=name=deaa310b%5EORfqdn=deaa310b&sysparm_fields=sys_id,name,sys_class_name,install_status&sysparm_display_value=true" | jq '.result'
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/svc_ci_assoc?sysparm_query=ci_id.name=deaa310b&sysparm_fields=service_id&sysparm_display_value=true" | jq '.result'
-curl -s -u 'Tech_DynatraceJP_WS:__SNOW_PASSWORD__' -H "Accept: application/json" "https://silvastg.service-now.com/api/now/v2/table/sys_user_group?sysparm_query=name=Database_AXAJP&sysparm_fields=sys_id,name,active" | jq '.result'
-open "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-29/1-extract-tags-silva-enrichment/1-extract-tags-silva-enrichment.workflow.yaml"
