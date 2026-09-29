@@ -1,0 +1,26 @@
+Extract Tags And SILVA Enrichment Workflow
+File: 1-extract-tags-silva-enrichment.workflow.yaml  (no SNOW POST, no PagerDuty)
+
+Trigger: DAVIS_PROBLEM ACTIVE CREATED. Press Run to test -> SAMPLE_EVENT (your Oracle event) is used.
+
+Task 1 extract-event-tags
+- entity_tags (+ problem entity tags) -> parse "[Context]KEY:value"
+- tags.ago (AGO_*), tags.other, tags.raw
+- hints: assignment_group (AGO_AXA_SUPPORTGROUP > AGO_DEFAULT_ASSIGNMENT_GROUP > *ASSIGNMENT_GROUP),
+  business_service, environment, trigram, platform, region, maintenance, host
+- dynatrace_alert: service_name, alerting_profile, severity, event_name, error_rate, problem_id, impact_level
+
+Task 2 lookup-silva (GET only)
+1 service tag or SERVICE_MAP[trigram] -> cmdb_ci_service by name
+2 host / entity name -> cmdb_ci -> svc_ci_assoc -> cmdb_ci_service
+3 group tag -> sys_user_group (exists, sys_id)
+servicenow_enrichment = sys_id, business_service, number, category, service_classification,
+assignment_group(+_id), support_group(+_id), company(+_id), managed_by, u_bbsa_id,
+u_business_range, business_criticality, u_cmdb_properties, comments
+
+Task 3 display-result -> JSON like correctoutput.sh (Result tab + Log tab)
+
+Sample event hints: group Database_AXAJP, trigram ALJ, env ACCEPTANCE, platform AWS_IAAS, host deaa310b
+
+found:false? -> look at lookup.steps; add SERVICE_MAP { ALJ: "<exact service name>" } or check host in SILVA (1.sh)
+Setup: allowlist silvastg.service-now.com; password is in file -> never push.
