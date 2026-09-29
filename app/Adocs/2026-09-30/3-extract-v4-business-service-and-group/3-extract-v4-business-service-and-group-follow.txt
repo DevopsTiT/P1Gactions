@@ -1,0 +1,24 @@
+Business Service And Assignment Group Workflow (v4, read only)
+
+File: 3-extract-v4-business-service-and-group.workflow.yaml
+
+What changed from step 1:
+1. Every group tag is a candidate. The specific tag (AGO_ORACLE_ASSIGNMENT_GROUP) is tried before AGO_DEFAULT_ASSIGNMENT_GROUP.
+2. Each group candidate is checked in SILVA (sys_user_group, active=true). The first real one wins, with its sys_id.
+3. Business service order: SERVICE_MAP or service tag, then host or DB CI, then scored searches.
+4. Search 1 uses the group sys_id exactly.
+5. The environment comes from real environment tags first. The patch environment tag is only a fallback.
+6. Maintenance comes from the event field first, then the tag.
+7. The output starts with snow_required, ready_for_snow and missing.
+
+Steps:
+1. Upload the YAML.
+2. Allowlist silvastg.service-now.com.
+3. Add scope environment-api:problems:read.
+4. Press Run and read snow_required.
+5. If the business service is not found, pick one from lookup.service_candidates and put it in SERVICE_MAP.
+
+Expected for the Oracle event:
+assignment_group = Database_AXAJP (5223d8c61b8f3c54688064e4604bcb12), from tag AGO_ORACLE_ASSIGNMENT_GROUP
+
+Warning: the YAML contains the SNOW password. Do not push app/Adocs.

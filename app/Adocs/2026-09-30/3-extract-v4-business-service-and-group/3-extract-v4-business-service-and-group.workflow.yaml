@@ -1,0 +1,701 @@
+# EXTRACT v4 — focus on the two values SNOW needs: BUSINESS SERVICE and ASSIGNMENT GROUP (read only)
+# Nothing is sent. The result says if the ticket is ready for SNOW and shows the SNOW / PagerDuty bodies.
+# Output (task display-result), most important first:
+#   snow_required  : assignment_group, business_service, service_offering, cmdb_ci, environment (name, sys_id, from)
+#   ready_for_snow : true / false,  missing : [...]
+#   dynatrace_alert, servicenow_enrichment (correctoutput.sh layout), decision,
+#   snow_incident_payload, pagerduty_payload, lookup, tags
+# v4 changes after the step-1 result (Oracle DEA10B01):
+#   - Group: every group tag is a candidate; specific tags (AGO_ORACLE_ASSIGNMENT_GROUP) before AGO_DEFAULT_*;
+#     each is checked in SILVA (active) and the first real one wins, with its sys_id
+#   - Business service search 1 uses the group sys_id (exact), not a name LIKE
+#   - Environment: AGO_AXAENVIRONMENTNAME / env / environment first; patch-environment tags only as fallback
+#   - Maintenance: event field maintenance.is_under_maintenance, then the AGO_Maintenance tag
+# Test without a real problem: press Run (SAMPLE_EVENT = your Oracle event).
+# BEFORE ACTIVATE:
+#   1) External requests allowlist: silvastg.service-now.com
+#   2) Workflow Settings → Authorization: add environment-api:problems:read (step-1 result still shows it missing)
+#   3) SNOW password is filled in (local copy only — never commit this file)
+#
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - Problem to SNOW business service and assignment group v4 (read only)
+  description: >-
+    Extracts every tag from the Davis problem, resolves the SNOW assignment group and business
+    service in SILVA (GET only, each value with its source), and returns a SNOW-ready summary plus
+    SNOW and PagerDuty payload previews. Nothing is posted.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE" AND
+        event.status_transition == "CREATED"
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+            custom: true
+          entityTags: {}
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    extract-event-tags:
+      name: extract-event-tags
+      description: Parse all tags and alert fields; build the SNOW inputs (group candidates, service tag, environment, host, DB).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          // ---------- settings (edit) ----------
+          const USE_PROBLEM_API = true;
+          // Tag value (lower case) -> SILVA environment label. Check "acceptance" with your SILVA team.
+          const ENVIRONMENT = {
+            production: "Production", prod: "Production", prd: "Production",
+            development: "Development", dev: "Development",
+            "integration-test": "Integration / Test", "integration / test": "Integration / Test",
+            integration: "Integration / Test", test: "Integration / Test", tst: "Integration / Test",
+            acceptance: "Integration / Test", acc: "Integration / Test", uat: "Integration / Test"
+          };
+          const DEFAULT_ENVIRONMENT = "Development";
+          const SERVICE_TAG_KEYS = ["snow-service", "ago_axa_businessservice", "business-service", "u_business_service"];
+          // Used only when the workflow is started with Run (no trigger event)
+          const SAMPLE_EVENT = {
+            "event.kind": "DAVIS_PROBLEM",
+            "event.status": "ACTIVE",
+            "event.name": "Oracle DB Instance down",
+            "event.severity": "3",
+            "display_id": "P-SAMPLE",
+            "dt.davis.impact_level": ["Infrastructure"],
+            "labels.alerting_profile": ["Default"],
+            "affected_entity_types": ["dt.entity.sql:com_dynatrace_extension_sql-oracle_instance"],
+            "dt.entity.sql:com_dynatrace_extension_sql-oracle_instance": ["DEA10B01"],
+            "affected_entity_ids": ["CUSTOM_DEVICE-C782F52B95F89F6F"],
+            "affected_entity_names": [],
+            "maintenance.is_under_maintenance": false,
+            "entity_tags": [
+              "AGO_AXAOPCOTRIGRAM_ORACLE:ALJ",
+              "AGO_AXAPATCHENVIRONMENT_ORACLE:ACCEPTANCE",
+              "AGO_AXAPLATFORM_ORACLE:AWS_IAAS",
+              "AGO_CSP_REGION_ORACLE:AP-SOUTHEAST-1",
+              "AGO_DB:ORACLE",
+              "AGO_DEFAULT_ASSIGNMENT_GROUP:Database_AXAJP",
+              "AGO_Maintenance:True",
+              "AGO_ORACLE_ASSIGNMENT_GROUP:Database_AXAJP",
+              "AGO_ORACLE_DBROLE:PRIMARY",
+              "AGO_ORACLE_LOG_MODE:NOARCHIVELOG",
+              "AGO_ORACLE_ROLE:PRIMARY_INSTANCE",
+              "Test_Maintenance:True",
+              "host:deaa310b"
+            ]
+          };
+          // -------------------------------------
+
+          function asList(v) {
+            return [].concat(v === undefined || v === null ? [] : v).map(String).filter(s => s !== "");
+          }
+          const unique = a => a.filter((v, i) => v && a.indexOf(v) === i);
+
+          // "[Context]KEY:value" or "KEY:value" or "KEY"
+          function parseTag(raw) {
+            const s = String(raw).trim();
+            const x = s.replace(/^\[[^\]]+\]/, "");
+            const i = x.indexOf(":");
+            return { raw: s, key: i > 0 ? x.slice(0, i).trim() : x.trim(), value: i > 0 ? x.slice(i + 1).trim() : "" };
+          }
+
+          function findByKey(parsed, test) {
+            const hit = parsed.find(t => t.value && test(t.key.toLowerCase()));
+            return hit ? { key: hit.key, value: hit.value } : null;
+          }
+
+          // All tags matching the tests, in test order, unique by value
+          function allByKey(parsed, tests) {
+            const out = [];
+            for (const test of tests) {
+              for (const t of parsed) {
+                if (t.value && test(t.key.toLowerCase()) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
+                  out.push({ key: t.key, value: t.value });
+                }
+              }
+            }
+            return out;
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const live = ex.event() || {};
+            const usedSample = !live["event.kind"] && !live["event.id"];
+            const ev = usedSample ? SAMPLE_EVENT : live;
+            const envUrl = getEnvironmentUrl().replace(/\/$/, "");
+
+            let prob = {};
+            let problemApi = usedSample ? "skipped (sample event)" : (USE_PROBLEM_API ? "ok" : "off");
+            if (!usedSample && USE_PROBLEM_API && ev["event.id"]) {
+              try {
+                prob = await problemsClient.getProblem({ problemId: ev["event.id"] });
+              } catch (e) {
+                prob = {};
+                problemApi = "failed: " + String((e && e.message) || e).slice(0, 200);
+              }
+            }
+
+            const rawTags = asList(ev["entity_tags"]);
+            for (const t of prob.entityTags || []) {
+              const s = t.stringRepresentation || (t.value ? t.key + ":" + t.value : t.key);
+              if (s && !rawTags.includes(s)) rawTags.push(s);
+            }
+            const parsed = rawTags.map(parseTag);
+            const byKey = {};
+            for (const t of parsed) byKey[t.key] = t.key in byKey ? [].concat(byKey[t.key], t.value) : t.value;
+            const agoTags = {};
+            const otherTags = {};
+            for (const k of Object.keys(byKey).sort()) (/^ago_/i.test(k) ? agoTags : otherTags)[k] = byKey[k];
+
+            // --- Assignment group candidates: support group, specific tech group, then default ---
+            const groupCandidates = allByKey(parsed, [
+              k => k === "ago_axa_supportgroup",
+              k => /(assignment_group|support_?group)$/.test(k) && k !== "ago_default_assignment_group" && k !== "ago_axa_supportgroup",
+              k => k === "ago_default_assignment_group"
+            ]);
+
+            // --- Business service tag ---
+            const serviceTag = findByKey(parsed, k => SERVICE_TAG_KEYS.includes(k));
+
+            // --- Environment: real environment tags first, patch environment last ---
+            const envCandidates = allByKey(parsed, [
+              k => k === "ago_axaenvironmentname",
+              k => k === "env" || k === "environment",
+              k => /environment/.test(k) && !/patch/.test(k),
+              k => /patch.*environment/.test(k)
+            ]);
+            const securityContext = asList(ev["dt.security.context"]);
+            const ctxEnv = (securityContext.slice().sort((a, b) => b.split("_").length - a.split("_").length)[0] || "")
+              .split("_").pop().toLowerCase();
+            const envHit = envCandidates.find(c => ENVIRONMENT[c.value.toLowerCase()]);
+            const environment = envHit
+              ? { tag_value: envHit.value, label: ENVIRONMENT[envHit.value.toLowerCase()], from: "tag " + envHit.key }
+              : ENVIRONMENT[ctxEnv]
+                ? { tag_value: ctxEnv, label: ENVIRONMENT[ctxEnv], from: "security context" }
+                : { tag_value: (envCandidates[0] || {}).value || "", label: DEFAULT_ENVIRONMENT, from: "default" };
+
+            // --- Other search inputs ---
+            const dbType = findByKey(parsed, k => k === "ago_db");
+            const domain = findByKey(parsed, k => k === "ago_domain") || findByKey(parsed, k => /domain/.test(k));
+            const trigram = findByKey(parsed, k => /trigram/.test(k));
+            const platform = findByKey(parsed, k => /platform/.test(k));
+            const region = findByKey(parsed, k => /region/.test(k));
+            const hostTag = findByKey(parsed, k => k === "host");
+            const maintTag = findByKey(parsed, k => k === "ago_maintenance");
+            const maintField = ev["maintenance.is_under_maintenance"];
+            const maintenance = maintField === true || String(maintField).toLowerCase() === "true"
+              ? { value: true, from: "event maintenance.is_under_maintenance" }
+              : maintTag && maintTag.value.toLowerCase() === "true"
+                ? { value: true, from: "tag " + maintTag.key }
+                : { value: false, from: maintField !== undefined ? "event maintenance.is_under_maintenance" : "none" };
+
+            // --- Alert fields ---
+            const affectedNames = asList(ev["affected_entity_names"]);
+            const affectedTypes = asList(ev["affected_entity_types"]);
+            const typeNames = affectedTypes.flatMap(t => asList(ev[t]));
+            const rootName = (prob.rootCauseEntity && prob.rootCauseEntity.name) || String(ev["root_cause_entity_name"] || "");
+            const entityIds = asList(ev["affected_entity_ids"]);
+            const hostName = (hostTag && hostTag.value) || asList(ev["host.name"])[0] || asList(ev["dt.entity.host.name"])[0] || "";
+            const serviceName = rootName || affectedNames[0] || typeNames[0] || hostName || entityIds[0] || "";
+            const props = ((prob.evidenceDetails && prob.evidenceDetails.details) || []).flatMap(d => (d.data && d.data.properties) || []);
+            const rateProp = props.find(p => /fail(ure)?.?rate|error.?rate/i.test(String(p.key)));
+            let errorRate = rateProp ? String(rateProp.value) : "";
+            if (errorRate && /^\d+(\.\d+)?$/.test(errorRate)) errorRate = Number(errorRate).toFixed(2) + "%";
+            const problemUrl = ev["problem.url"] || ev["event.url"] ||
+              (ev["event.id"] ? envUrl + "/ui/apps/dynatrace.davis.problems/problem/" + ev["event.id"] : "");
+
+            const dynatraceAlert = {
+              service_name: serviceName,
+              alerting_profile: asList(ev["labels.alerting_profile"])[0] || "",
+              severity: String(ev["event.severity"] || ev["event.category"] || prob.severityLevel || ""),
+              event_name: String(ev["event.name"] || prob.title || ""),
+              event_description: String(ev["event.description"] || "").slice(0, 500),
+              error_rate: errorRate,
+              problem_id: String(ev["display_id"] || prob.displayId || ""),
+              problem_url: problemUrl,
+              impact_level: asList(ev["dt.davis.impact_level"])[0] || String(prob.impactLevel || ""),
+              host: hostName,
+              entity_id: entityIds[0] || String(ev["root_cause_entity_id"] || ""),
+              entity_type: affectedTypes[0] || "",
+              environment: environment.label,
+              environment_tag: environment.tag_value,
+              db_type: dbType ? dbType.value : "",
+              trigram: trigram ? trigram.value : "",
+              platform: platform ? platform.value : "",
+              region: region ? region.value : "",
+              maintenance: maintenance.value
+            };
+
+            return {
+              usedSample: usedSample,
+              problemApi: problemApi,
+              dynatrace_alert: dynatraceAlert,
+              snow_inputs: {
+                group_candidates: groupCandidates,
+                service_tag: serviceTag,
+                environment: environment,
+                maintenance: maintenance,
+                security_context: securityContext,
+                db_type: dbType,
+                domain: domain,
+                trigram: trigram,
+                region: region,
+                host: hostName,
+                db_or_entity_names: unique(affectedNames.concat(typeNames, rootName || []))
+                  .filter(n => !/^[A-Z_]+-[0-9A-F]{16}$/.test(n))
+              },
+              tags: { count: parsed.length, ago: agoTags, other: otherTags, raw: rawTags },
+              eventKeys: Object.keys(ev).sort()
+            };
+          }
+
+    resolve-snow-values:
+      name: resolve-snow-values
+      description: Read-only SILVA lookups that resolve the assignment group and business service (plus offering and CI).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - extract-event-tags
+      conditions:
+        states:
+          extract-event-tags: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit) ----------
+          const BASE_URL = "https://silvastg.service-now.com";
+          const USERNAME = "Tech_DynatraceJP_WS";
+          const PASSWORD = "JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}";
+          // Fixed answers. Key = trigram, service tag value or DB / entity name; wins over every search.
+          const SERVICE_MAP = {
+            // ALJ: "<exact business service name in SILVA>"
+          };
+          const GROUP_MAP = {
+            // ALJ: "<exact assignment group name in SILVA>"
+          };
+          const DEFAULT_GROUP = "Ops_Middleware_Monitoring_AXAJP";
+          const DOMAINS = ["axa-id.intraxa", "hk.intraxa", "jp.intraxa", "intraxa"];
+          const MIN_SCORE = 5;
+          const SERVICE_FIELDS = [
+            "sys_id", "name", "number", "category", "service_classification",
+            "assignment_group", "support_group", "company", "managed_by",
+            "u_bbsa_id", "u_business_range", "business_criticality", "u_cmdb_properties", "comments",
+            "operational_status", "sys_class_name"
+          ];
+          const CI_FIELDS = ["sys_id", "name", "fqdn", "sys_class_name", "install_status", "operational_status",
+            "company", "support_group", "assignment_group", "service", "business_service"];
+          // -------------------------------------
+
+          const headers = {
+            Authorization: "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64"),
+            Accept: "application/json"
+          };
+          const steps = [];
+
+          async function getRows(label, table, query, fields, limit) {
+            const url = BASE_URL + "/api/now/v2/table/" + table +
+              "?sysparm_query=" + encodeURIComponent(query) +
+              "&sysparm_fields=" + fields.join(",") +
+              "&sysparm_display_value=all&sysparm_exclude_reference_link=true&sysparm_limit=" + limit;
+            let out;
+            try {
+              const res = await fetch(url, { method: "GET", headers: headers });
+              const text = await res.text();
+              let json = {};
+              try { json = JSON.parse(text); } catch (e) { json = {}; }
+              out = { status: res.status, rows: json.result || [], error: res.ok ? "" : text.slice(0, 200) };
+            } catch (e) {
+              out = { status: 0, rows: [], error: String((e && e.message) || e).slice(0, 200) };
+            }
+            steps.push({ step: label, table: table, query: query, status: out.status, matches: out.rows.length, error: out.error });
+            return out;
+          }
+
+          const dv = (row, f) => (row && row[f] && typeof row[f] === "object") ? String(row[f].display_value || "") : String((row && row[f]) || "");
+          const val = (row, f) => (row && row[f] && typeof row[f] === "object") ? String(row[f].value || "") : String((row && row[f]) || "");
+          const active = rows => rows.find(r => val(r, "operational_status") === "1" || val(r, "install_status") === "1") || rows[0];
+          const isSysId = v => /^[0-9a-f]{32}$/.test(v);
+          const has = (text, word) => !!word && String(text).toUpperCase().includes(String(word).toUpperCase());
+
+          async function groupByName(label, name) {
+            if (!name) return null;
+            const r = await getRows(label, "sys_user_group", "name=" + name + "^active=true", ["sys_id", "name", "active"], 1);
+            return r.rows.length ? { name: dv(r.rows[0], "name"), sys_id: val(r.rows[0], "sys_id") } : null;
+          }
+
+          async function serviceByName(label, name) {
+            const r = await getRows(label, "cmdb_ci_service", "name=" + name, SERVICE_FIELDS, 10);
+            return r.rows.length ? active(r.rows) : null;
+          }
+
+          async function serviceById(id) {
+            const r = await getRows("service by sys_id", "cmdb_ci_service", "sys_id=" + id, SERVICE_FIELDS, 1);
+            return r.rows[0] || null;
+          }
+
+          async function findCis(host, names, domains) {
+            const found = [];
+            const add = row => { if (row && !found.some(f => val(f, "sys_id") === val(row, "sys_id"))) found.push(row); };
+            if (host) {
+              const full = String(host).toLowerCase();
+              const short = full.split(".")[0];
+              const q = ["name=" + host, "name=" + full, "name=" + short, "fqdn=" + full]
+                .concat(domains.map(d => "fqdn=" + short + "." + d), domains.map(d => "name=" + short + "." + d)).join("^OR");
+              let r = await getRows("host by name or fqdn", "cmdb_ci", q, CI_FIELDS, 10);
+              if (!r.rows.length) r = await getRows("host starts with", "cmdb_ci",
+                "nameSTARTSWITH" + short + ".^ORfqdnSTARTSWITH" + short + ".", CI_FIELDS, 10);
+              add(active(r.rows));
+            }
+            for (const n of names) {
+              let r = await getRows("db or entity exact", "cmdb_ci", "name=" + n, CI_FIELDS, 5);
+              if (!r.rows.length) r = await getRows("db or entity contains", "cmdb_ci", "nameLIKE" + n, CI_FIELDS, 5);
+              add(active(r.rows));
+            }
+            return found.slice(0, 4);
+          }
+
+          async function serviceForCi(ci) {
+            const own = ["business_service", "service"].find(f => isSysId(val(ci, f)));
+            if (own) return { id: val(ci, own), via: "CI " + own + " field" };
+            const id = val(ci, "sys_id");
+            const a = await getRows("svc_ci_assoc", "svc_ci_assoc", "ci_id=" + id, ["service_id"], 5);
+            const sid = a.rows.map(x => val(x, "service_id")).find(Boolean);
+            if (sid) return { id: sid, via: "svc_ci_assoc" };
+            const rel = await getRows("cmdb_rel_ci", "cmdb_rel_ci", "child=" + id, ["parent", "parent.sys_class_name", "type"], 50);
+            const hit = rel.rows.find(x => /service/i.test(val(x, "parent.sys_class_name") || dv(x, "parent.sys_class_name")));
+            return hit ? { id: val(hit, "parent"), via: "cmdb_rel_ci (" + dv(hit, "type") + ")" } : null;
+          }
+
+          function score(row, t) {
+            const name = dv(row, "name");
+            const reasons = [];
+            let s = 0;
+            if (t.groupId && (val(row, "assignment_group") === t.groupId || val(row, "support_group") === t.groupId)) { s += 3; reasons.push("group " + t.groupName); }
+            if (has(name, t.dbType)) { s += 2; reasons.push("name has " + t.dbType); }
+            if (has(name, t.envTag)) { s += 2; reasons.push("name has " + t.envTag); }
+            if (has(name, t.regionPrefix)) { s += 1; reasons.push("name has " + t.regionPrefix); }
+            if (t.trigram && new RegExp("(^|[^A-Z0-9])" + t.trigram + "([^A-Z0-9]|$)", "i").test(name)) { s += 2; reasons.push("name has trigram " + t.trigram); }
+            if (val(row, "operational_status") === "1") { s += 1; reasons.push("operational"); }
+            if (val(row, "sys_class_name") === "cmdb_ci_service" || /business/i.test(dv(row, "service_classification"))) { s += 1; reasons.push("business service"); }
+            return { score: s, reasons: reasons };
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const p = await ex.result("extract-event-tags");
+            const si = p.snow_inputs || {};
+            const a = p.dynatrace_alert || {};
+            const mapKeys = [si.trigram && si.trigram.value, si.service_tag && si.service_tag.value]
+              .concat(si.db_or_entity_names || []).filter(Boolean);
+            const fromMap = map => mapKeys.map(k => map[k] || map[String(k).toUpperCase()]).find(Boolean) || "";
+
+            // ===== 1) ASSIGNMENT GROUP: GROUP_MAP, then each group tag checked in SILVA =====
+            let group = null;
+            const groupChecks = [];
+            const mappedGroup = fromMap(GROUP_MAP);
+            if (mappedGroup) {
+              const g = await groupByName("group from GROUP_MAP", mappedGroup);
+              groupChecks.push({ name: mappedGroup, from: "GROUP_MAP", exists: !!g });
+              if (g) group = Object.assign(g, { from: "GROUP_MAP" });
+            }
+            for (const c of si.group_candidates || []) {
+              if (group) break;
+              const g = await groupByName("group from tag " + c.key, c.value);
+              groupChecks.push({ name: c.value, from: "tag " + c.key, exists: !!g });
+              if (g) group = Object.assign(g, { from: "tag " + c.key, verified: true });
+            }
+            // The tag is the source of truth; a failed SILVA check only means no sys_id (SNOW resolves the name)
+            const firstTag = (si.group_candidates || [])[0];
+            if (!group && firstTag) {
+              group = { name: firstTag.value, sys_id: "", from: "tag " + firstTag.key + " (not verified in SILVA)", verified: false };
+            }
+
+            // ===== 2) BUSINESS SERVICE =====
+            let service = null;
+            let method = "";
+            let ranked = [];
+            const t = {
+              groupId: group ? group.sys_id : "",
+              groupName: group ? group.name : "",
+              dbType: si.db_type ? si.db_type.value : "",
+              envTag: si.environment ? si.environment.tag_value : "",
+              regionPrefix: si.region ? si.region.value.replace(/-\d+$/, "") : "",
+              trigram: si.trigram ? si.trigram.value : ""
+            };
+
+            // A) SERVICE_MAP or service tag
+            const wanted = fromMap(SERVICE_MAP) || (si.service_tag && si.service_tag.value) || "";
+            if (wanted) {
+              service = await serviceByName("service by name", wanted);
+              if (service) method = fromMap(SERVICE_MAP) ? "SERVICE_MAP" : "tag " + si.service_tag.key;
+            }
+
+            // B) Host / DB CI -> service
+            const domains = [si.domain && si.domain.value].concat(DOMAINS).filter((v, i, x) => v && x.indexOf(v) === i);
+            const cis = await findCis(si.host, si.db_or_entity_names || [], domains);
+            if (!service) {
+              for (const ci of cis) {
+                const s = await serviceForCi(ci);
+                if (s) {
+                  service = await serviceById(s.id);
+                  if (service) { method = "CI " + dv(ci, "name") + " -> " + s.via; break; }
+                }
+              }
+            }
+
+            // C) Tag searches, merged and scored
+            if (!service) {
+              const searches = [];
+              if (t.groupId) searches.push(["search 1 by group sys_id", "cmdb_ci_service",
+                "assignment_group=" + t.groupId + "^ORsupport_group=" + t.groupId]);
+              if (t.dbType && t.envTag) searches.push(["search 2 by db type + environment", "cmdb_ci_service",
+                "nameLIKE" + t.dbType + "^nameLIKE" + t.envTag]);
+              if (t.dbType && t.regionPrefix) searches.push(["search 3 by db type + region", "cmdb_ci_service",
+                "nameLIKE" + t.dbType + "^nameLIKE" + t.regionPrefix]);
+              if (t.trigram) searches.push(["search 4 by trigram", "cmdb_ci_service", "nameLIKE" + t.trigram]);
+              if (t.dbType && t.envTag) searches.push(["search 5 technical by db type + environment", "cmdb_ci_service_technical",
+                "nameLIKE" + t.dbType + "^nameLIKE" + t.envTag]);
+              const pool = {};
+              for (const [label, table, q] of searches) {
+                const r = await getRows(label, table, q, SERVICE_FIELDS, 50);
+                for (const row of r.rows) {
+                  const id = val(row, "sys_id");
+                  if (!pool[id]) pool[id] = { row: row, found_by: [] };
+                  pool[id].found_by.push(label.split(" by ")[0]);
+                }
+              }
+              ranked = Object.values(pool)
+                .map(x => { const sc = score(x.row, t); return { row: x.row, found_by: x.found_by, reasons: sc.reasons, score: sc.score + x.found_by.length - 1 }; })
+                .sort((x, y) => y.score - x.score);
+              const best = ranked[0];
+              const second = ranked[1];
+              if (best && best.score >= MIN_SCORE && (!second || best.score > second.score)) {
+                service = best.row;
+                method = "tag search (score " + best.score + ": " + best.reasons.join(", ") + ")";
+              }
+            }
+
+            // ===== 3) Group fallback: service assignment group -> service support group -> CI support group -> default =====
+            const ci = cis[0] || null;
+            if (!group && val(service, "assignment_group")) group = { name: dv(service, "assignment_group"), sys_id: val(service, "assignment_group"), from: "business service assignment group" };
+            if (!group && val(service, "support_group")) group = { name: dv(service, "support_group"), sys_id: val(service, "support_group"), from: "business service support group" };
+            if (!group && val(ci, "support_group")) group = { name: dv(ci, "support_group"), sys_id: val(ci, "support_group"), from: "CI support group" };
+            if (!group) {
+              const g = await groupByName("default group", DEFAULT_GROUP);
+              group = { name: DEFAULT_GROUP, sys_id: g ? g.sys_id : "", from: "default" };
+            }
+
+            // ===== 4) Offering for the environment =====
+            let offering = null;
+            const envLabel = (si.environment && si.environment.label) || "";
+            if (service) {
+              const r = await getRows("offerings of service", "service_offering",
+                "parent=" + val(service, "sys_id"), ["sys_id", "name", "u_environment", "operational_status"], 20);
+              offering = r.rows.find(o => dv(o, "u_environment") === envLabel) ||
+                r.rows.find(o => envLabel && dv(o, "name").includes(envLabel)) ||
+                (r.rows.length === 1 ? r.rows[0] : null);
+            }
+
+            const snowRequired = {
+              assignment_group: { name: group.name, sys_id: group.sys_id, from: group.from, verified_in_silva: !!group.sys_id },
+              business_service: service
+                ? { name: dv(service, "name"), sys_id: val(service, "sys_id"), number: dv(service, "number"), from: method }
+                : { name: "", sys_id: "", number: "", from: ci ? "not found (SILVA may derive it from cmdb_ci)" : "not found" },
+              service_offering: { name: dv(offering, "name"), sys_id: val(offering, "sys_id") },
+              cmdb_ci: { name: dv(ci, "name"), sys_id: val(ci, "sys_id"), class: dv(ci, "sys_class_name"), fqdn: dv(ci, "fqdn") },
+              environment: si.environment || {}
+            };
+
+            const enrichment = {
+              found: !!service,
+              match_method: method || "not found",
+              sys_id: val(service, "sys_id"),
+              business_service: dv(service, "name"),
+              number: dv(service, "number"),
+              category: dv(service, "category"),
+              service_classification: dv(service, "service_classification"),
+              assignment_group: dv(service, "assignment_group"),
+              assignment_group_id: val(service, "assignment_group"),
+              support_group: dv(service, "support_group"),
+              support_group_id: val(service, "support_group"),
+              company: dv(service, "company"),
+              company_id: val(service, "company"),
+              managed_by: val(service, "managed_by"),
+              u_bbsa_id: dv(service, "u_bbsa_id"),
+              u_business_range: dv(service, "u_business_range"),
+              business_criticality: val(service, "business_criticality"),
+              u_cmdb_properties: dv(service, "u_cmdb_properties"),
+              comments: dv(service, "comments")
+            };
+
+            return {
+              snow_required: snowRequired,
+              servicenow_enrichment: enrichment,
+              group_checks: groupChecks,
+              search_terms: t,
+              service_candidates: ranked.slice(0, 10).map(x => ({
+                score: x.score, name: dv(x.row, "name"), number: dv(x.row, "number"), sys_id: val(x.row, "sys_id"),
+                class: val(x.row, "sys_class_name"), assignment_group: dv(x.row, "assignment_group"),
+                support_group: dv(x.row, "support_group"), found_by: x.found_by, reasons: x.reasons
+              })),
+              cis_found: cis.map(c => ({ name: dv(c, "name"), fqdn: dv(c, "fqdn"), sys_id: val(c, "sys_id"), class: dv(c, "sys_class_name") })),
+              steps: steps
+            };
+          }
+
+    display-result:
+      name: display-result
+      description: SNOW-ready summary first, then the correctoutput.sh layout and the SNOW / PagerDuty bodies (preview only).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - resolve-snow-values
+      conditions:
+        states:
+          resolve-snow-values: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit, keep the same as OPEN) ----------
+          const SHORT_PREFIX = "[DYNATRACE JAPAN]";
+          const SKIP_WHEN_MAINTENANCE = true;
+          const IMPACT = "4 - Low";
+          const URGENCY = "4 - Low";
+          // ------------------------------------------------------------
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const e = await ex.result("extract-event-tags");
+            const s = await ex.result("resolve-snow-values");
+            const a = e.dynatrace_alert;
+            const req = s.snow_required;
+            const en = s.servicenow_enrichment;
+
+            const missing = [];
+            if (!req.assignment_group.name) missing.push("assignment_group (no group tag and no group in SILVA)");
+            if (!req.business_service.sys_id && !req.cmdb_ci.sys_id) missing.push("business_service (no service and no CI to derive it from)");
+            const readyForSnow = missing.length === 0;
+            const skip = SKIP_WHEN_MAINTENANCE && a.maintenance;
+
+            const where = a.service_name + (a.host && a.host !== a.service_name ? " on " + a.host : "");
+            const shortDescription = (SHORT_PREFIX + "[" + where + "] - " + a.event_name).slice(0, 160);
+            const additional = {
+              correlation_id: a.entity_id,
+              discovered_name: a.service_name,
+              host: a.host,
+              dynatrace_severity: a.severity,
+              impact_level: a.impact_level,
+              environment_tag: a.environment_tag,
+              db_type: a.db_type,
+              trigram: a.trigram,
+              platform: a.platform,
+              region: a.region,
+              problem_displayId: a.problem_id,
+              u_business_service: req.business_service.name || "<<UNKNOWN>>",
+              u_external_url: a.problem_url || "<<UNKNOWN>>",
+              tags: e.tags.raw
+            };
+
+            const snowIncident = {
+              short_description: shortDescription,
+              description: (a.event_description || a.event_name) + "\nAdditional Information:\n" + JSON.stringify(additional, null, 2),
+              correlation_id: a.problem_id,
+              impact: IMPACT,
+              urgency: URGENCY,
+              contact_type: "Event",
+              u_environment: req.environment.label,
+              u_host: a.host,
+              assignment_group: req.assignment_group.sys_id || req.assignment_group.name,
+              business_service: req.business_service.sys_id || undefined,
+              service_offering: req.service_offering.sys_id || undefined,
+              cmdb_ci: req.cmdb_ci.sys_id || undefined,
+              company: en.company_id || undefined
+            };
+
+            const pagerduty = {
+              routing_key: "__PD_ROUTING_KEY__",
+              event_action: "trigger",
+              dedup_key: "dt-problem-" + a.problem_id,
+              client: "Dynatrace",
+              client_url: a.problem_url,
+              payload: {
+                summary: shortDescription,
+                source: a.host || a.service_name || "dynatrace",
+                severity: a.impact_level === "Infrastructure" ? "error" : "warning",
+                group: req.environment.label,
+                component: a.trigram || a.service_name,
+                custom_details: {
+                  problem_id: a.problem_id,
+                  event_name: a.event_name,
+                  service_name: a.service_name,
+                  host: a.host,
+                  environment: req.environment.label,
+                  business_service: req.business_service.name || "unknown",
+                  assignment_group: req.assignment_group.name,
+                  db_type: a.db_type,
+                  trigram: a.trigram,
+                  snow_correlation_id: a.problem_id
+                }
+              }
+            };
+
+            const output = {
+              snow_required: req,
+              ready_for_snow: readyForSnow,
+              missing: missing,
+              decision: {
+                create_incident: readyForSnow && !skip,
+                reason: skip ? "Maintenance is on (" + e.snow_inputs.maintenance.from + ")"
+                  : readyForSnow ? "ok" : "missing: " + missing.join("; ")
+              },
+              dynatrace_alert: a,
+              servicenow_enrichment: en,
+              snow_incident_payload: snowIncident,
+              pagerduty_payload: pagerduty,
+              lookup: {
+                group_checks: s.group_checks,
+                search_terms: s.search_terms,
+                service_candidates: s.service_candidates,
+                cis_found: s.cis_found,
+                steps: s.steps,
+                used_sample_event: e.usedSample,
+                problem_api: e.problemApi
+              },
+              tags: e.tags
+            };
+
+            console.log(JSON.stringify(output, null, 2));
+            return output;
+          }
