@@ -1,0 +1,4 @@
+bash "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/21-silva-verify-checklist/21.sh"
+curl -s -u 'Tech_DynatraceJP_WS:JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}' -G "https://silvastg.service-now.com/api/now/v2/table/incident" -H 'Accept: application/json' --data-urlencode "sysparm_query=correlation_idSTARTSWITHP-^active=true^ORDERBYDESCsys_created_on" --data-urlencode "sysparm_fields=number,correlation_id,state,sys_created_on" --data-urlencode "sysparm_display_value=true" --data-urlencode "sysparm_limit=20" | jq '.result'
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/25-info-to-verify-new-workflow" "/Users/k/Work/AIProjects/Files/2026-10-01/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/25-info-to-verify-new-workflow" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"

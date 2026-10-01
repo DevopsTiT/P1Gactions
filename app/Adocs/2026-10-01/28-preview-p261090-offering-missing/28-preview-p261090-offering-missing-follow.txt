@@ -1,0 +1,19 @@
+PREVIEW P-261090 Offering Missing
+
+Verdict: workflow safe and correct, but no incident would be created.
+15/16 fields OK. Service Offering (cmdb_ci) MISSING -> SKIP. PagerDuty 5/5 OK, NOT send for same reason.
+
+Why: host ts12.hk.intraxa -> first linked service Distr-Windows-OS-JumpServer-AGO (cmdb_rel_ci Depends on) -> that service has no offering.
+Human ticket INC30340215 (same host ts12, same CI 1dfdcf8a...) used service 37273dbc... and offering cfbf255f...
+
+Fix done (seq 23 PREVIEW, 17 OPEN, 4 TEST):
+- Task 2 collects ALL services linked to the host CI
+- If the chosen service has no offering, it switches to the next linked service that has offerings
+- New output ci_services shows all links
+
+Next:
+1 Re-import 23-preview-v7-1-no-post-first.workflow.yaml
+2 Rerun on the next ts12 problem; check ci_services, u_business_service, cmdb_ci
+3 Optional: 28.sh line 1 (what ts12 depends on), lines 4-5 (INC30340215 values and offerings)
+
+Also confirm: company AXA GROUP OPERATIONS vs legal entity tag AXA-GROUP-OPERATIONS-HONG-KONG.

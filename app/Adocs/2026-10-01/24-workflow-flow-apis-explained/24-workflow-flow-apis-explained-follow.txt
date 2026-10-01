@@ -1,0 +1,29 @@
+Workflow Flow And APIs Explained
+
+Trigger: DAVIS_PROBLEM, ACTIVE, CREATED (Run with no event = SAMPLE_EVENT P-260916863)
+
+Task 1 extract-event-tags
+- API: Dynatrace Problems API v2 getProblem (GET) for entity tags
+- Parses tags: group candidates (AGO_AXA_SUPPORTGROUP, *_ASSIGNMENT_GROUP, AGO_DEFAULT_ASSIGNMENT_GROUP), service tag, environment (ACCEPTANCE -> Integration / Test), app code, db type, trigram, host, maintenance (event field or AGO_Maintenance tag)
+- Output: dynatrace_alert, snow_inputs
+
+Task 2 resolve-snow-values (SILVA GET only)
+- Group: GROUP_MAP, then tags -> sys_user_group name=<tag>^active=true
+- Business service: A service tag/map, B host CI -> svc_ci_assoc or cmdb_rel_ci, C scored search, D first answer, E QA Platforms
+- Offering: service_offering parent=<service>, matching environment, then fallbacks
+- Final group order: tag, service group, service support group, CI support group, DEFAULT_GROUP
+- Output: snow_required, steps (every call with status and count)
+
+Task 3 build-payload (no network)
+- SILVA body: caller_id, u_on_behalf_of, contact_type, company, u_environment, u_business_service, cmdb_ci (offering), u_configuration_item (host), category, subcategory, impact 4, urgency 4, assignment_group, short_description, description, correlation_id
+- Decision: create only if group, service, offering, environment, short description are present and maintenance is off
+- PagerDuty body: trigger, dedup_key dt-problem-<id>, summary, source, severity, group, component, custom_details
+
+Task 4 (parallel after task 3)
+- PREVIEW 4a: 16-field check + GET duplicate by correlation_id -> ready, open_v7_would
+- PREVIEW 4b: 5 PagerDuty checks, routing key hidden
+- OPEN 4a: GET duplicate, then POST /api/now/v2/table/incident
+- OPEN 4b: POST https://events.pagerduty.com/v2/enqueue
+
+Debug tip: read task 2 "steps" first.
+Replay calls by hand: 24.sh

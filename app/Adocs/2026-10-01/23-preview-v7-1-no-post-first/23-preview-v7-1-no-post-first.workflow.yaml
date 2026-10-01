@@ -1,6 +1,7 @@
 # PREVIEW v7.1: same preparation as OPEN v7, but NOTHING is sent.
 # No POST to SILVA, no call to PagerDuty. Only GET lookups in SILVA.
 # v7.1: tag keys written with "-" also match (AGO-DEFAULT-ASSIGNMENT-GROUP = AGO_DEFAULT_ASSIGNMENT_GROUP).
+# v7.1: if the host CI's first service has no offering, the next CI service that has offerings is used.
 #
 #   1 extract-event-tags      read the event and tags                     (same as OPEN v7)
 #   2 resolve-snow-values     SILVA lookups: group, service, offering, CI  (same as OPEN v7)
@@ -424,16 +425,19 @@ workflow:
             }
             return found.slice(0, 4);
           }
-          async function serviceForCi(ci) {
-            const own = ["business_service", "service"].find(f => isSysId(val(ci, f)));
-            if (own) return { id: val(ci, own), via: "CI " + own + " field" };
+          // All services linked to a CI, in order: CI fields, svc_ci_assoc, cmdb_rel_ci parents
+          async function servicesForCi(ci) {
+            const out = [];
+            const add = (id, via) => { if (isSysId(id) && !out.some(x => x.id === id)) out.push({ id: id, via: via }); };
+            for (const f of ["business_service", "service"]) add(val(ci, f), "CI " + f + " field");
             const id = val(ci, "sys_id");
             const a = await getRows("svc_ci_assoc", "svc_ci_assoc", "ci_id=" + id, ["service_id"], 5);
-            const sid = a.rows.map(x => val(x, "service_id")).find(Boolean);
-            if (sid) return { id: sid, via: "svc_ci_assoc" };
+            for (const x of a.rows) add(val(x, "service_id"), "svc_ci_assoc");
             const rel = await getRows("cmdb_rel_ci", "cmdb_rel_ci", "child=" + id, ["parent", "parent.sys_class_name", "type"], 50);
-            const hit = rel.rows.find(x => /service/i.test(val(x, "parent.sys_class_name") || dv(x, "parent.sys_class_name")));
-            return hit ? { id: val(hit, "parent"), via: "cmdb_rel_ci (" + dv(hit, "type") + ")" } : null;
+            for (const x of rel.rows) {
+              if (/service/i.test(val(x, "parent.sys_class_name") || dv(x, "parent.sys_class_name"))) add(val(x, "parent"), "cmdb_rel_ci (" + dv(x, "type") + ")");
+            }
+            return out;
           }
           function score(row, t) {
             const name = dv(row, "name");
@@ -503,13 +507,16 @@ workflow:
             const domains = [si.domain && si.domain.value].concat(DOMAINS).filter((v, i, x) => v && x.indexOf(v) === i);
             const ciNames = (si.db_or_entity_names || []).concat(appCode ? [appCode] : []);
             const cis = await findCis(si.host, ciNames, domains);
+            const ciServices = [];
             if (!service) {
               for (const ci of cis) {
-                const s = await serviceForCi(ci);
-                if (s) {
-                  service = await serviceById(s.id);
-                  if (service) { method = "CI " + dv(ci, "name") + " -> " + s.via; break; }
+                for (const s of await servicesForCi(ci)) {
+                  if (!ciServices.some(x => x.id === s.id)) ciServices.push(Object.assign({ ci: dv(ci, "name") }, s));
                 }
+              }
+              for (const s of ciServices) {
+                service = await serviceById(s.id);
+                if (service) { method = "CI " + s.ci + " -> " + s.via; break; }
               }
             }
 
@@ -568,6 +575,25 @@ workflow:
             if (!service && DEFAULT_BUSINESS_SERVICE) {
               service = await serviceByName("default business service", DEFAULT_BUSINESS_SERVICE);
               if (service) method = defaultSet ? "default set (DEFAULT_BUSINESS_SERVICE)" : "default (DEFAULT_BUSINESS_SERVICE)";
+            }
+
+            // A CI can depend on several services. If the chosen one has no offering, the incident has no
+            // Service Offering and is skipped, so switch to the next CI service that has offerings.
+            if (service && ciServices.length > 1 && val(service, "sys_class_name") !== "service_offering") {
+              const own = await getRows("offerings of chosen CI service", "service_offering", "parent=" + val(service, "sys_id"), ["sys_id"], 1);
+              if (!own.rows.length) {
+                for (const c of ciServices) {
+                  if (c.id === val(service, "sys_id")) continue;
+                  const o = await getRows("offerings of other CI service", "service_offering", "parent=" + c.id, ["sys_id"], 1);
+                  if (!o.rows.length) continue;
+                  const alt = await serviceById(c.id);
+                  if (alt) {
+                    method += " -> switched to " + dv(alt, "name") + " via " + c.via + " (" + dv(service, "name") + " has no offering)";
+                    service = alt;
+                    break;
+                  }
+                }
+              }
             }
 
             let offeringFromService = null;
@@ -700,6 +726,7 @@ workflow:
                 assignment_group: dv(x.row, "assignment_group"), found_by: x.found_by, reasons: x.reasons
               })),
               cis_found: cis.map(c => ({ name: dv(c, "name"), fqdn: dv(c, "fqdn"), sys_id: val(c, "sys_id"), class: dv(c, "sys_class_name") })),
+              ci_services: ciServices,
               steps: steps
             };
           }

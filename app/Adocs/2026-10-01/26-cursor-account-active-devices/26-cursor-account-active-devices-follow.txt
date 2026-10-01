@@ -1,0 +1,15 @@
+Cursor Account Active Devices
+
+I cannot see your account sessions. Check them here:
+1 Open https://cursor.com/dashboard and sign in
+2 Click My Settings
+3 Scroll to Active Sessions
+4 Click Revoke next to any session you do not recognize
+
+If you think the account is compromised:
+- Secure the login first (Google/GitHub password + 2FA, or your email account)
+- Revoke unknown sessions
+- Check https://cursor.com/dashboard/billing
+- Contact security@cursor.com if needed
+
+Company SSO login: ask IT to revoke sessions in the identity provider.

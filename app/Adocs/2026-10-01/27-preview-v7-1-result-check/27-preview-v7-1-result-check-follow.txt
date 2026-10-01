@@ -1,0 +1,12 @@
+PREVIEW v7.1 Result Check (P-260916434)
+
+Working: yes. New parallel v7.1 (PD link is the Dynatrace problem, routing key hidden).
+SILVA: 16/16 fields OK, problems empty, no duplicate (HTTP 200).
+PagerDuty: 5/5 checks OK.
+ready false / SKIP: only because entity tag AGO_Maintenance:True.
+
+Confirm before OPEN v7:
+1 Maintenance tag: permanent label or real maintenance? -> USE_MAINTENANCE_TAG true or false
+2 Offering = Production - Gold, environment = Integration / Test -> 27.sh line 2 (all offerings)
+3 Business service Data / Analytics found by search score 5 (minimum), not via host CI -> 27.sh lines 3, 4
+4 Host CI name "deaa310b.prprivmgmt.intraxa_2023-08-23 06:00:36" looks like a renamed duplicate -> 27.sh line 1 (pick Installed)

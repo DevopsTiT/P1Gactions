@@ -1,4 +1,6 @@
-# OPEN v7: Davis problem -> extract -> resolve in SILVA -> build payload -> (SILVA incident || PagerDuty trigger)
+# OPEN v7.1: Davis problem -> extract -> resolve in SILVA -> build payload -> (SILVA incident || PagerDuty trigger)
+# v7.1: tag keys with "-" also match; if the host CI's first service has no offering, the next CI service
+#       with offerings is used; USE_MAINTENANCE_TAG setting in task 1. Tasks 1-3 are identical to PREVIEW v7.1.
 #
 #   1 extract-event-tags     read the event and tags
 #   2 resolve-snow-values    SILVA lookups; group follows GROUP_ORDER (tag > servicenow_enrichment > CI > default)
@@ -26,7 +28,7 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: AGO - OPEN Problem to SILVA incident and PagerDuty v7
+  title: AGO - OPEN Problem to SILVA incident and PagerDuty v7.1
   description: >-
     Extracts the Davis problem, resolves assignment group, business service, offering and host CI in SILVA,
     creates the SILVA incident (skips if one is already open for the problem) and triggers PagerDuty.
