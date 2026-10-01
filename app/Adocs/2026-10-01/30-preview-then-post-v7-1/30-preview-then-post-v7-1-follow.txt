@@ -1,0 +1,16 @@
+Preview Then Post v7.1
+
+File: Daily Files/2026-10-01/30-preview-then-post-v7-1/30-preview-then-post-v7-1.workflow.yaml
+Title: AGO - PREVIEW then POST to SILVA and PagerDuty v7.1
+
+Graph (same as your PREVIEW, plus row 5):
+extract-event-tags -> resolve-snow-values -> build-payload
+  -> preview-silva-incident -> post-silva-incident (POST SILVA)
+  -> preview-pagerduty      -> trigger-pagerduty   (POST PagerDuty)
+The two branches run in parallel.
+
+post-silva-incident skips if: decision skip, preview found MISSING/WRONG, sample event, open duplicate. DRY_RUN = log only.
+trigger-pagerduty skips if: decision skip, preview checks failed, sample event. DRY_RUN = log only.
+
+Before import: allowlist silvastg.service-now.com + events.pagerduty.com, disable other PREVIEW/TEST/OPEN, optional DRY_RUN true first.
+Contains SILVA password and PD routing key: never commit.

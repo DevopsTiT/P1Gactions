@@ -1,22 +1,20 @@
-# OPEN v7: Davis problem -> extract -> resolve in SILVA -> build payload -> (SILVA incident || PagerDuty trigger)
+# PREVIEW + POST v7.1: the PREVIEW v7.1 chain, then each preview's sending task directly under it.
+# THIS WORKFLOW SENDS: it creates the SILVA incident and triggers PagerDuty.
+# v7.1: tag keys written with "-" also match (AGO-DEFAULT-ASSIGNMENT-GROUP = AGO_DEFAULT_ASSIGNMENT_GROUP).
+# v7.1: if the host CI's first service has no offering, the next CI service that has offerings is used.
 #
-#   1 extract-event-tags     read the event and tags
-#   2 resolve-snow-values    SILVA lookups; group follows GROUP_ORDER (tag > servicenow_enrichment > CI > default)
-#   3 build-payload          SNOW body + PagerDuty body + decision (create or skip)
-#   4a post-silva-incident   duplicate check by correlation_id, then POST /incident        } both start after
-#   4b trigger-pagerduty     POST events.pagerduty.com/v2/enqueue (dedup_key dt-problem-<id>)  } build-payload, in parallel
-# PagerDuty does not wait for SILVA, so the PD event carries the problem id (correlation_id), not the INC number.
-#
-# SILVA keys confirmed on INC30340215:
-#   Business service   = u_business_service    (business_service is "ZZZ-Do-not-use")
-#   Service Offering   = cmdb_ci               (service_offering is "ZZZ-Do-not-use")
-#   Configuration item = u_configuration_item
-#   Caller / On behalf = 8ddef691fb34cf547b0dfe7b4eefdcbc (Dynatrace JP)
+#   1 extract-event-tags      read the event and tags
+#   2 resolve-snow-values     SILVA lookups: group, service, offering, CI (GET)
+#   3 build-payload           SNOW body + PagerDuty body + decision
+#   4a preview-silva-incident field check, duplicate check (GET)          4b preview-pagerduty  PD body check
+#   5a post-silva-incident    POST /incident (under 4a)                   5b trigger-pagerduty  POST /v2/enqueue (under 4b)
+#   The SILVA branch (4a -> 5a) and the PagerDuty branch (4b -> 5b) run in parallel.
+#   5a skips if 4a found MISSING or WRONG fields; 5b skips if 4b checks failed.
 #
 # Press Run (no event) = sample event P-260916863; both send tasks skip it unless ALLOW_SAMPLE_POST = true.
-# Set DRY_RUN = true in both send tasks to test the whole chain without sending.
+# Set DRY_RUN = true in 5a and 5b to test the whole chain without sending.
 # BEFORE ACTIVATE: allowlist silvastg.service-now.com and events.pagerduty.com.
-# Disable the TEST v7 trigger (or OPEN v6) so one problem is not handled twice.
+# Disable the other PREVIEW, TEST and OPEN workflows so one problem is not handled twice.
 # Contains the SILVA password and PD routing key: local copy only, never commit.
 metadata:
   version: "1"
@@ -26,10 +24,10 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: AGO - OPEN Problem to SILVA incident and PagerDuty v7
+  title: AGO - PREVIEW then POST to SILVA and PagerDuty v7.1
   description: >-
-    Extracts the Davis problem, resolves assignment group, business service, offering and host CI in SILVA,
-    creates the SILVA incident (skips if one is already open for the problem) and triggers PagerDuty.
+    Runs the preparation and the readiness previews, then creates the SILVA incident under the SILVA preview and
+    triggers PagerDuty under the PagerDuty preview. Each send skips when its preview is not ready.
   schemaVersion: 3
   trigger:
     eventTrigger:
@@ -923,9 +921,9 @@ workflow:
             return out;
           }
 
-    post-silva-incident:
-      name: post-silva-incident
-      description: Skip if not allowed or already open for this problem; otherwise POST the incident to SILVA.
+    preview-silva-incident:
+      name: preview-silva-incident
+      description: Show the SILVA incident body OPEN would POST, a readiness check per field, and the duplicate check (GET only).
       action: dynatrace.automations:run-javascript
       active: true
       position:
@@ -936,6 +934,162 @@ workflow:
       conditions:
         states:
           build-payload: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit) ----------
+          const BASE_URL = "https://silvastg.service-now.com";
+          const USERNAME = "Tech_DynatraceJP_WS";
+          const PASSWORD = "JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}";
+          // -------------------------------------
+
+          const headers = {
+            Authorization: "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64"),
+            Accept: "application/json"
+          };
+          const isSysId = v => /^[0-9a-f]{32}$/.test(String(v || ""));
+
+          // form label, payload key, mandatory, must be a sys_id
+          const FORM = [
+            ["Caller", "caller_id", true, true],
+            ["On Behalf Of", "u_on_behalf_of", true, true],
+            ["Contact type", "contact_type", true, false],
+            ["Company", "company", true, true],
+            ["Environment", "u_environment", true, false],
+            ["Business service", "u_business_service", true, true],
+            ["Service Offering", "cmdb_ci", true, true],
+            ["Configuration item", "u_configuration_item", false, true],
+            ["Category", "category", true, false],
+            ["Subcategory", "subcategory", true, false],
+            ["Impact", "impact", true, false],
+            ["Urgency", "urgency", true, false],
+            ["Assignment group", "assignment_group", true, true],
+            ["Short description", "short_description", true, false],
+            ["Summary", "description", true, false],
+            ["Correlation ID", "correlation_id", true, false]
+          ];
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const b = await ex.result("build-payload");
+            const body = b.snow_incident_payload;
+            const names = {};
+            for (const f of b.field_sources || []) names[f.field] = { display_name: f.display_name, source: f.source };
+
+            const fieldCheck = FORM.map(([label, key, mandatory, needsSysId]) => {
+              const v = body[key];
+              let status = "OK";
+              let note = "";
+              if (!v) { status = mandatory ? "MISSING" : "EMPTY"; note = mandatory ? "mandatory on the SILVA form" : "optional"; }
+              else if (needsSysId && !isSysId(v)) { status = "WRONG"; note = "reference field needs a 32-character sys_id"; }
+              return {
+                form_label: label,
+                key: key,
+                status: status,
+                value: String(v || "").split("\n")[0].slice(0, 120),
+                display_name: (names[key] || {}).display_name || "",
+                source: (names[key] || {}).source || "",
+                note: note
+              };
+            });
+
+            // Duplicate check: would OPEN find an open incident for this problem?
+            let duplicate = { checked: false };
+            if (body.correlation_id) {
+              const url = BASE_URL + "/api/now/v2/table/incident?sysparm_query=" +
+                encodeURIComponent("correlation_id=" + body.correlation_id + "^active=true") +
+                "&sysparm_fields=number,state,assignment_group&sysparm_display_value=true&sysparm_limit=1";
+              try {
+                const res = await fetch(url, { method: "GET", headers: headers });
+                const json = await res.json().catch(() => ({}));
+                const hit = (json.result || [])[0];
+                duplicate = { checked: true, http: res.status, open_incident: hit ? hit.number : "", state: hit ? hit.state : "" };
+              } catch (e) {
+                duplicate = { checked: false, error: String((e && e.message) || e).slice(0, 200) };
+              }
+            }
+
+            const problems = fieldCheck.filter(f => f.status === "MISSING" || f.status === "WRONG");
+            let wouldDo = "CREATE incident";
+            if (!b.decision.create_incident) wouldDo = "SKIP (" + b.decision.reason + ")";
+            else if (b.used_sample_event) wouldDo = "SKIP (sample event; OPEN needs ALLOW_SAMPLE_POST = true)";
+            else if (duplicate.open_incident) wouldDo = "SKIP (already open: " + duplicate.open_incident + ")";
+
+            const out = {
+              note: "PREVIEW ONLY - nothing was sent to SILVA",
+              ready: problems.length === 0 && b.decision.create_incident,
+              open_v7_would: wouldDo,
+              problems: problems.map(p => p.form_label + " (" + p.key + "): " + p.status + " - " + p.note),
+              field_check: fieldCheck,
+              duplicate_check: duplicate,
+              used_sample_event: b.used_sample_event,
+              snow_incident_payload: body
+            };
+            console.log(JSON.stringify(out, null, 2));
+            return out;
+          }
+
+    preview-pagerduty:
+      name: preview-pagerduty
+      description: Show the PagerDuty trigger body OPEN would send in parallel with SILVA (routing key hidden). Sends nothing.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 4
+      predecessors:
+        - build-payload
+      conditions:
+        states:
+          build-payload: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const b = await ex.result("build-payload");
+            const event = JSON.parse(JSON.stringify(b.pagerduty_payload));
+            event.routing_key = "__hidden__ (set in OPEN v7 trigger-pagerduty)";
+            event.links = event.client_url ? [{ href: event.client_url, text: "Dynatrace " + b.snow_incident_payload.correlation_id }] : [];
+
+            const p = event.payload || {};
+            const checks = [
+              ["event_action", event.event_action === "trigger"],
+              ["dedup_key", /^dt-problem-P-/.test(event.dedup_key || "")],
+              ["payload.summary", !!p.summary && p.summary.length <= 1024],
+              ["payload.source", !!p.source],
+              ["payload.severity", ["critical", "error", "warning", "info"].includes(p.severity)]
+            ].map(([field, ok]) => ({ field: field, status: ok ? "OK" : "WRONG" }));
+
+            let wouldDo = "SEND trigger (in parallel with the SILVA POST)";
+            if (!b.decision.create_incident) wouldDo = "NOT send (" + b.decision.reason + ")";
+            else if (b.used_sample_event) wouldDo = "NOT send (sample event; OPEN needs ALLOW_SAMPLE_POST = true)";
+            const out = {
+              note: "PREVIEW ONLY - nothing was sent to PagerDuty",
+              ready: checks.every(c => c.status === "OK"),
+              open_v7_would: wouldDo,
+              checks: checks,
+              pagerduty_payload: event
+            };
+            console.log(JSON.stringify(out, null, 2));
+            return out;
+          }
+
+    post-silva-incident:
+      name: post-silva-incident
+      description: Skip if not allowed or already open for this problem; otherwise POST the incident to SILVA.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 5
+      predecessors:
+        - preview-silva-incident
+      conditions:
+        states:
+          preview-silva-incident: OK
       input:
         script: |
           import { execution } from '@dynatrace-sdk/automation-utils';
@@ -958,11 +1112,15 @@ workflow:
           export default async function ({ executionId }) {
             const ex = await execution(executionId);
             const r = await ex.result("build-payload");
+            const preview = await ex.result("preview-silva-incident");
             const body = JSON.parse(JSON.stringify(r.snow_incident_payload));
             const correlationId = body.correlation_id;
 
             if (!r.decision.create_incident) {
               return { action: "skipped", reason: r.decision.reason, correlation_id: correlationId };
+            }
+            if ((preview.problems || []).length) {
+              return { action: "skipped", reason: "preview found problems: " + preview.problems.join("; "), correlation_id: correlationId };
             }
             if (r.used_sample_event && !ALLOW_SAMPLE_POST) {
               return { action: "skipped", reason: "sample event (set ALLOW_SAMPLE_POST = true to post)", payload: body };
@@ -1028,12 +1186,12 @@ workflow:
       active: true
       position:
         x: 1
-        y: 4
+        y: 5
       predecessors:
-        - build-payload
+        - preview-pagerduty
       conditions:
         states:
-          build-payload: OK
+          preview-pagerduty: OK
       input:
         script: |
           import { execution } from '@dynatrace-sdk/automation-utils';
@@ -1050,9 +1208,13 @@ workflow:
           export default async function ({ executionId }) {
             const ex = await execution(executionId);
             const r = await ex.result("build-payload");
+            const preview = await ex.result("preview-pagerduty");
 
             if (!r.decision.create_incident) {
               return { action: "skipped", reason: r.decision.reason };
+            }
+            if (!preview.ready) {
+              return { action: "skipped", reason: "preview checks failed: " + (preview.checks || []).filter(c => c.status !== "OK").map(c => c.field).join(", ") };
             }
             if (r.used_sample_event && !ALLOW_SAMPLE_POST) {
               return { action: "skipped", reason: "sample event (set ALLOW_SAMPLE_POST = true to send)" };

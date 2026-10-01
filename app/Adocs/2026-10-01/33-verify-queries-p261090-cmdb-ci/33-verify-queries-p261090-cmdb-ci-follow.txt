@@ -1,0 +1,14 @@
+Verify queries for P-261090 offering (cmdb_ci)
+
+Run order:
+1. 33.sh line 2 (incident history on ts12) and line 6 (offerings of support group).
+2. Either has rows -> run lines 3, 4, 7. Note the offering sys_id.
+3. Rerun seq 30 workflow on P-261090. build-payload cmdb_ci must equal that offering; u_business_service must equal its parent.
+4. After POST: line 10 (replace REPLACE_WITH_PROBLEM_ID) or line 11 -> incident with cmdb_ci filled.
+5. Lines 2 and 6 both empty -> send me lines 3 and 4 output; use SERVICE_MAP or CMDB fix.
+
+Browser (log in to silvastg first):
+https://silvastg.service-now.com/incident_list.do?sysparm_query=u_configuration_item=1dfdcf8adb8dfa40251af9971d961941^cmdb_ciISNOTEMPTY^ORDERBYDESCsys_created_on
+https://silvastg.service-now.com/service_offering_list.do?sysparm_query=assignment_group.name=InfraSupport_Dist-WindowsHK_L2_ASIA^ORsupport_group.name=InfraSupport_Dist-WindowsHK_L2_ASIA
+https://silvastg.service-now.com/service_offering.do?sys_id=cfbf255f1b03b49416deb166464bcb4b
+https://silvastg.service-now.com/cmdb_ci.do?sys_id=1dfdcf8adb8dfa40251af9971d961941

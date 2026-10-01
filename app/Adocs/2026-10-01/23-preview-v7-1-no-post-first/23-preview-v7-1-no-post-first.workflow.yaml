@@ -650,6 +650,31 @@ workflow:
               offering = offeringFromService;
               offeringFrom = "offering found by the service search";
             }
+            // Technical services (e.g. "Technology Management Service") have no offering. Use the offering that
+            // people chose on recent incidents for the same host CI, and its parent as the business service.
+            let offeringHistory = [];
+            if (!offering && ci) {
+              const h = await getRows("offering from incident history", "incident",
+                "u_configuration_item=" + val(ci, "sys_id") + "^cmdb_ciISNOTEMPTY^ORDERBYDESCsys_created_on",
+                ["number", "cmdb_ci", "u_business_service"], 20);
+              const count = {};
+              for (const x of h.rows) { const id = val(x, "cmdb_ci"); if (id) count[id] = (count[id] || 0) + 1; }
+              offeringHistory = h.rows.map(x => ({ number: dv(x, "number"), offering: dv(x, "cmdb_ci"), business_service: dv(x, "u_business_service") }));
+              const best = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+              if (best) {
+                const o = await getRows("history offering", "service_offering", "sys_id=" + best, OFFERING_FIELDS, 1);
+                if (o.rows.length) {
+                  offering = o.rows[0];
+                  offeringFrom = "incident history on host CI (" + count[best] + " of " + h.rows.length + " recent incidents)";
+                  const hit = h.rows.find(x => val(x, "cmdb_ci") === best && val(x, "u_business_service"));
+                  const parentId = val(offering, "parent") || (hit ? val(hit, "u_business_service") : "");
+                  if (parentId && parentId !== val(service, "sys_id")) {
+                    const ps = await serviceById(parentId);
+                    if (ps) { method += " -> replaced by " + dv(ps, "name") + " (business service of the history offering)"; service = ps; }
+                  }
+                }
+              }
+            }
             if (!offering && defaultSet) {
               const r = await getRows("default offerings", "service_offering", "nameSTARTSWITH" + DEFAULT_SERVICE_OFFERING, OFFERING_FIELDS, 50);
               offering = envMatch(r.rows) || r.rows[0] || null;
@@ -660,7 +685,9 @@ workflow:
               offeringFrom = "first offering of the business service (environment NOT matched)";
             }
             if (!offering && group && group.name) {
-              const r = await getRows("first offering by group", "service_offering", "assignment_group.nameLIKE" + group.name, OFFERING_FIELDS, 20);
+              const r = await getRows("first offering by group", "service_offering",
+                group.sys_id ? "assignment_group=" + group.sys_id + "^ORsupport_group=" + group.sys_id
+                  : "assignment_group.nameLIKE" + group.name + "^ORsupport_group.nameLIKE" + group.name, OFFERING_FIELDS, 20);
               offering = envMatch(r.rows) || r.rows[0] || null;
               if (offering) offeringFrom = "first offering by group";
             }
@@ -727,6 +754,7 @@ workflow:
               })),
               cis_found: cis.map(c => ({ name: dv(c, "name"), fqdn: dv(c, "fqdn"), sys_id: val(c, "sys_id"), class: dv(c, "sys_class_name") })),
               ci_services: ciServices,
+              offering_history: offeringHistory,
               steps: steps
             };
           }
