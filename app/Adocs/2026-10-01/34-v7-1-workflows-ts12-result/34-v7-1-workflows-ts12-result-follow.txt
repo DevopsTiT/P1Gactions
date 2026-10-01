@@ -1,0 +1,24 @@
+V7.1 Workflows And ts12 Result (seq 34, new folder)
+
+Old folders are left as they are. New results go into new numbered folders.
+
+Files in this folder:
+- 34-v7-1-workflows-ts12-result-preview-then-post.workflow.yaml  (import this one)
+- 34-v7-1-workflows-ts12-result-open-post-both.workflow.yaml
+- 34-v7-1-workflows-ts12-result-preview-no-post.workflow.yaml
+- 34-v7-1-workflows-ts12-result-test-validate.workflow.yaml
+These contain secrets. Do not commit.
+
+Expected on P-261090 (ts12.hk.intraxa):
+- cmdb_ci = cfbf255f1b03b49416deb166464bcb4b (AXA XL - Production - Silver)
+- u_business_service = 37273dbc1b0f7c50114e0826464bcbf8 (Third Party Services Monitoring Application)
+- assignment_group = InfraSupport_Dist-WindowsHK_L2_ASIA
+- service_offering.from = incident history on host CI (N of N recent incidents)
+- decision.create_incident = true
+
+Confirm:
+1. Offering is Non-Operational: check SILVA accepts it.
+2. Offering is Production, host is Development: u_environment stays Development.
+3. Company may become AXA XL: compare with 34.sh line 3.
+
+Queries: 34.sh lines 1 to 4.
