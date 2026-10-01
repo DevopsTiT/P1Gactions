@@ -1,0 +1,12 @@
+QUERIES TO VERIFY SILVA INCIDENT KEYS (all in 11.sh)
+
+V1 label -> key: sys_documentation, nameINincident,task^language=en^labelIN<labels>, fields name,element,label
+V2 key exists: sys_dictionary, nameINincident,task^elementIN<keys>, fields name,element,column_label,internal_type,reference,read_only,mandatory
+V3 fallback: incident number=INC30340215 with sysparm_fields=<all keys>; keys that do not exist are not returned
+V4 single key: sys_dictionary element=u_hot_ticket, or column_labelLIKEHot to find the real name
+V5 choices: sys_choice nameINincident,task^elementINimpact,urgency,u_environment,...^inactive=false
+
+Result: row = real key, [] = wrong key (or no access). 403 -> use V3 or browser:
+B1 https://silvastg.service-now.com/sys_dictionary_list.do?sysparm_query=nameINincident,task^elementSTARTSWITHu_
+B2 https://silvastg.service-now.com/sys_documentation_list.do?sysparm_query=nameINincident,task^language=en
+B3 right-click label on the form -> Show - 'field_name'

@@ -346,8 +346,10 @@ workflow:
             "sys_id", "name", "number", "category", "service_classification",
             "assignment_group", "support_group", "company", "managed_by",
             "u_bbsa_id", "u_business_range", "business_criticality", "u_cmdb_properties", "comments",
-            "operational_status", "sys_class_name"
+            "operational_status", "sys_class_name", "parent"
           ];
+          // service_offering extends cmdb_ci_service, so every business-service query must exclude it
+          const NOT_OFFERING = "^sys_class_name!=service_offering";
           const CI_FIELDS = ["sys_id", "name", "fqdn", "sys_class_name", "install_status", "operational_status",
             "company", "support_group", "assignment_group", "service", "business_service"];
           const OFFERING_FIELDS = ["sys_id", "name", "u_environment", "operational_status", "parent"];
@@ -392,7 +394,7 @@ workflow:
               : null;
           }
           async function serviceByName(label, name) {
-            const r = await getRows(label, "cmdb_ci_service", "name=" + name, SERVICE_FIELDS, 10);
+            const r = await getRows(label, "cmdb_ci_service", "name=" + name + NOT_OFFERING, SERVICE_FIELDS, 10);
             return r.rows.length ? active(r.rows) : null;
           }
           async function serviceById(id) {
@@ -521,7 +523,7 @@ workflow:
               if (t.trigram && t.trigram.length <= 4) searches.push(["search 4 by trigram", "cmdb_ci_service", "nameLIKE" + t.trigram]);
               const pool = {};
               for (const [label, table, q] of searches) {
-                const r = await getRows(label, table, q, SERVICE_FIELDS, 50);
+                const r = await getRows(label, table, q + NOT_OFFERING, SERVICE_FIELDS, 50);
                 for (const row of r.rows) {
                   const id = val(row, "sys_id");
                   if (!pool[id]) pool[id] = { row: row, found_by: [] };
@@ -548,7 +550,7 @@ workflow:
               if (tagGroup) known.push(["first answer by support group", "support_group.nameLIKE" + tagGroup.name]);
               if (t.dbType) known.push(["first answer by db type", "nameLIKE" + t.dbType]);
               for (const [label, q] of known) {
-                const r = await getRows(label, "cmdb_ci_service", q, SERVICE_FIELDS, 20);
+                const r = await getRows(label, "cmdb_ci_service", q + NOT_OFFERING, SERVICE_FIELDS, 20);
                 if (!r.rows.length) continue;
                 firstRows = r.rows;
                 const envHit = r.rows.find(x => envWords.some(w => has(dv(x, "name"), w)));
@@ -563,6 +565,12 @@ workflow:
             if (!service && DEFAULT_BUSINESS_SERVICE) {
               service = await serviceByName("default business service", DEFAULT_BUSINESS_SERVICE);
               if (service) method = defaultSet ? "default set (DEFAULT_BUSINESS_SERVICE)" : "default (DEFAULT_BUSINESS_SERVICE)";
+            }
+
+            let offeringFromService = null;
+            if (service && val(service, "sys_class_name") === "service_offering" && val(service, "parent")) {
+              const parent = await serviceById(val(service, "parent"));
+              if (parent) { offeringFromService = service; service = parent; method += " -> parent of offering"; }
             }
 
             // The event environment is kept; the default label is used only when the event had none
@@ -608,6 +616,10 @@ workflow:
               offeringCandidates = r.rows;
               offering = envMatch(r.rows) || null;
               if (offering) offeringFrom = "offering of the business service for " + envLabel;
+            }
+            if (!offering && offeringFromService) {
+              offering = offeringFromService;
+              offeringFrom = "offering found by the service search";
             }
             if (!offering && defaultSet) {
               const r = await getRows("default offerings", "service_offering", "nameSTARTSWITH" + DEFAULT_SERVICE_OFFERING, OFFERING_FIELDS, 50);
@@ -709,9 +721,9 @@ workflow:
           // ---------- settings (edit, then copy the same values into OPEN) ----------
           const SHORT_PREFIX = "[DYNATRACE JAPAN]";
           const CALLER = "Dynatrace JP";            // name; task 4 looks up its sys_id
-          const CALLER_SYS_ID = "";                 // paste the sys_id task 4 reports, then this is used
+          const CALLER_SYS_ID = "8ddef691fb34cf547b0dfe7b4eefdcbc";        // Dynatrace JP, from INC30340215
           const ON_BEHALF_OF = "Dynatrace JP";
-          const ON_BEHALF_OF_SYS_ID = "";
+          const ON_BEHALF_OF_SYS_ID = "8ddef691fb34cf547b0dfe7b4eefdcbc";
           const CONTACT_TYPE = "event";
           const DEFAULT_COMPANY = "AXA GROUP OPERATIONS";
           const CATEGORY = "other";
