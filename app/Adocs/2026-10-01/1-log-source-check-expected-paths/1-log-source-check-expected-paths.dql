@@ -1,0 +1,111 @@
+// ===== Q1: your query + a column saying whether each source is in the pic2 list =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-D4032DA3E0240421"
+| fieldsAdd path_key = if(startsWith(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/") and endsWith(log.source, ".log"), "/opt/IBM/WebSphere/Profiles/CPE01/log/*.log",
+    else: if(startsWith(log.source, "/data/apache/inst1/logs/ApacheDaemonError.") and endsWith(log.source, ".log"), "/data/apache/inst1/logs/ApacheDaemonError.*.log",
+    else: if(startsWith(log.source, "/data/apache/inst1/logs/error_ssl.") and endsWith(log.source, ".log"), "/data/apache/inst1/logs/error_ssl.*.log",
+    else: log.source)))
+| summarize log_count = count(), by:{log.source, path_key}
+| fieldsAdd in_pic2 = in(path_key, array(
+    "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log",
+    "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log",
+    "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log",
+    "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/log/*.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log",
+    "/app/ICM_CPW/log/ap/monitoringTarget.log",
+    "/data/apache/inst1/logs/ApacheDaemonError.*.log",
+    "/data/apache/inst1/logs/error_ssl.*.log",
+    "/opt/jboss/standalone/log/server.log",
+    "/app/ICM_CPW/log/ap/default.log",
+    "/app/log/ap/default.log",
+    "/app/ICM_CPW/log/sh/default.log",
+    "/app/log/ap/monitoringTarget.log",
+    "/IFDATA/DATA/GE/LOG/SH/default.log",
+    "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log",
+    "/opt/HULFT/etc/trace",
+    "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG",
+    "/opt/plat/logs/pltcomm.log",
+    "/var/opt/universal/log/unv.log"))
+| sort in_pic2 desc, log_count desc
+
+
+// ===== Q2: coverage report - every pic2 path with FOUND or MISSING for this host group =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-D4032DA3E0240421"
+| filter startsWith(log.source, "/")
+| fieldsAdd path_key = if(startsWith(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/") and endsWith(log.source, ".log"), "/opt/IBM/WebSphere/Profiles/CPE01/log/*.log",
+    else: if(startsWith(log.source, "/data/apache/inst1/logs/ApacheDaemonError.") and endsWith(log.source, ".log"), "/data/apache/inst1/logs/ApacheDaemonError.*.log",
+    else: if(startsWith(log.source, "/data/apache/inst1/logs/error_ssl.") and endsWith(log.source, ".log"), "/data/apache/inst1/logs/error_ssl.*.log",
+    else: log.source)))
+| summarize log_count = count(), real_sources = collectDistinct(log.source), by:{path_key}
+| append [
+    data record(path_key = "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/CPE01/log/*.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log"),
+      record(path_key = "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log"),
+      record(path_key = "/app/ICM_CPW/log/ap/monitoringTarget.log"),
+      record(path_key = "/data/apache/inst1/logs/ApacheDaemonError.*.log"),
+      record(path_key = "/data/apache/inst1/logs/error_ssl.*.log"),
+      record(path_key = "/opt/jboss/standalone/log/server.log"),
+      record(path_key = "/app/ICM_CPW/log/ap/default.log"),
+      record(path_key = "/app/log/ap/default.log"),
+      record(path_key = "/app/ICM_CPW/log/sh/default.log"),
+      record(path_key = "/app/log/ap/monitoringTarget.log"),
+      record(path_key = "/IFDATA/DATA/GE/LOG/SH/default.log"),
+      record(path_key = "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log"),
+      record(path_key = "/opt/HULFT/etc/trace"),
+      record(path_key = "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG"),
+      record(path_key = "/opt/plat/logs/pltcomm.log"),
+      record(path_key = "/var/opt/universal/log/unv.log")
+    | fieldsAdd expected = true
+  ]
+| summarize log_count = sum(log_count), expected = max(expected), real_sources = arrayFlatten(collectArray(real_sources)), by:{path_key}
+| filter expected == true
+| fieldsAdd status = if(isNotNull(log_count) and log_count > 0, "FOUND", else: "MISSING")
+| fields status, path_key, log_count, real_sources
+| sort status asc, path_key asc
+
+
+// ===== Q3: which host groups actually send the pic2 paths (no host group filter) =====
+// Keep the notebook timeframe short (30 min to 2 h): without the host group filter this scans more data.
+fetch logs
+| filter startsWith(log.source, "/")
+| fieldsAdd path_key = if(startsWith(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/") and endsWith(log.source, ".log"), "/opt/IBM/WebSphere/Profiles/CPE01/log/*.log",
+    else: if(startsWith(log.source, "/data/apache/inst1/logs/ApacheDaemonError.") and endsWith(log.source, ".log"), "/data/apache/inst1/logs/ApacheDaemonError.*.log",
+    else: if(startsWith(log.source, "/data/apache/inst1/logs/error_ssl.") and endsWith(log.source, ".log"), "/data/apache/inst1/logs/error_ssl.*.log",
+    else: log.source)))
+| filter in(path_key, array(
+    "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log",
+    "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log",
+    "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log",
+    "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/log/*.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log",
+    "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log",
+    "/app/ICM_CPW/log/ap/monitoringTarget.log",
+    "/data/apache/inst1/logs/ApacheDaemonError.*.log",
+    "/data/apache/inst1/logs/error_ssl.*.log",
+    "/opt/jboss/standalone/log/server.log",
+    "/app/ICM_CPW/log/ap/default.log",
+    "/app/log/ap/default.log",
+    "/app/ICM_CPW/log/sh/default.log",
+    "/app/log/ap/monitoringTarget.log",
+    "/IFDATA/DATA/GE/LOG/SH/default.log",
+    "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log",
+    "/opt/HULFT/etc/trace",
+    "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG",
+    "/opt/plat/logs/pltcomm.log",
+    "/var/opt/universal/log/unv.log"))
+| summarize log_count = count(), hosts = countDistinct(dt.entity.host), by:{dt.entity.host_group, path_key}
+| sort dt.entity.host_group asc, path_key asc

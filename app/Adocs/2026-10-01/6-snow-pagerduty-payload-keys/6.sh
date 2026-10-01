@@ -1,0 +1,8 @@
+sed -n '762,780p' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/9-v6-full-open-silva-pagerduty/9-v6-full-open-silva-pagerduty.workflow.yaml"
+sed -n '807,832p' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/9-v6-full-open-silva-pagerduty/9-v6-full-open-silva-pagerduty.workflow.yaml"
+sed -n '993,997p' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/9-v6-full-open-silva-pagerduty/9-v6-full-open-silva-pagerduty.workflow.yaml"
+sed -n '260,266p' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/11-v6-close-silva-pagerduty/11-v6-close-silva-pagerduty.workflow.yaml"
+sed -n '320,324p' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/11-v6-close-silva-pagerduty/11-v6-close-silva-pagerduty.workflow.yaml"
+python3 -m json.tool "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/6-snow-pagerduty-payload-keys/6-snow-pagerduty-payload-keys-examples.json"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/6-snow-pagerduty-payload-keys" "/Users/k/Work/AIProjects/Files/2026-10-01/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/6-snow-pagerduty-payload-keys" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"

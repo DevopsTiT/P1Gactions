@@ -1,0 +1,12 @@
+SNOW_USER='Tech_DynatraceJP_WS'
+SNOW_PASS='<password>'
+SNOW='https://silvastg.service-now.com'
+curl -s -G -u "$SNOW_USER:$SNOW_PASS" "$SNOW/api/now/v2/table/incident" --data-urlencode 'sysparm_query=number=INC30340215' --data-urlencode 'sysparm_display_value=all' --data-urlencode 'sysparm_exclude_reference_link=true' | jq '.result[0] | with_entries(select(.value.display_value != "" and .value.display_value != null))'
+curl -s -G -u "$SNOW_USER:$SNOW_PASS" "$SNOW/api/now/v2/table/incident" --data-urlencode 'sysparm_query=number=INC30340215' --data-urlencode 'sysparm_fields=caller_id,u_on_behalf_of,contact_type,company,u_environment,business_service,service_offering,cmdb_ci,category,subcategory,impact,urgency,assignment_group,correlation_id' --data-urlencode 'sysparm_display_value=all' | jq
+curl -s -G -u "$SNOW_USER:$SNOW_PASS" "$SNOW/api/now/v2/table/sys_choice" --data-urlencode 'sysparm_query=name=incident^elementINcategory,subcategory,impact,urgency,contact_type,u_environment^inactive=false' --data-urlencode 'sysparm_fields=element,label,value' | jq
+curl -s -G -u "$SNOW_USER:$SNOW_PASS" "$SNOW/api/now/v2/table/cmdb_ci_service" --data-urlencode 'sysparm_query=name=Third Party Services Monitoring Application' --data-urlencode 'sysparm_fields=sys_id,name,company' --data-urlencode 'sysparm_display_value=all' | jq
+curl -s -G -u "$SNOW_USER:$SNOW_PASS" "$SNOW/api/now/v2/table/service_offering" --data-urlencode 'sysparm_query=name=Third Party Services Monitoring Application' --data-urlencode 'sysparm_fields=sys_id,name,u_environment,parent' --data-urlencode 'sysparm_display_value=all' | jq
+curl -s -G -u "$SNOW_USER:$SNOW_PASS" "$SNOW/api/now/v2/table/sys_user" --data-urlencode 'sysparm_query=name=Dynatrace JP' --data-urlencode 'sysparm_fields=sys_id,name,user_name' | jq
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/3-extract-v4-business-service-and-group" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/6-snow-payload-match-incident-form" "/Users/k/Work/AIProjects/Files/2026-09-30/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/3-extract-v4-business-service-and-group" "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-09-30/6-snow-payload-match-incident-form" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-09-30/"
+# Do NOT push app/Adocs: the workflow YAML contains the SNOW password

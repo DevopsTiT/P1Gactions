@@ -1,0 +1,54 @@
+OPEN AND CLOSE WORKFLOWS - TASKS, HAND-OFFS, API CALLS
+
+TRIGGERS
+- OPEN: Davis problem, status ACTIVE, transition CREATED
+- CLOSE: same problem becomes CLOSED or RESOLVED
+- Shared keys: SILVA correlation_id = display_id ; PagerDuty dedup_key = dt-problem-<display_id>
+- Tasks share data with: return {...} and ex.result("<task id>")
+
+OPEN
+1 extract-event-tags
+  Does: reads event (or sample), parses tags, finds group candidates, environment, maintenance, host, DB entity, link
+  API: problemsClient.getProblem (optional, needs environment-api:problems:read)
+  Passes: snow_inputs -> task 2 ; dynatrace_alert, tags, event_properties -> task 3 ; usedSample -> tasks 3-5
+
+2 resolve-snow-values  (SILVA GET only)
+  Group: GROUP_MAP -> tag candidates checked in sys_user_group -> tag name kept
+  Service: A map/tag -> B host/DB record link -> C scored search -> D first answer -> default set -> E QA Platforms
+  Offering: service offering for env -> first offering -> group offering -> default offering
+  Tables: sys_user_group, cmdb_ci, svc_ci_assoc, cmdb_rel_ci, cmdb_ci_service, cmdb_ci_service_technical, service_offering
+  Example query: cmdb_ci_service  assignment_group.nameLIKEDatabase_AXAJP
+  Passes: snow_required (group, service, offering, company, environment, each with "from") -> task 3
+
+3 display-result  (no API)
+  Builds SNOW body, form check, PagerDuty body
+  decision.create_incident = nothing missing AND not maintenance
+  Passes: snow_incident + decision -> task 4 ; pagerduty + decision -> task 5
+
+4 post-silva-incident
+  Guard: decision no or sample -> skipped
+  GET  /api/now/v2/table/incident?sysparm_query=correlation_id=<id>^active=true  -> exists
+  POST /api/now/v2/table/incident  -> created
+  Passes: action, number, sys_id, url -> task 5
+
+5 trigger-pagerduty
+  Guard: task 4 skipped, or exists and SEND_WHEN_INCIDENT_EXISTS false -> skipped
+  POST https://events.pagerduty.com/v2/enqueue  event_action trigger, dedup_key dt-problem-<id>
+  Returns: triggered
+
+CLOSE
+1 prepare-close
+  Builds correlationId, dedupKey, closeNotes, workNotes, duration
+  API: getProblem (optional)
+  Passes: everything -> tasks 2 and 3
+
+2 resolve-silva-incident (parallel with 3)
+  GET open incident by correlation_id ^active=true
+  none -> GET any -> already_resolved or not_found
+  PATCH /api/now/v2/table/incident/<sys_id>  state 6, close_code, close_notes, work_notes -> resolved
+
+3 resolve-pagerduty
+  POST enqueue  event_action resolve, same dedup_key -> resolved
+
+SECRETS: OPEN lines 318, 885, 976 ; CLOSE lines 209, 311. Keep YAMLs out of git.
+Commands: 13.sh (not run).

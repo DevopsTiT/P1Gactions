@@ -1,0 +1,18 @@
+SILVA CONFIGURATION ITEM KEY FOUND
+
+Configuration item = u_configuration_item (ref cmdb_ci). INC30340215: ts12.hk.intraxa = 1dfdcf8adb8dfa40251af9971d961941
+
+Final payload keys:
+Business service   -> u_business_service
+Service Offering   -> cmdb_ci (confirmed class "Service Offering")
+Configuration item -> u_configuration_item
+Never send business_service / service_offering (retired)
+
+Notes:
+- service_offering has no u_environment field; environment is in the name (... - Production - Silver_...)
+- Only offering under the service is Non-Operational
+- Reference incident: env Development but offering Production
+- First jq error = "[200~" paste artifact, not the query
+
+Workflow TEST updated: HOST_CI_FIELD = u_configuration_item, host CI check, offering env checked by name.
+Next: re-import, run, send result -> OPEN v7.
