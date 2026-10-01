@@ -1,0 +1,45 @@
+``` A) FOUND / NOT FOUND per path in index=aaa (last 30 days) ```
+| tstats count latest(_time) as last_seen where index=aaa earliest=-30d by source host
+| stats sum(count) as events max(last_seen) as last_seen values(host) as hosts by source
+| append
+    [| makeresults
+     | eval source=split("/app/ICM_CPW/log/ap/default.log,/app/log/ap/default.log,/app/ICM_CPW/log/sh/default.log,/app/log/ap/monitoringTarget.log,/IFDATA/DATA/GE/LOG/SH/default.log,/IFDATA/DATA/PC/LOG/PISP2/pisp2.log,/opt/HULFT/etc/trace,/opt/HULFT/etc/BatchLog/HUL_JOB.LOG,/opt/plat/logs/pltcomm.log,/var/opt/universal/log/unv.log", ",")
+     | mvexpand source
+     | eval wanted=1
+     | fields source wanted]
+| eval key=lower(source)
+| stats sum(events) as events max(last_seen) as last_seen values(hosts) as hosts max(wanted) as wanted values(source) as source by key
+| where wanted=1
+| eval status=if(events>0, "FOUND", "NOT FOUND"), last_seen=strftime(last_seen, "%Y-%m-%d %H:%M:%S")
+| table status source events last_seen hosts
+| sort status source
+
+``` B) Quick yes-list: only the paths that exist in index=aaa ```
+| tstats count where index=aaa earliest=-30d
+    source IN ("/app/ICM_CPW/log/ap/default.log", "/app/log/ap/default.log", "/app/ICM_CPW/log/sh/default.log",
+               "/app/log/ap/monitoringTarget.log", "/IFDATA/DATA/GE/LOG/SH/default.log", "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log",
+               "/opt/HULFT/etc/trace", "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG", "/opt/plat/logs/pltcomm.log", "/var/opt/universal/log/unv.log")
+    by source
+
+``` C) All time (no time limit), from index metadata ```
+| metadata type=sources index=aaa
+| search source IN ("/app/ICM_CPW/log/ap/default.log", "/app/log/ap/default.log", "/app/ICM_CPW/log/sh/default.log",
+                    "/app/log/ap/monitoringTarget.log", "/IFDATA/DATA/GE/LOG/SH/default.log", "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log",
+                    "/opt/HULFT/etc/trace", "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG", "/opt/plat/logs/pltcomm.log", "/var/opt/universal/log/unv.log")
+| eval firstTime=strftime(firstTime, "%F %T"), lastTime=strftime(lastTime, "%F %T")
+| table source totalCount firstTime lastTime
+
+``` D) Rotated names too (default.log.1, default.log.20261001 ...) ```
+| tstats count latest(_time) as last_seen where index=aaa earliest=-30d
+    (source="/app/ICM_CPW/log/ap/default.log*" OR source="/app/log/ap/default.log*" OR source="/app/ICM_CPW/log/sh/default.log*"
+     OR source="/app/log/ap/monitoringTarget.log*" OR source="/IFDATA/DATA/GE/LOG/SH/default.log*" OR source="/IFDATA/DATA/PC/LOG/PISP2/pisp2.log*"
+     OR source="/opt/HULFT/etc/trace*" OR source="/opt/HULFT/etc/BatchLog/HUL_JOB.LOG*" OR source="/opt/plat/logs/pltcomm.log*"
+     OR source="/var/opt/universal/log/unv.log*")
+    by source host
+| eval last_seen=strftime(last_seen, "%F %T")
+
+``` E) See every source in index=aaa that looks like these folders (to spot spelling differences) ```
+| tstats count where index=aaa earliest=-30d
+    (source="/app/*" OR source="/IFDATA/*" OR source="/opt/HULFT/*" OR source="/opt/plat/*" OR source="/var/opt/universal/*")
+    by source
+| sort source
