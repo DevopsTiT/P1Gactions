@@ -1,0 +1,12 @@
+Close Trigger Closed Only (seq 44)
+
+Trigger "active or closed" = expected. Dynatrace Problem trigger has no "closed only" option.
+Risk: v1-v3 also run when a problem OPENS and could resolve the new INC + PD alert.
+Also: your canvas shows v1 (seq 39).
+
+v4 (44-close-direct-v4-closed-only-guard.workflow.yaml):
+- prepare-close sets is_closed (Problems API status CLOSED; else event.status CLOSED or transition RESOLVED/CLOSED)
+- close-silva-incident and close-pagerduty skip unless is_closed
+- keeps v3 fixes (incident_state, no duplicate notes)
+
+Steps: remove v1 draft, import v4, keep trigger as is, Run once (expect skipped), Deploy.

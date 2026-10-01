@@ -1,4 +1,7 @@
-# CLOSE direct v2: Dynatrace problem CLOSED -> resolve SILVA incident(s) and PagerDuty in parallel. No preview tasks.
+# CLOSE direct v3: Dynatrace problem CLOSED -> resolve SILVA incident(s) and PagerDuty in parallel. No preview tasks.
+# v3: confirmed on INC30341416 that SILVA resolves through incident_state (Incident State Resolved was New,
+#     Resolved by Dynatrace JP). Success and "already resolved" now accept state OR incident_state, and close_notes
+#     are not sent again when the close code is already set.
 # v2: v1 set close_code and notes but SILVA kept the state (INC30341416). v2 also sets incident_state (the field
 #     behind the form label "Incident State"), and if the state still does not change it steps New -> In Progress
 #     -> Resolved. Notes are written once; retries only send state fields. The result shows which attempt worked.
@@ -24,7 +27,7 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: AGO - CLOSE Problem direct to SILVA and PagerDuty v2
+  title: AGO - CLOSE Problem direct to SILVA and PagerDuty v3
   description: >-
     On Dynatrace problem close: resolves every open SILVA incident with correlation_id = problem id, and resolves
     PagerDuty with dedup_key dt-problem-<problem id>. Both run in parallel.
@@ -228,6 +231,7 @@ workflow:
               ok: res.ok,
               state: val(r, "state"),
               state_label: dv(r, "state"),
+              incident_state_value: val(r, "incident_state"),
               incident_state: dv(r, "incident_state"),
               error: res.ok ? "" : text.slice(0, 300)
             };
@@ -254,7 +258,9 @@ workflow:
               ["sys_id", "number", "state", "incident_state", "close_code", "assigned_to", "assignment_group",
                "u_business_service", "cmdb_ci", "u_configuration_item"], 5);
             // A Resolved incident can still be active until it is Closed, so drop the ones already Resolved.
-            const open = all.filter(x => val(x, "state") !== String(state.value));
+            const isResolved = (stateValue, incStateValue) =>
+              String(stateValue) === String(state.value) || String(incStateValue) === String(incState.value);
+            const open = all.filter(x => !isResolved(val(x, "state"), val(x, "incident_state")));
             if (!open.length) {
               return { action: "skipped", reason: "no open unresolved SILVA incident with correlation_id " + c.correlation_id + (all.length ? " (" + all.map(x => dv(x, "number") + " " + dv(x, "state")).join(", ") + ")" : " (OPEN may have skipped it)"), correlation_id: c.correlation_id };
             }
@@ -286,7 +292,7 @@ workflow:
               ].join("\n").slice(0, 3900);
               // A previous run may already have written the close code and notes; do not add the notes twice.
               const notesDone = !!val(inc, "close_code");
-              const closeFields = Object.assign({ close_code: closeCode.value, close_notes: closeNotes }, EXTRA_FIELDS);
+              const closeFields = Object.assign({ close_code: closeCode.value }, notesDone ? {} : { close_notes: closeNotes }, EXTRA_FIELDS);
               if (ASSIGNED_TO && !val(inc, "assigned_to")) closeFields.assigned_to = ASSIGNED_TO;
               const firstBody = Object.assign({}, stateBody(RESOLVED), closeFields, notesDone ? {} : { [NOTES_FIELD]: note });
 
@@ -298,14 +304,14 @@ workflow:
               const attempts = [];
               let r = await patch(sysId, firstBody);
               attempts.push(Object.assign({ step: "direct to Resolved (" + STATE_FIELDS.join(" + ") + ")" }, r));
-              let ok = r.ok && r.state === String(state.value);
+              let ok = r.ok && isResolved(r.state, r.incident_state_value);
 
               if (!ok && r.ok && STEP_THROUGH_IN_PROGRESS) {
                 const p = await patch(sysId, stateBody(IN_PROGRESS));
                 attempts.push(Object.assign({ step: "set In Progress" }, p));
                 r = await patch(sysId, Object.assign({}, stateBody(RESOLVED), closeFields));
                 attempts.push(Object.assign({ step: "In Progress then Resolved" }, r));
-                ok = r.ok && r.state === String(state.value);
+                ok = r.ok && isResolved(r.state, r.incident_state_value);
               }
 
               results.push({

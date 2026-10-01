@@ -1,0 +1,426 @@
+# CLOSE direct v5: Dynatrace problem CLOSED -> resolve SILVA incident(s) and PagerDuty in parallel. No preview tasks.
+# v5: trigger Event state = "closed" (triggerOn: close). onProblemClose (deprecated) alone shows "active or closed".
+#     After import, check the trigger panel says "closed"; if it does not, pick "closed" there and Save.
+# v4: prepare-close sets is_closed and both close tasks skip unless the problem is really closed. Kept as a
+#     second guard in case the trigger is ever switched back to "active or closed".
+# v3: confirmed on INC30341416 that SILVA resolves through incident_state (Incident State Resolved was New,
+#     Resolved by Dynatrace JP). Success and "already resolved" now accept state OR incident_state, and close_notes
+#     are not sent again when the close code is already set.
+# v2: v1 set close_code and notes but SILVA kept the state (INC30341416). v2 also sets incident_state (the field
+#     behind the form label "Incident State"), and if the state still does not change it steps New -> In Progress
+#     -> Resolved. Notes are written once; retries only send state fields. The result shows which attempt worked.
+# Pair of: 36-standard-flow-preview-then-post (OPEN). Same sync keys:
+#   SILVA      correlation_id = <problem display id>    e.g. P-261090
+#   PagerDuty  dedup_key      = dt-problem-<display id>  e.g. dt-problem-P-261090
+#
+#   1 prepare-close           problem id, times, duration, cause (Problems API)
+#   2a close-silva-incident   GET open incidents by correlation_id, check state/close_code choices, PATCH each to Resolved
+#   2b close-pagerduty        POST /v2/enqueue event_action resolve
+#   2a and 2b run in parallel, so PagerDuty is resolved even if SILVA fails.
+#
+# Press Run (no event) = sample close of SAMPLE_EVENT.display_id. Both close tasks skip it unless ALLOW_SAMPLE_POST = true.
+# Set DRY_RUN = true in 2a and 2b to test without sending.
+# BEFORE ACTIVATE: allowlist silvastg.service-now.com and events.pagerduty.com. Save / Deploy (Drafts are not triggered).
+# Use either this workflow or 37 (preview then resolve), not both, so one close is not handled twice.
+# Contains the SILVA password and PD routing key: local copy only, never commit.
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: AGO - CLOSE Problem direct to SILVA and PagerDuty v5
+  description: >-
+    On Dynatrace problem close: resolves every open SILVA incident with correlation_id = problem id, and resolves
+    PagerDuty with dedup_key dt-problem-<problem id>. Both run in parallel.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: true
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "CLOSED"
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+            custom: true
+          entityTags: {}
+          triggerOn: close
+          onProblemClose: true
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 1000
+  tasks:
+    prepare-close:
+      name: prepare-close
+      description: Problem id, correlation_id, dedup_key, start and end time, duration and cause for the close notes.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { problemsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          // ---------- settings (edit) ----------
+          const USE_PROBLEM_API = true;
+          // Used only when the workflow is started with Run (no trigger event). display_id is the only required value.
+          const SAMPLE_EVENT = {
+            "event.kind": "DAVIS_PROBLEM",
+            "event.status": "CLOSED",
+            "display_id": "P-261090",
+            "event.name": "Error in the Windows Application Log with an eventID 258 on TS12.hk.intraxa",
+            "root_cause_entity_name": "ts12.hk.intraxa"
+          };
+          // -------------------------------------
+
+          const first = v => Array.isArray(v) ? v[0] : v;
+          function toMs(v) {
+            if (v === undefined || v === null || v === "") return 0;
+            const n = Number(v);
+            if (!isNaN(n)) return n > 1e15 ? Math.round(n / 1e6) : n;
+            const p = Date.parse(v);
+            return isNaN(p) ? 0 : p;
+          }
+          function duration(ms) {
+            if (!ms || ms < 0) return "unknown";
+            const m = Math.round(ms / 60000);
+            return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min";
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const live = ex.event() || {};
+            const usedSample = !live["event.kind"] && !live["event.id"];
+            const ev = usedSample ? SAMPLE_EVENT : live;
+            const envUrl = getEnvironmentUrl().replace(/\/$/, "");
+
+            let prob = {};
+            let problemApi = usedSample ? "skipped (sample event)" : (USE_PROBLEM_API ? "ok" : "off");
+            if (!usedSample && USE_PROBLEM_API && ev["event.id"]) {
+              try {
+                prob = await problemsClient.getProblem({ problemId: ev["event.id"] });
+              } catch (e) {
+                prob = {};
+                problemApi = "failed: " + String((e && e.message) || e).slice(0, 200);
+              }
+            }
+
+            const internalId = String(ev["event.id"] || prob.problemId || "");
+            const displayId = String(ev["display_id"] || prob.displayId || internalId);
+            const start = prob.startTime > 0 ? prob.startTime : toMs(ev["event.start"]);
+            const end = prob.endTime > 0 ? prob.endTime : (toMs(ev["event.end"]) || Date.now());
+            const root = prob.rootCauseEntity || (prob.affectedEntities || [])[0] || {};
+            const where = root.name || first(ev["root_cause_entity_name"]) || first(ev["affected_entity_names"]) || "";
+
+            // The trigger fires on "active or closed". Only a closed problem may resolve anything.
+            const eventStatus = String(ev["event.status"] || "").toUpperCase();
+            const transition = String(ev["event.status_transition"] || "").toUpperCase();
+            const apiStatus = String(prob.status || "").toUpperCase();
+            const isClosed = apiStatus ? apiStatus === "CLOSED"
+              : (eventStatus === "CLOSED" || transition === "RESOLVED" || transition === "CLOSED");
+
+            return {
+              is_closed: isClosed,
+              closed_check: "event.status=" + (eventStatus || "-") + ", transition=" + (transition || "-") + ", problems api=" + (apiStatus || "-"),
+              problem_id: displayId,
+              internal_id: internalId,
+              correlation_id: displayId,
+              dedup_key: "dt-problem-" + displayId,
+              status: String(prob.status || ev["event.status"] || ""),
+              title: String(prob.title || ev["event.name"] || ""),
+              where: String(where),
+              start_time: start ? new Date(start).toISOString() : "",
+              end_time: new Date(end).toISOString(),
+              duration: start ? duration(end - start) : "unknown",
+              problem_url: internalId ? envUrl + "/ui/apps/dynatrace.davis.problems/problem/" + internalId : "",
+              problem_api: problemApi,
+              used_sample_event: usedSample
+            };
+          }
+
+    close-silva-incident:
+      name: close-silva-incident
+      description: Find open SILVA incidents by correlation_id and PATCH each one to Resolved with close code and notes.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - prepare-close
+      conditions:
+        states:
+          prepare-close: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit) ----------
+          const BASE_URL = "https://silvastg.service-now.com";
+          const USERNAME = "Tech_DynatraceJP_WS";
+          const PASSWORD = "JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}";
+          // Value or label both work; matched against the SILVA choice list before sending.
+          const RESOLVED_STATE = "Resolved";
+          const IN_PROGRESS_STATE = "In Progress";
+          // SILVA form "Incident State" = incident_state; both are sent so whichever SILVA uses is set.
+          const STATE_FIELDS = ["state", "incident_state"];
+          // true = if the direct move to Resolved is refused, set In Progress first, then Resolved again
+          const STEP_THROUGH_IN_PROGRESS = true;
+          // Optional sys_id for Assigned to, only if SILVA requires it to resolve. "" = leave as is.
+          const ASSIGNED_TO = "";
+          const CLOSE_CODE = "Solved (Permanently)";
+          // "work_notes" = internal note, "comments" = visible to the caller (may email them)
+          const NOTES_FIELD = "work_notes";
+          // Extra fields SILVA may require to resolve, e.g. { u_resolution_type: "Automatic" }
+          const EXTRA_FIELDS = {};
+          const DRY_RUN = false;            // true = build and log only, never PATCH
+          const ALLOW_SAMPLE_POST = false;  // manual Run uses SAMPLE_EVENT; true = really resolve it
+          // -------------------------------------
+
+          const headers = {
+            Authorization: "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64"),
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          };
+          const val = (row, f) => (row && row[f] && typeof row[f] === "object") ? String(row[f].value || "") : String((row && row[f]) || "");
+          const dv = (row, f) => (row && row[f] && typeof row[f] === "object") ? String(row[f].display_value || "") : String((row && row[f]) || "");
+
+          async function getRows(table, query, fields, limit) {
+            const url = BASE_URL + "/api/now/v2/table/" + table +
+              "?sysparm_query=" + encodeURIComponent(query) +
+              "&sysparm_fields=" + fields.join(",") +
+              "&sysparm_display_value=all&sysparm_exclude_reference_link=true&sysparm_limit=" + limit;
+            const res = await fetch(url, { method: "GET", headers: headers });
+            const text = await res.text();
+            if (!res.ok) throw new Error("SILVA GET " + table + " failed " + res.status + ": " + text.slice(0, 300));
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = {}; }
+            return json.result || [];
+          }
+          // Returns the SILVA value for a dropdown; throws if SILVA's list is readable and has no match.
+          async function choiceValue(element, wanted) {
+            let rows = [];
+            try {
+              rows = await getRows("sys_choice", "name=incident^element=" + element + "^inactive=false^language=en", ["value", "label"], 100);
+            } catch (e) {
+              return { value: wanted, check: "UNVERIFIED (choice list not readable)" };
+            }
+            if (!rows.length) return { value: wanted, check: "UNVERIFIED (choice list empty)" };
+            const w = String(wanted).toLowerCase();
+            const list = rows.map(x => ({ value: val(x, "value"), label: dv(x, "label") || val(x, "label") }));
+            const hit = list.find(x => x.value.toLowerCase() === w) || list.find(x => x.label.toLowerCase() === w);
+            if (!hit) {
+              throw new Error(element + " '" + wanted + "' is not a SILVA choice. Allowed: " + list.map(x => x.label + " (" + x.value + ")").join(", ").slice(0, 800));
+            }
+            return { value: hit.value, check: "OK (" + hit.label + ")" };
+          }
+          // Like choiceValue but never throws; falls back to the given value when the list has no match.
+          async function softChoice(element, wanted, fallback) {
+            try { return await choiceValue(element, wanted); }
+            catch (e) { return { value: fallback !== undefined ? fallback : wanted, check: "FALLBACK (" + String(e.message || e).slice(0, 200) + ")" }; }
+          }
+          async function patch(sysId, body) {
+            const res = await fetch(BASE_URL + "/api/now/v2/table/incident/" + sysId + "?sysparm_display_value=all&sysparm_exclude_reference_link=true", {
+              method: "PATCH",
+              headers: headers,
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = {}; }
+            const r = json.result || {};
+            return {
+              http: res.status,
+              ok: res.ok,
+              state: val(r, "state"),
+              state_label: dv(r, "state"),
+              incident_state_value: val(r, "incident_state"),
+              incident_state: dv(r, "incident_state"),
+              error: res.ok ? "" : text.slice(0, 300)
+            };
+          }
+
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const c = await ex.result("prepare-close");
+            if (!c.is_closed) {
+              return { action: "skipped", reason: "problem is not closed (" + c.closed_check + ")", correlation_id: c.correlation_id };
+            }
+
+            const state = await choiceValue("state", RESOLVED_STATE);
+            const closeCode = await choiceValue("close_code", CLOSE_CODE);
+            const inProgress = await softChoice("state", IN_PROGRESS_STATE);
+            const incState = await softChoice("incident_state", RESOLVED_STATE, state.value);
+            const incInProgress = await softChoice("incident_state", IN_PROGRESS_STATE, inProgress.value);
+            const stateBody = target => {
+              const b = {};
+              for (const f of STATE_FIELDS) b[f] = f === "incident_state" ? target.inc : target.state;
+              return b;
+            };
+            const RESOLVED = { state: state.value, inc: incState.value };
+            const IN_PROGRESS = { state: inProgress.value, inc: incInProgress.value };
+
+            const all = await getRows("incident", "correlation_id=" + c.correlation_id + "^active=true^ORDERBYDESCsys_created_on",
+              ["sys_id", "number", "state", "incident_state", "close_code", "assigned_to", "assignment_group",
+               "u_business_service", "cmdb_ci", "u_configuration_item"], 5);
+            // A Resolved incident can still be active until it is Closed, so drop the ones already Resolved.
+            const isResolved = (stateValue, incStateValue) =>
+              String(stateValue) === String(state.value) || String(incStateValue) === String(incState.value);
+            const open = all.filter(x => !isResolved(val(x, "state"), val(x, "incident_state")));
+            if (!open.length) {
+              return { action: "skipped", reason: "no open unresolved SILVA incident with correlation_id " + c.correlation_id + (all.length ? " (" + all.map(x => dv(x, "number") + " " + dv(x, "state")).join(", ") + ")" : " (OPEN may have skipped it)"), correlation_id: c.correlation_id };
+            }
+            if (c.used_sample_event && !ALLOW_SAMPLE_POST) {
+              return { action: "skipped", reason: "sample event (set ALLOW_SAMPLE_POST = true to resolve)", would_resolve: open.map(x => dv(x, "number") + " (" + dv(x, "state") + ")"), correlation_id: c.correlation_id };
+            }
+            const where = c.where || "unknown entity";
+            const closeNotes = [
+              "Dynatrace problem " + c.problem_id + " closed automatically at " + c.end_time + ".",
+              "Duration: " + c.duration + (c.start_time ? " (" + c.start_time + " to " + c.end_time + ")" : "") + ".",
+              "Cause: " + c.title + " on " + where + ".",
+              "Recovery confirmed by Dynatrace: the problem condition is no longer detected."
+            ].join("\n").slice(0, 3900);
+
+            const results = [];
+            for (const inc of open) {
+              const sysId = val(inc, "sys_id");
+              const number = dv(inc, "number");
+              const note = [
+                "=== Dynatrace problem closed (" + c.problem_id + ") ===",
+                "Duration          : " + c.duration,
+                "Cause             : " + c.title + " on " + where,
+                "Assignment group  : " + (dv(inc, "assignment_group") || "n/a"),
+                "Business service  : " + (dv(inc, "u_business_service") || "n/a"),
+                "Service offering  : " + (dv(inc, "cmdb_ci") || "n/a"),
+                "Configuration item: " + (dv(inc, "u_configuration_item") || "n/a"),
+                "Dynatrace problem : " + (c.problem_url || "n/a"),
+                "PagerDuty         : resolved with dedup_key " + c.dedup_key
+              ].join("\n").slice(0, 3900);
+              // A previous run may already have written the close code and notes; do not add the notes twice.
+              const notesDone = !!val(inc, "close_code");
+              const closeFields = Object.assign({ close_code: closeCode.value }, notesDone ? {} : { close_notes: closeNotes }, EXTRA_FIELDS);
+              if (ASSIGNED_TO && !val(inc, "assigned_to")) closeFields.assigned_to = ASSIGNED_TO;
+              const firstBody = Object.assign({}, stateBody(RESOLVED), closeFields, notesDone ? {} : { [NOTES_FIELD]: note });
+
+              if (DRY_RUN) {
+                results.push({ number: number, action: "dry_run", state_before: dv(inc, "state"), payload: firstBody });
+                continue;
+              }
+
+              const attempts = [];
+              let r = await patch(sysId, firstBody);
+              attempts.push(Object.assign({ step: "direct to Resolved (" + STATE_FIELDS.join(" + ") + ")" }, r));
+              let ok = r.ok && isResolved(r.state, r.incident_state_value);
+
+              if (!ok && r.ok && STEP_THROUGH_IN_PROGRESS) {
+                const p = await patch(sysId, stateBody(IN_PROGRESS));
+                attempts.push(Object.assign({ step: "set In Progress" }, p));
+                r = await patch(sysId, Object.assign({}, stateBody(RESOLVED), closeFields));
+                attempts.push(Object.assign({ step: "In Progress then Resolved" }, r));
+                ok = r.ok && isResolved(r.state, r.incident_state_value);
+              }
+
+              results.push({
+                number: number,
+                action: ok ? "resolved" : "failed",
+                state_before: dv(inc, "state"),
+                state_after: r.state_label,
+                incident_state_after: r.incident_state,
+                assigned_to: dv(inc, "assigned_to") || "(empty)",
+                worked_with: ok ? attempts[attempts.length - 1].step : "",
+                attempts: attempts,
+                error: ok ? "" : (r.ok ? "state still " + r.state_label + " after all attempts; compare with a resolved ticket (42.sh lines 1-3)" : r.error),
+                url: BASE_URL + "/nav_to.do?uri=incident.do?sys_id=" + sysId
+              });
+            }
+
+            const out = {
+              action: DRY_RUN ? "dry_run" : (results.every(r => r.action === "resolved") ? "resolved" : "partly_failed"),
+              correlation_id: c.correlation_id,
+              value_check: {
+                state: state.check,
+                in_progress: inProgress.check,
+                incident_state: incState.check,
+                close_code: closeCode.check
+              },
+              incidents: results
+            };
+            console.log(JSON.stringify(out, null, 2));
+            if (out.action === "partly_failed") {
+              throw new Error("SILVA resolve failed: " + results.filter(r => r.action === "failed").map(r => r.number + " " + r.error).join("; "));
+            }
+            return out;
+          }
+
+    close-pagerduty:
+      name: close-pagerduty
+      description: Send the PagerDuty resolve with the same dedup_key OPEN used (in parallel with SILVA).
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 1
+        y: 2
+      predecessors:
+        - prepare-close
+      conditions:
+        states:
+          prepare-close: OK
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ---------- settings (edit) ----------
+          const ROUTING_KEY = "222651dbacb04403c0bf52d3b48499e8";
+          const DRY_RUN = false;
+          const ALLOW_SAMPLE_POST = false;  // manual Run uses SAMPLE_EVENT; true = really resolve it
+          // -------------------------------------
+
+          // PagerDuty ignores a resolve when no open alert has this dedup_key, so it is safe to always send.
+          export default async function ({ executionId }) {
+            const ex = await execution(executionId);
+            const c = await ex.result("prepare-close");
+
+            if (!c.is_closed) {
+              return { action: "skipped", reason: "problem is not closed (" + c.closed_check + ")", dedup_key: c.dedup_key };
+            }
+            if (!/^dt-problem-.+/.test(c.dedup_key || "")) {
+              return { action: "skipped", reason: "no problem id, dedup_key is " + c.dedup_key };
+            }
+            if (c.used_sample_event && !ALLOW_SAMPLE_POST) {
+              return { action: "skipped", reason: "sample event (set ALLOW_SAMPLE_POST = true to send)", dedup_key: c.dedup_key };
+            }
+
+            const event = { routing_key: ROUTING_KEY, event_action: "resolve", dedup_key: c.dedup_key };
+            if (DRY_RUN) {
+              return { action: "dry_run", payload: Object.assign({}, event, { routing_key: "__hidden__" }) };
+            }
+
+            const res = await fetch("https://events.pagerduty.com/v2/enqueue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(event)
+            });
+            const text = await res.text();
+            if (!res.ok) {
+              throw new Error("PagerDuty resolve failed " + res.status + ": " + text.slice(0, 500));
+            }
+            let json = {};
+            try { json = JSON.parse(text); } catch (e) { json = {}; }
+            return {
+              action: "resolved",
+              status: json.status,
+              dedup_key: json.dedup_key || event.dedup_key,
+              snow_correlation_id: c.correlation_id
+            };
+          }
