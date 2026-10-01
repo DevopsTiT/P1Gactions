@@ -1,0 +1,11 @@
+SIMPLE QUERY: DOES THE RESULT CONTAIN PIC2 ITEMS?
+
+Your 2 lines + one filter of 23 contains(..., caseSensitive: false) joined by or.
+Q1 → rows = yes (listed by log.source) ; 0 records = no
+Q2 → one row, contains_pic2 YES / NO
+
+Wildcards: use text before * (ApacheDaemonError. , error_ssl. , CPE01/log/)
+Timeframe: 24 h
+Expected for HOST_GROUP-D4032DA3E0240421: NO (Windows sources only)
+
+Full queries: 3-simple-filter-contains-pic2.dql

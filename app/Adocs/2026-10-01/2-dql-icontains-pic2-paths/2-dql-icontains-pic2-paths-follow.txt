@@ -1,0 +1,17 @@
+DQL: DOES PIC1 RESULT ICONTAIN PIC2?
+
+Core trick:
+  summarize by log.source first (27 rows)
+  pic2 = array(23 paths)   (wildcards: text before * only)
+  icontains_pic2 = iAny(contains(log.source, pic2[], caseSensitive: false))
+  matched_pic2   = arrayRemoveNulls(iCollectArray(if(contains(log.source, pic2[], caseSensitive: false), pic2[])))
+
+QA: per pic1 source -> true/false + which pic2 path
+QB: per pic2 path -> FOUND / MISSING (expand + append data records)
+QC: loose file-name check (SystemOut.log, trace, HULFT, default.log ...) for Windows vs Linux
+
+Expected for HOST_GROUP-D4032DA3E0240421 (Windows):
+  QA all false, QB all MISSING, QC likely HULFT trace match
+Then swap in the Linux host group ID and rerun.
+
+Full queries: 2-dql-icontains-pic2-paths.dql

@@ -1,0 +1,21 @@
+CHECK LOG SOURCES AGAINST PIC2 PATHS
+
+Finding from your screenshot:
+- Host group HOST_GROUP-D4032DA3E0240421 sends 27 sources, all Windows (C:\, D:\).
+- Pic2 has 23 Linux paths (/opt, /app, /data, /IFDATA, /var). None match exactly.
+- Closest: D:\HULFT Family\HULFT-HUB Server\etc\trace.log vs /opt/HULFT/etc/trace (different file).
+
+Queries (full text in 1-log-source-check-expected-paths.dql, paste one at a time):
+- Q1: your query + in_pic2 true/false column
+- Q2: checklist of all 23 pic2 paths, FOUND or MISSING (timeframe 24 h)
+- Q3: which host group sends each pic2 path (no group filter, timeframe 30 min to 2 h)
+
+Trick used:
+- Rotated files (ApacheDaemonError.20261001.log) are turned into the pattern (ApacheDaemonError.*.log) with startsWith + endsWith, then compared with in(path_key, array(...)).
+- Q2 appends the 23 paths as data records so zero-log paths still show as MISSING.
+
+Next:
+1 Run Q2 → expect all MISSING here (Windows group)
+2 Run Q3 → find Linux host group ID
+3 Re-run Q2 with that ID → MISSING there = real gap
+4 Real gap → file on host? → log ingest rule / OneAgent log module / permissions

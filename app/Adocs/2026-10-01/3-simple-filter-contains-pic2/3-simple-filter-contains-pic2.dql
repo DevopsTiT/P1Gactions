@@ -1,0 +1,58 @@
+// ===== Q1: only the logs whose log.source contains a pic2 item =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-D4032DA3E0240421"
+| filter contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log", caseSensitive: false)
+      or contains(log.source, "/app/ICM_CPW/log/ap/monitoringTarget.log", caseSensitive: false)
+      or contains(log.source, "/data/apache/inst1/logs/ApacheDaemonError.", caseSensitive: false)
+      or contains(log.source, "/data/apache/inst1/logs/error_ssl.", caseSensitive: false)
+      or contains(log.source, "/opt/jboss/standalone/log/server.log", caseSensitive: false)
+      or contains(log.source, "/app/ICM_CPW/log/ap/default.log", caseSensitive: false)
+      or contains(log.source, "/app/log/ap/default.log", caseSensitive: false)
+      or contains(log.source, "/app/ICM_CPW/log/sh/default.log", caseSensitive: false)
+      or contains(log.source, "/app/log/ap/monitoringTarget.log", caseSensitive: false)
+      or contains(log.source, "/IFDATA/DATA/GE/LOG/SH/default.log", caseSensitive: false)
+      or contains(log.source, "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log", caseSensitive: false)
+      or contains(log.source, "/opt/HULFT/etc/trace", caseSensitive: false)
+      or contains(log.source, "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG", caseSensitive: false)
+      or contains(log.source, "/opt/plat/logs/pltcomm.log", caseSensitive: false)
+      or contains(log.source, "/var/opt/universal/log/unv.log", caseSensitive: false)
+| summarize log_count = count(), by:{log.source}
+| sort log_count desc
+
+
+// ===== Q2: one-line yes/no answer =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-D4032DA3E0240421"
+| fieldsAdd is_pic2 = contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log", caseSensitive: false)
+      or contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log", caseSensitive: false)
+      or contains(log.source, "/app/ICM_CPW/log/ap/monitoringTarget.log", caseSensitive: false)
+      or contains(log.source, "/data/apache/inst1/logs/ApacheDaemonError.", caseSensitive: false)
+      or contains(log.source, "/data/apache/inst1/logs/error_ssl.", caseSensitive: false)
+      or contains(log.source, "/opt/jboss/standalone/log/server.log", caseSensitive: false)
+      or contains(log.source, "/app/ICM_CPW/log/ap/default.log", caseSensitive: false)
+      or contains(log.source, "/app/log/ap/default.log", caseSensitive: false)
+      or contains(log.source, "/app/ICM_CPW/log/sh/default.log", caseSensitive: false)
+      or contains(log.source, "/app/log/ap/monitoringTarget.log", caseSensitive: false)
+      or contains(log.source, "/IFDATA/DATA/GE/LOG/SH/default.log", caseSensitive: false)
+      or contains(log.source, "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log", caseSensitive: false)
+      or contains(log.source, "/opt/HULFT/etc/trace", caseSensitive: false)
+      or contains(log.source, "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG", caseSensitive: false)
+      or contains(log.source, "/opt/plat/logs/pltcomm.log", caseSensitive: false)
+      or contains(log.source, "/var/opt/universal/log/unv.log", caseSensitive: false)
+| summarize total_logs = count(), pic2_logs = countIf(is_pic2), pic2_sources = countDistinct(if(is_pic2, log.source))
+| fieldsAdd contains_pic2 = if(pic2_logs > 0, "YES", else: "NO")
