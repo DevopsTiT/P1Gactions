@@ -1,3 +1,0 @@
-curl -s -u 'Tech_DynatraceJP_WS:JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}' -G "https://silvastg.service-now.com/api/now/v2/table/incident" -H 'Accept: application/json' --data-urlencode "sysparm_query=number=INC30341416" --data-urlencode "sysparm_fields=number,state,incident_state,active,resolved_by,resolved_at,close_code,assigned_to,correlation_id" --data-urlencode "sysparm_display_value=all" | jq '.result'
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/43-close-direct-v3-incident-state" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/43-close-direct-v3-incident-state" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
