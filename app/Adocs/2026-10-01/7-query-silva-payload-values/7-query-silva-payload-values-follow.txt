@@ -1,0 +1,24 @@
+HOW TO QUERY SILVA FOR PAYLOAD VALUES
+
+export SILVA="https://silvastg.service-now.com"
+export SNOW_AUTH='Tech_DynatraceJP_WS:<password>'
+
+Q1 all keys from a good ticket (start here):
+curl -s -u "$SNOW_AUTH" -G "$SILVA/api/now/v2/table/incident" --data-urlencode "sysparm_query=number=INC30340215" --data-urlencode "sysparm_fields=number,caller_id,u_on_behalf_of,contact_type,company,u_environment,business_service,service_offering,cmdb_ci,category,subcategory,impact,urgency,assignment_group,state,close_code,correlation_id" --data-urlencode "sysparm_display_value=all" | python3 -m json.tool
+
+Reference fields -> sys_id:
+ caller_id / u_on_behalf_of : sys_user        nameLIKEDynatrace^ORuser_nameLIKEDynatrace
+ assignment_group           : sys_user_group  name=AGS_FR_QAS_Service-Managers
+ company                    : core_company    name=AXA GROUP OPERATIONS
+ business_service           : cmdb_ci_service name=QA Platforms
+ service_offering           : service_offering parent.name=QA Platforms
+
+Choice fields -> value (not label):
+ sys_choice  name=incident^element=<u_environment|contact_type|category|subcategory|impact|urgency|state|close_code>^inactive=false
+
+Other:
+ duplicate check : incident correlation_id=P-260916863
+ AGPO service    : cmdb_ci_service nameLIKEAGPO
+ PagerDuty       : test trigger then resolve with dedup_key dt-problem-TEST-1
+
+Copy "value", not "display_value". All one-liners in 7.sh (not run).

@@ -1,0 +1,97 @@
+// ===== Q1: one row per pic2 item, result YES / NO and code 1 / 0 =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-551B8509BA489285"
+| summarize log_count = count(), by:{log.source}
+| fieldsAdd item = coalesce(
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log", caseSensitive: false), "01 /opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log", caseSensitive: false), "02 /opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log", caseSensitive: false), "03 /opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log", caseSensitive: false), "04 /opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log", caseSensitive: false), "05 /opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log", caseSensitive: false), "06 /opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/", caseSensitive: false), "07 /opt/IBM/WebSphere/Profiles/CPE01/log/*.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log", caseSensitive: false), "08 /opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log"),
+    if(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log", caseSensitive: false), "09 /opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log"),
+    if(contains(log.source, "/app/ICM_CPW/log/ap/monitoringTarget.log", caseSensitive: false), "10 /app/ICM_CPW/log/ap/monitoringTarget.log"),
+    if(contains(log.source, "/data/apache/inst1/logs/ApacheDaemonError.", caseSensitive: false), "11 /data/apache/inst1/logs/ApacheDaemonError.*.log"),
+    if(contains(log.source, "/data/apache/inst1/logs/error_ssl.", caseSensitive: false), "12 /data/apache/inst1/logs/error_ssl.*.log"),
+    if(contains(log.source, "/opt/jboss/standalone/log/server.log", caseSensitive: false), "13 /opt/jboss/standalone/log/server.log"),
+    if(contains(log.source, "/app/ICM_CPW/log/ap/default.log", caseSensitive: false), "14 /app/ICM_CPW/log/ap/default.log"),
+    if(contains(log.source, "/app/log/ap/default.log", caseSensitive: false), "15 /app/log/ap/default.log"),
+    if(contains(log.source, "/app/ICM_CPW/log/sh/default.log", caseSensitive: false), "16 /app/ICM_CPW/log/sh/default.log"),
+    if(contains(log.source, "/app/log/ap/monitoringTarget.log", caseSensitive: false), "17 /app/log/ap/monitoringTarget.log"),
+    if(contains(log.source, "/IFDATA/DATA/GE/LOG/SH/default.log", caseSensitive: false), "18 /IFDATA/DATA/GE/LOG/SH/default.log"),
+    if(contains(log.source, "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log", caseSensitive: false), "19 /IFDATA/DATA/PC/LOG/PISP2/pisp2.log"),
+    if(contains(log.source, "/opt/HULFT/etc/trace", caseSensitive: false), "20 /opt/HULFT/etc/trace"),
+    if(contains(log.source, "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG", caseSensitive: false), "21 /opt/HULFT/etc/BatchLog/HUL_JOB.LOG"),
+    if(contains(log.source, "/opt/plat/logs/pltcomm.log", caseSensitive: false), "22 /opt/plat/logs/pltcomm.log"),
+    if(contains(log.source, "/var/opt/universal/log/unv.log", caseSensitive: false), "23 /var/opt/universal/log/unv.log"))
+| filter isNotNull(item)
+| summarize log_count = sum(log_count), sources = collectDistinct(log.source), by:{item}
+| append [
+    data record(item = "01 /opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log"),
+      record(item = "02 /opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log"),
+      record(item = "03 /opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log"),
+      record(item = "04 /opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log"),
+      record(item = "05 /opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log"),
+      record(item = "06 /opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log"),
+      record(item = "07 /opt/IBM/WebSphere/Profiles/CPE01/log/*.log"),
+      record(item = "08 /opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log"),
+      record(item = "09 /opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log"),
+      record(item = "10 /app/ICM_CPW/log/ap/monitoringTarget.log"),
+      record(item = "11 /data/apache/inst1/logs/ApacheDaemonError.*.log"),
+      record(item = "12 /data/apache/inst1/logs/error_ssl.*.log"),
+      record(item = "13 /opt/jboss/standalone/log/server.log"),
+      record(item = "14 /app/ICM_CPW/log/ap/default.log"),
+      record(item = "15 /app/log/ap/default.log"),
+      record(item = "16 /app/ICM_CPW/log/sh/default.log"),
+      record(item = "17 /app/log/ap/monitoringTarget.log"),
+      record(item = "18 /IFDATA/DATA/GE/LOG/SH/default.log"),
+      record(item = "19 /IFDATA/DATA/PC/LOG/PISP2/pisp2.log"),
+      record(item = "20 /opt/HULFT/etc/trace"),
+      record(item = "21 /opt/HULFT/etc/BatchLog/HUL_JOB.LOG"),
+      record(item = "22 /opt/plat/logs/pltcomm.log"),
+      record(item = "23 /var/opt/universal/log/unv.log")
+  ]
+| summarize log_count = sum(log_count), sources = arrayFlatten(collectArray(sources)), by:{item}
+| fieldsAdd found = isNotNull(log_count) and log_count > 0
+| fieldsAdd result = if(found, "YES", else: "NO"), code = if(found, 1, else: 0)
+| fields item, result, code, log_count, sources
+| sort item asc
+
+
+// ===== Q2: same check as ONE row, one column per item = number of matching files (0 = NO, 1 or more = YES) =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-551B8509BA489285"
+| summarize log_count = count(), by:{log.source}
+| summarize
+    i01_DMGR01_SystemOut   = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemOut.log", caseSensitive: false)),
+    i02_DMGR01_SystemErr   = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/DMGR01/logs/dmgr/SystemErr.log", caseSensitive: false)),
+    i03_ICM01_SystemOut    = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemOut.log", caseSensitive: false)),
+    i04_ICM01_SystemErr    = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/ICM01/logs/server1/SystemErr.log", caseSensitive: false)),
+    i05_CPE01_SystemOut    = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemOut.log", caseSensitive: false)),
+    i06_CPE01_SystemErr    = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/logs/server1/SystemErr.log", caseSensitive: false)),
+    i07_CPE01_log_star     = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/log/", caseSensitive: false)),
+    i08_p8_server_error    = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/p8_server_error.log", caseSensitive: false)),
+    i09_pesvr_system       = countIf(contains(log.source, "/opt/IBM/WebSphere/Profiles/CPE01/FileNet/server1/pesvr_system.log", caseSensitive: false)),
+    i10_ICM_CPW_ap_monitor = countIf(contains(log.source, "/app/ICM_CPW/log/ap/monitoringTarget.log", caseSensitive: false)),
+    i11_ApacheDaemonError  = countIf(contains(log.source, "/data/apache/inst1/logs/ApacheDaemonError.", caseSensitive: false)),
+    i12_error_ssl          = countIf(contains(log.source, "/data/apache/inst1/logs/error_ssl.", caseSensitive: false)),
+    i13_jboss_server       = countIf(contains(log.source, "/opt/jboss/standalone/log/server.log", caseSensitive: false)),
+    i14_ICM_CPW_ap_default = countIf(contains(log.source, "/app/ICM_CPW/log/ap/default.log", caseSensitive: false)),
+    i15_app_ap_default     = countIf(contains(log.source, "/app/log/ap/default.log", caseSensitive: false)),
+    i16_ICM_CPW_sh_default = countIf(contains(log.source, "/app/ICM_CPW/log/sh/default.log", caseSensitive: false)),
+    i17_app_ap_monitor     = countIf(contains(log.source, "/app/log/ap/monitoringTarget.log", caseSensitive: false)),
+    i18_IFDATA_GE_default  = countIf(contains(log.source, "/IFDATA/DATA/GE/LOG/SH/default.log", caseSensitive: false)),
+    i19_IFDATA_pisp2       = countIf(contains(log.source, "/IFDATA/DATA/PC/LOG/PISP2/pisp2.log", caseSensitive: false)),
+    i20_HULFT_trace        = countIf(contains(log.source, "/opt/HULFT/etc/trace", caseSensitive: false)),
+    i21_HULFT_HUL_JOB      = countIf(contains(log.source, "/opt/HULFT/etc/BatchLog/HUL_JOB.LOG", caseSensitive: false)),
+    i22_plat_pltcomm       = countIf(contains(log.source, "/opt/plat/logs/pltcomm.log", caseSensitive: false)),
+    i23_universal_unv      = countIf(contains(log.source, "/var/opt/universal/log/unv.log", caseSensitive: false))
+
+
+// ===== Q3: your own test item (CalcServer.log) in the same style, to prove the query works =====
+fetch logs
+| filter dt.entity.host_group == "HOST_GROUP-551B8509BA489285"
+| summarize log_count = countIf(contains(log.source, "/opt/app/Calculator/Log/CalcServer.log", caseSensitive: false))
+| fieldsAdd result = if(log_count > 0, "YES", else: "NO"), code = if(log_count > 0, 1, else: 0)
