@@ -1,0 +1,15 @@
+WHY business_service AND service_offering ARE "" (INC30340215)
+
+Meaning: the keys exist, but the API gives no value you can see. u_so_display_name is not returned at all = key does not exist under that name.
+
+3 possible causes:
+1. Different key: the form label "Business service" is bound to a custom field (u_...). Check C1 + C3.
+2. Field ACL: the account can read the incident but not these two fields -> "". Check C2 (other fields filled?).
+3. Different instance: the form was on silva (prod), the API is silvastg. Check the browser URL.
+
+Run (in 13.sh):
+C1 keys with service/offering: ... | jq -r '.result[0] | keys[]' | grep -i -E "service|offering|so_|cmdb|ci"
+C2 their values: ... sysparm_display_value=all | jq '.result[0] | with_entries(select(.key | test("service|offering|so_|cmdb_ci"; "i")))'
+C3 dictionary by label: sys_dictionary column_labelLIKEservice^ORcolumn_labelLIKEoffering
+
+Send me C1 and C2 output -> I fix payload keys and decide bug 2.
