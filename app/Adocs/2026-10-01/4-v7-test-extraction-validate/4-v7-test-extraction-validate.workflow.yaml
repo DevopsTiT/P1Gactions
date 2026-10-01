@@ -725,6 +725,7 @@ workflow:
           const ON_BEHALF_OF = "Dynatrace JP";
           const ON_BEHALF_OF_SYS_ID = "8ddef691fb34cf547b0dfe7b4eefdcbc";
           const CONTACT_TYPE = "event";
+          const HOST_CI_FIELD = "";                 // key behind the form label "Configuration item"; empty = host CI not sent
           const DEFAULT_COMPANY = "AXA GROUP OPERATIONS";
           const CATEGORY = "other";
           const SUBCATEGORY = "other";
@@ -770,10 +771,12 @@ workflow:
               ["company", en.company_id || req.company.sys_id || DEFAULT_COMPANY,
                 en.company_id ? "servicenow_enrichment.company_id" : req.company.sys_id ? req.company.from : "setting DEFAULT_COMPANY"],
               ["u_environment", ENV_VALUE[envLabel] || envLabel, "environment " + req.environment.from],
-              ["business_service", en.sys_id || req.business_service.sys_id,
+              // SILVA form "Business service" = u_business_service, form "Service Offering" = cmdb_ci.
+              // business_service and service_offering are labelled "ZZZ-Do-not-use" in SILVA.
+              ["u_business_service", en.sys_id || req.business_service.sys_id,
                 en.sys_id ? "servicenow_enrichment.sys_id (" + en.match_method + ")" : "not found"],
-              ["service_offering", req.service_offering.sys_id, req.service_offering.from],
-              ["cmdb_ci", req.cmdb_ci.sys_id, req.cmdb_ci.sys_id ? "CI found by host / name" : "none"],
+              ["cmdb_ci", req.service_offering.sys_id, "service offering: " + req.service_offering.from],
+              [HOST_CI_FIELD, HOST_CI_FIELD ? req.cmdb_ci.sys_id : "", req.cmdb_ci.sys_id ? "host CI found by host / name" : "none"],
               ["category", CATEGORY, "setting CATEGORY"],
               ["subcategory", SUBCATEGORY, "setting SUBCATEGORY"],
               ["impact", IMPACT, "setting IMPACT"],
@@ -785,17 +788,17 @@ workflow:
             ];
 
             const snowIncident = {};
-            for (const [f, v] of fields) if (v) snowIncident[f] = v;
+            for (const [f, v] of fields) if (f && v) snowIncident[f] = v;
 
             const display = {
               company: en.company_id ? en.company : req.company.name || DEFAULT_COMPANY,
-              business_service: en.business_service || req.business_service.name,
-              service_offering: req.service_offering.name,
+              u_business_service: en.business_service || req.business_service.name,
+              cmdb_ci: req.service_offering.name,
               assignment_group: req.assignment_group.name,
-              cmdb_ci: req.cmdb_ci.name,
               u_environment: envLabel
             };
-            const fieldSources = fields.map(([f, v, src]) => ({
+            if (HOST_CI_FIELD) display[HOST_CI_FIELD] = req.cmdb_ci.name;
+            const fieldSources = fields.filter(([f]) => f).map(([f, v, src]) => ({
               field: f,
               value: String(v || "").split("\n")[0].slice(0, 120),
               display_name: display[f] || "",
@@ -925,31 +928,32 @@ workflow:
               fromTag ? "group tag wins over enrichment (GROUP_ORDER)" : "payload group must equal the business service assignment group");
 
             // ===== 3) Business service =====
-            if (isSysId(pl.business_service)) {
-              const r = await getRows("cmdb_ci_service", "sys_id=" + pl.business_service, ["sys_id", "name", "number", "assignment_group", "company"], 1);
+            if (isSysId(pl.u_business_service)) {
+              const r = await getRows("cmdb_ci_service", "sys_id=" + pl.u_business_service, ["sys_id", "name", "number", "assignment_group", "company", "sys_class_name"], 1);
               const sv = r.rows[0];
-              add("silva", "business_service", pl.business_service, sv ? dv(sv, "name") + " " + dv(sv, "number") : "HTTP " + r.status,
-                sv ? "PASS" : "FAIL", sv ? "exists in cmdb_ci_service" : "sys_id not found");
+              add("silva", "u_business_service", pl.u_business_service, sv ? dv(sv, "name") + " " + dv(sv, "number") : "HTTP " + r.status,
+                sv && val(sv, "sys_class_name") !== "service_offering" ? "PASS" : "FAIL",
+                !sv ? "sys_id not found" : val(sv, "sys_class_name") === "service_offering" ? "this is an offering, not a business service" : "exists in cmdb_ci_service");
               expect("business_service", sv ? dv(sv, "name") : "");
             } else {
-              add("silva", "business_service", pl.business_service, "", "FAIL", "missing or not a sys_id");
+              add("silva", "u_business_service", pl.u_business_service, "", "FAIL", "missing or not a sys_id");
             }
 
-            // ===== 4) Service offering =====
-            if (isSysId(pl.service_offering)) {
-              const r = await getRows("service_offering", "sys_id=" + pl.service_offering, ["sys_id", "name", "parent", "u_environment", "operational_status"], 1);
+            // ===== 4) Service offering (SILVA stores it in cmdb_ci) =====
+            if (isSysId(pl.cmdb_ci)) {
+              const r = await getRows("service_offering", "sys_id=" + pl.cmdb_ci, ["sys_id", "name", "parent", "u_environment", "operational_status"], 1);
               const o = r.rows[0];
-              add("silva", "service_offering", pl.service_offering, o ? dv(o, "name") : "HTTP " + r.status, o ? "PASS" : "FAIL", o ? "exists" : "sys_id not found");
+              add("silva", "cmdb_ci (service offering)", pl.cmdb_ci, o ? dv(o, "name") : "HTTP " + r.status, o ? "PASS" : "FAIL", o ? "exists in service_offering" : "not a service_offering sys_id");
               if (o) {
-                add("rule", "offering parent = business_service", dv(o, "parent"), en.business_service,
-                  val(o, "parent") === pl.business_service ? "PASS" : "FAIL", "offering must belong to the business service");
+                add("rule", "offering parent = u_business_service", dv(o, "parent"), en.business_service,
+                  val(o, "parent") === pl.u_business_service ? "PASS" : "FAIL", "offering must belong to the business service");
                 add("rule", "offering environment = incident environment", dv(o, "u_environment"), req.environment.label,
                   same(dv(o, "u_environment"), req.environment.label) ? "PASS" : "WARN",
                   "a " + req.environment.label + " problem should use the " + req.environment.label + " offering");
               }
               expect("service_offering", o ? dv(o, "name") : "");
             } else {
-              add("silva", "service_offering", pl.service_offering, "", "FAIL", "missing or not a sys_id");
+              add("silva", "cmdb_ci (service offering)", pl.cmdb_ci, "", "FAIL", "missing or not a sys_id");
             }
             if ((s.offering_candidates || []).length) {
               add("info", "offerings of the business service", s.offering_candidates.map(o => o.environment || "?").join(", "), "", "INFO",
@@ -997,8 +1001,8 @@ workflow:
             }
 
             // ===== 8) Side by side with the reference incident =====
-            const refFields = ["caller_id", "u_on_behalf_of", "contact_type", "company", "u_environment", "business_service",
-              "service_offering", "category", "subcategory", "impact", "urgency", "assignment_group"];
+            const refFields = ["caller_id", "u_on_behalf_of", "contact_type", "company", "u_environment", "u_business_service",
+              "cmdb_ci", "category", "subcategory", "impact", "urgency", "assignment_group"];
             const rr = await getRows("incident", "number=" + REFERENCE_INCIDENT, refFields, 1);
             const ref = rr.rows[0];
             const reference = refFields.map(f => ({
