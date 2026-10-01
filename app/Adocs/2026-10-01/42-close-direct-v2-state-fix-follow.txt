@@ -1,0 +1,23 @@
+Close Direct V2 State Fix (seq 42)
+
+v1 result on INC30341416: close_code, close_notes, work note saved. State NOT changed -> task failed (correctly).
+Close code "Solved (Permanently)" is now confirmed valid.
+
+Likely causes:
+1 SILVA's real state field is incident_state (form "Incident State")
+2 SILVA blocks New -> Resolved in one jump
+3 Assigned to required (unlikely: INC30340215 resolved with it empty)
+
+v2 (42-close-direct-v2-state-fix.workflow.yaml), close-silva-incident only:
+- sends state AND incident_state
+- if refused: In Progress, then Resolved
+- no duplicate notes if close_code already set
+- skips already-Resolved incidents
+- result shows attempts + worked_with
+
+Retry now:
+1 Deactivate seq 39, import seq 42
+2 close-silva-incident: ALLOW_SAMPLE_POST = true (sample display_id = P-261090)
+3 Run, read worked_with / attempts
+4 Failed? run 42.sh lines 1-6, share output
+5 ALLOW_SAMPLE_POST false, Save / Deploy
