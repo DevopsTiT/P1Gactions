@@ -1,0 +1,22 @@
+OPEN And CLOSE Workflows End To End (seq 40)
+
+Shared keys: SILVA correlation_id = P-xxxxx ; PagerDuty dedup_key = dt-problem-P-xxxxx
+
+OPEN (seq 36), trigger: problem CREATED
+1 extract-event-tags: event + Problems API; parse tags; group candidates, environment, app code, host, maintenance
+2 resolve-snow-values (GET only): group check, host CI, business service (map/tag, CI links, scored search, first answer, default),
+  offering (env match, search, incident history, default, first, by group), final group (GROUP_ORDER), company
+3 build-payload: SILVA body (16 fields), PD trigger body, decision (all required fields + no maintenance)
+4a preview-silva-incident: field check + duplicate GET -> 5a post-silva-incident: POST incident
+4b preview-pagerduty: body checks -> 5b trigger-pagerduty: POST enqueue trigger
+
+CLOSE (seq 37), trigger: problem CLOSED
+1 prepare-close: display_id -> correlation_id, dedup_key; duration, cause
+2 find-silva-incident: GET incident by correlation_id; GET state + close_code choices
+3 build-close-payload: state Resolved, close_code, close_notes, work_notes; PD resolve; decision
+4a preview-silva-close -> 5a resolve-silva-incident: PATCH, verify Resolved
+4b preview-pagerduty-resolve -> 5b resolve-pagerduty: POST enqueue resolve
+(Seq 39 = same in 3 tasks, no previews.)
+
+Life: created -> INC New + PD triggered ; closed -> INC Resolved + PD resolved.
+Keep OPEN + one CLOSE active. Confirm close_code. Save / Deploy both.

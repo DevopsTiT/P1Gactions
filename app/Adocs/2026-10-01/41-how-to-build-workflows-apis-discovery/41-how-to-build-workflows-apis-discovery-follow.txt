@@ -1,0 +1,21 @@
+How To Build The Workflows (seq 41)
+
+Idea: read problem -> look up SILVA records -> build bodies -> preview -> send. Close uses the same keys.
+
+Discovery steps (41.sh line numbers):
+1 Dynatrace event + Problems API (1-3): display_id, event.id, entity_tags, entity names
+2 Known-good ticket INC30340215 (4): which fields are filled
+3 Real field keys via sys_dictionary (5): Business service = u_business_service, Service Offering = cmdb_ci, Configuration item = u_configuration_item
+4 sys_ids (6-9): sys_user_group, cmdb_ci, cmdb_ci_service (exclude service_offering), sys_user
+5 Links (10-14): svc_ci_assoc, cmdb_rel_ci, service_offering.parent, incident history (stats API)
+6 Allowed values (15-16): sys_choice state, close_code, environment, impact
+7 PagerDuty test (17-18): trigger then resolve dedup_key dt-problem-TEST-41
+
+APIs:
+- Dynatrace: problemsClient.getProblem, ex.event(), ex.result()
+- SILVA: GET sys_user_group, cmdb_ci, svc_ci_assoc, cmdb_rel_ci, cmdb_ci_service, service_offering, incident, sys_choice; POST incident; PATCH incident/<sys_id>
+- PagerDuty: POST events.pagerduty.com/v2/enqueue (trigger / resolve)
+
+Build in layers: extract (Dynatrace only) -> resolve (GET only) -> build (no network) -> preview (GET only) -> send (gates, DRY_RUN).
+Test: sample event, DRY_RUN, previews, ALLOW_SAMPLE_POST false.
+Live: allowlist silvastg + events.pagerduty.com, Deploy, one OPEN + one CLOSE.
