@@ -1,4 +1,0 @@
-curl -s -u 'Tech_DynatraceJP_WS:JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}' -G "https://silvastg.service-now.com/api/now/v2/table/incident" -H 'Accept: application/json' --data-urlencode "sysparm_query=correlation_id=P-<problem id>" --data-urlencode "sysparm_fields=number,u_business_service,cmdb_ci,u_configuration_item,assignment_group,u_environment,caller_id" --data-urlencode "sysparm_display_value=true" | jq '.result'
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/17-open-v7-silva-pagerduty" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/17-open-v7-silva-pagerduty" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
-echo "app/Adocs/" >> /Users/k/Codes/Pra/P1GithubActions/P1Gactions/.gitignore

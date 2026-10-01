@@ -1,6 +1,0 @@
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/17-open-v7-silva-pagerduty" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/18-preview-v7-no-post" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/19-snow-pagerduty-parallel" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/17-open-v7-silva-pagerduty" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/18-preview-v7-no-post" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/19-snow-pagerduty-parallel" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"

@@ -1,0 +1,11 @@
+Close Workflow Input (seq 38)
+
+No input field. inputs: [].
+
+Real close: Dynatrace passes the event. display_id -> correlation_id + dedup_key. Type nothing.
+
+Manual Run: edit prepare-close SAMPLE_EVENT:
+  "display_id": "P-261090"   <- required (the P- number, not INC, not internal id)
+Then ALLOW_SAMPLE_POST = true in resolve-silva-incident and resolve-pagerduty, Run, set back to false.
+
+Check first: 38.sh line 1 shows which INC the display id maps to.

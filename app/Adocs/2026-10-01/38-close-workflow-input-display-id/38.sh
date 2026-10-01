@@ -1,0 +1,3 @@
+curl -s -u 'Tech_DynatraceJP_WS:JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}' -G "https://silvastg.service-now.com/api/now/v2/table/incident" -H 'Accept: application/json' --data-urlencode "sysparm_query=correlation_id=P-261090^ORDERBYDESCsys_created_on" --data-urlencode "sysparm_fields=number,state,active,assignment_group,correlation_id,sys_created_on" --data-urlencode "sysparm_display_value=true" | jq '.result'
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/38-close-workflow-input-display-id" "/Users/k/Work/AIProjects/Files/2026-10-01/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/38-close-workflow-input-display-id" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"

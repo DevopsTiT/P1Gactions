@@ -1,0 +1,20 @@
+Close Direct SILVA And PagerDuty (seq 39)
+
+File: 39-close-direct-silva-pagerduty.workflow.yaml (secrets inside, never commit)
+
+Problem CLOSED
+ -> prepare-close (display_id -> correlation_id, dedup_key dt-problem-<id>)
+     -> close-silva-incident  GET open incidents by correlation_id, check state/close_code choices, PATCH each to Resolved
+     -> close-pagerduty       POST resolve with dedup_key (runs even if SILVA fails)
+
+No previews (seq 37 is the preview version). Use only one of them.
+
+Settings: RESOLVED_STATE "Resolved", CLOSE_CODE "Solved (Permanently)" (confirm with 39.sh line 1),
+NOTES_FIELD "work_notes", EXTRA_FIELDS {}, DRY_RUN false, ALLOW_SAMPLE_POST false.
+
+Test:
+1. 39.sh line 1 -> real close_code
+2. Import, Run -> skips, shows would_resolve
+3. ALLOW_SAMPLE_POST true in both close tasks, Run -> resolved
+4. 39.sh line 2 -> Resolved
+5. ALLOW_SAMPLE_POST false, Save / Deploy

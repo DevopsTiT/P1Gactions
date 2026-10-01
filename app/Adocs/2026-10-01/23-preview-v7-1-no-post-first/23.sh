@@ -1,8 +1,0 @@
-rg -n 'method: *"POST"|events.pagerduty.com|222651dbacb04403' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/23-preview-v7-1-no-post-first/23-preview-v7-1-no-post-first.workflow.yaml"
-ruby -ryaml -e 'y=YAML.load_file(ARGV[0]); y["workflow"]["tasks"].each{|k,v| puts "#{k} <- #{v["predecessors"].inspect}"}' "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/23-preview-v7-1-no-post-first/23-preview-v7-1-no-post-first.workflow.yaml"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/23-preview-v7-1-no-post-first" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/23-preview-v7-1-no-post-first" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/17-open-v7-silva-pagerduty" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/17-open-v7-silva-pagerduty" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/4-v7-test-extraction-validate" "/Users/k/Work/AIProjects/Files/2026-10-01/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/4-v7-test-extraction-validate" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
