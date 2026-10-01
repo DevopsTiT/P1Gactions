@@ -1,0 +1,3 @@
+curl -s -u 'Tech_DynatraceJP_WS:JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}' -G "https://silvastg.service-now.com/api/now/v2/table/incident" -H 'Accept: application/json' --data-urlencode "sysparm_query=number=INC30340215" --data-urlencode "sysparm_fields=u_business_service,cmdb_ci,u_configuration_item,u_application,u_business_process" --data-urlencode "sysparm_display_value=all" | jq '.result[0]'
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/4-v7-test-extraction-validate" "/Users/k/Work/AIProjects/Files/2026-10-01/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-01/4-v7-test-extraction-validate" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-01/"
