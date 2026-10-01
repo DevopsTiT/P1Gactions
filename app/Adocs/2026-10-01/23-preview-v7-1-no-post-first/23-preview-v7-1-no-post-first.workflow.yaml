@@ -1,5 +1,6 @@
-# PREVIEW v7: same preparation as OPEN v7, but NOTHING is sent.
+# PREVIEW v7.1: same preparation as OPEN v7, but NOTHING is sent.
 # No POST to SILVA, no call to PagerDuty. Only GET lookups in SILVA.
+# v7.1: tag keys written with "-" also match (AGO-DEFAULT-ASSIGNMENT-GROUP = AGO_DEFAULT_ASSIGNMENT_GROUP).
 #
 #   1 extract-event-tags      read the event and tags                     (same as OPEN v7)
 #   2 resolve-snow-values     SILVA lookups: group, service, offering, CI  (same as OPEN v7)
@@ -19,7 +20,7 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: PREVIEW v7 - prepared SILVA and PagerDuty data (no POST)
+  title: PREVIEW v7.1 - prepared SILVA and PagerDuty data (no POST)
   description: >-
     Runs the OPEN v7 preparation (extract, SILVA lookups, payload build) and shows the SILVA incident body and the
     PagerDuty body with a readiness check. Never creates a SILVA incident and never calls PagerDuty.
@@ -134,15 +135,20 @@ workflow:
             const i = x.indexOf(":");
             return { raw: s, key: i > 0 ? x.slice(0, i).trim() : x.trim(), value: i > 0 ? x.slice(i + 1).trim() : "" };
           }
+          // Keys like "snow-service" must still match as written, so try the raw key and the "-" -> "_" form.
+          function keyMatches(key, test) {
+            const k = key.toLowerCase();
+            return test(k) || test(k.replace(/-/g, "_"));
+          }
           function findByKey(parsed, test) {
-            const hit = parsed.find(t => t.value && test(t.key.toLowerCase()));
+            const hit = parsed.find(t => t.value && keyMatches(t.key, test));
             return hit ? { key: hit.key, value: hit.value } : null;
           }
           function allByKey(parsed, tests) {
             const out = [];
             for (const test of tests) {
               for (const t of parsed) {
-                if (t.value && test(t.key.toLowerCase()) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
+                if (t.value && keyMatches(t.key, test) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
                   out.push({ key: t.key, value: t.value });
                 }
               }

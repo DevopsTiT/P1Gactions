@@ -1,0 +1,21 @@
+SILVA Verify Checklist
+
+Why: PREVIEW only proves the payload shape. SILVA silently drops wrong keys and accepts sys_ids that point at nothing. So check each value in SILVA itself.
+
+A. Before POST - each value exists (21.sh lines 1-7)
+1 caller 8ddef691fb34cf547b0dfe7b4eefdcbc in sys_user: exists, active
+2 group 5223d8c61b8f3c54688064e4604bcb12 in sys_user_group: Database_AXAJP, active
+3 service 03bd24ce1b477c54688064e4604bcbd4 in cmdb_ci_service: class is cmdb_ci_service
+4 offering 3d62b88e1b877c54688064e4604bcba5: parent = 03bd24ce..., Operational
+5 offerings under the service: is there one for Integration / Test?
+6 host 485b4cee1b4d811050b89863b24bcbeb in cmdb_ci: matches deaa310b, Installed
+7 company 3e731d56dba4f6c8a476f9f51d96193f in core_company: exists
+
+B. Choice values (line 8): impact 4, urgency 4, contact_type event, category other, subcategory other
+
+C. Duplicate (line 9): no open incident with correlation_id P-260916434
+
+D. After one real stg POST (line 10): read back with display_value=all
+- empty field = key dropped
+- different group or environment = business rule overrode it
+- priority should follow impact 4 + urgency 4

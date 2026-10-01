@@ -1,10 +1,11 @@
-# OPEN v7: Davis problem -> extract -> resolve in SILVA -> build payload -> POST SILVA incident -> PagerDuty trigger
+# OPEN v7: Davis problem -> extract -> resolve in SILVA -> build payload -> (SILVA incident || PagerDuty trigger)
 #
 #   1 extract-event-tags     read the event and tags
 #   2 resolve-snow-values    SILVA lookups; group follows GROUP_ORDER (tag > servicenow_enrichment > CI > default)
 #   3 build-payload          SNOW body + PagerDuty body + decision (create or skip)
-#   4 post-silva-incident    duplicate check by correlation_id, then POST /incident
-#   5 trigger-pagerduty      POST events.pagerduty.com/v2/enqueue (dedup_key dt-problem-<display_id>)
+#   4a post-silva-incident   duplicate check by correlation_id, then POST /incident        } both start after
+#   4b trigger-pagerduty     POST events.pagerduty.com/v2/enqueue (dedup_key dt-problem-<id>)  } build-payload, in parallel
+# PagerDuty does not wait for SILVA, so the PD event carries the problem id (correlation_id), not the INC number.
 #
 # SILVA keys confirmed on INC30340215:
 #   Business service   = u_business_service    (business_service is "ZZZ-Do-not-use")
@@ -12,8 +13,8 @@
 #   Configuration item = u_configuration_item
 #   Caller / On behalf = 8ddef691fb34cf547b0dfe7b4eefdcbc (Dynatrace JP)
 #
-# Press Run (no event) = sample event P-260916863; tasks 4 and 5 skip it unless ALLOW_SAMPLE_POST = true.
-# Set DRY_RUN = true in tasks 4 and 5 to test the whole chain without sending.
+# Press Run (no event) = sample event P-260916863; both send tasks skip it unless ALLOW_SAMPLE_POST = true.
+# Set DRY_RUN = true in both send tasks to test the whole chain without sending.
 # BEFORE ACTIVATE: allowlist silvastg.service-now.com and events.pagerduty.com.
 # Disable the TEST v7 trigger (or OPEN v6) so one problem is not handled twice.
 # Contains the SILVA password and PD routing key: local copy only, never commit.
@@ -68,6 +69,9 @@ workflow:
 
           // ---------- settings (edit) ----------
           const USE_PROBLEM_API = true;
+          // true  = entity tag AGO_Maintenance:True also blocks the ticket
+          // false = only a real Dynatrace maintenance window (maintenance.is_under_maintenance) blocks it
+          const USE_MAINTENANCE_TAG = true;
           // Task 4 lists the real SILVA environment labels. If it reports FAIL, change PREPROD_LABEL to the right one.
           const PREPROD_LABEL = "Pre-Production";
           const ENVIRONMENT = {
@@ -137,15 +141,20 @@ workflow:
             const i = x.indexOf(":");
             return { raw: s, key: i > 0 ? x.slice(0, i).trim() : x.trim(), value: i > 0 ? x.slice(i + 1).trim() : "" };
           }
+          // Keys like "snow-service" must still match as written, so try the raw key and the "-" -> "_" form.
+          function keyMatches(key, test) {
+            const k = key.toLowerCase();
+            return test(k) || test(k.replace(/-/g, "_"));
+          }
           function findByKey(parsed, test) {
-            const hit = parsed.find(t => t.value && test(t.key.toLowerCase()));
+            const hit = parsed.find(t => t.value && keyMatches(t.key, test));
             return hit ? { key: hit.key, value: hit.value } : null;
           }
           function allByKey(parsed, tests) {
             const out = [];
             for (const test of tests) {
               for (const t of parsed) {
-                if (t.value && test(t.key.toLowerCase()) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
+                if (t.value && keyMatches(t.key, test) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
                   out.push({ key: t.key, value: t.value });
                 }
               }
@@ -232,7 +241,7 @@ workflow:
             const maintField = ev["maintenance.is_under_maintenance"];
             const maintenance = maintField === true || String(maintField).toLowerCase() === "true"
               ? { value: true, from: "event maintenance.is_under_maintenance" }
-              : maintTag && maintTag.value.toLowerCase() === "true"
+              : USE_MAINTENANCE_TAG && maintTag && maintTag.value.toLowerCase() === "true"
                 ? { value: true, from: "tag " + maintTag.key }
                 : { value: false, from: maintField !== undefined ? "event maintenance.is_under_maintenance" : "none" };
 
@@ -960,17 +969,17 @@ workflow:
 
     trigger-pagerduty:
       name: trigger-pagerduty
-      description: Send the PagerDuty trigger event with the SILVA incident number (same dedup_key as CLOSE).
+      description: Send the PagerDuty trigger in parallel with the SILVA POST (same dedup_key as CLOSE).
       action: dynatrace.automations:run-javascript
       active: true
       position:
-        x: 0
-        y: 5
+        x: 1
+        y: 4
       predecessors:
-        - post-silva-incident
+        - build-payload
       conditions:
         states:
-          post-silva-incident: OK
+          build-payload: OK
       input:
         script: |
           import { execution } from '@dynatrace-sdk/automation-utils';
@@ -978,28 +987,28 @@ workflow:
           // ---------- settings (edit) ----------
           const ROUTING_KEY = "222651dbacb04403c0bf52d3b48499e8";
           const DRY_RUN = false;
-          const SEND_WHEN_INCIDENT_EXISTS = false;  // false = do not re-page for an already open incident
+          const ALLOW_SAMPLE_POST = false;  // manual Run uses SAMPLE_EVENT; keep false to avoid fake pages
           // -------------------------------------
 
+          // Runs in parallel with post-silva-incident, so the SILVA number is not known here.
+          // The SILVA incident is linked by correlation_id (= problem id), shown in custom_details.
+          // A repeat trigger with the same dedup_key while the alert is open does not create a new PD incident.
           export default async function ({ executionId }) {
             const ex = await execution(executionId);
             const r = await ex.result("build-payload");
-            const inc = await ex.result("post-silva-incident");
 
-            if (inc.action === "skipped") {
-              return { action: "skipped", reason: "SILVA step skipped: " + inc.reason };
+            if (!r.decision.create_incident) {
+              return { action: "skipped", reason: r.decision.reason };
             }
-            if (inc.action === "exists" && !SEND_WHEN_INCIDENT_EXISTS) {
-              return { action: "skipped", reason: "incident " + inc.number + " already open" };
+            if (r.used_sample_event && !ALLOW_SAMPLE_POST) {
+              return { action: "skipped", reason: "sample event (set ALLOW_SAMPLE_POST = true to send)" };
             }
 
             const event = JSON.parse(JSON.stringify(r.pagerduty_payload));
             event.routing_key = ROUTING_KEY;
-            event.payload.custom_details.snow_incident = inc.number || "";
-            event.payload.custom_details.snow_incident_url = inc.url || "";
-            event.links = inc.url ? [{ href: inc.url, text: "SILVA " + inc.number }] : [];
+            event.links = event.client_url ? [{ href: event.client_url, text: "Dynatrace " + r.snow_incident_payload.correlation_id }] : [];
 
-            if (DRY_RUN || inc.action === "dry_run") {
+            if (DRY_RUN) {
               return { action: "dry_run", payload: Object.assign({}, event, { routing_key: "__hidden__" }) };
             }
 
@@ -1018,6 +1027,6 @@ workflow:
               action: "triggered",
               status: json.status,
               dedup_key: json.dedup_key || event.dedup_key,
-              snow_incident: inc.number
+              snow_correlation_id: r.snow_incident_payload.correlation_id
             };
           }

@@ -1,16 +1,21 @@
-# PREVIEW v7: same preparation as OPEN v7, but NOTHING is sent.
-# No POST to SILVA, no call to PagerDuty. Only GET lookups in SILVA.
+# TEST workflow v7: Davis problem -> extract -> resolve in SILVA -> build payload (preview) -> VALIDATE.
+# Nothing is created. There is NO POST / PATCH to SILVA and NO call to PagerDuty. Only GET lookups.
 #
-#   1 extract-event-tags      read the event and tags                     (same as OPEN v7)
-#   2 resolve-snow-values     SILVA lookups: group, service, offering, CI  (same as OPEN v7)
-#   3 build-payload           SNOW body + PagerDuty body + decision        (same as OPEN v7)
-#   4a preview-silva-incident field-by-field readiness check, duplicate check (GET), what OPEN v7 would do
-#   4b preview-pagerduty      PD body with routing key hidden, required-field check, would OPEN v7 page
-#   4a and 4b both start after build-payload and run in parallel (same as OPEN v7).
+#   1 extract-event-tags     read the event and tags (fixed: dt.security_context, env PRE, app code, [object Object])
+#   2 resolve-snow-values    SILVA lookups; final group follows GROUP_ORDER (tag > servicenow_enrichment > CI > default)
+#   3 build-payload          the SNOW body exactly as OPEN would send it, plus where every field came from
+#   4 validate-extraction    GET checks of every payload value in SILVA: PASS / WARN / FAIL table and a verdict
 #
-# Read the result of task 4: "ready", "open_v7_would", "problems", "field_check".
-# Press Run (no event) = sample event P-260916863. The trigger is active and read-only; set isActive: false to stop it.
-# Contains the SILVA password: local copy only, never commit.
+# Fixes compared with OPEN v6 (seen on P-260916863):
+#   - Assignment group came from DEFAULT_GROUP; now it comes from servicenow_enrichment (the business service's
+#     assignment group) unless a group tag exists.
+#   - Environment "env:PRE" and "dt.security_context" were ignored, so the default set forced "PoC / VoA / Demo".
+#   - Service offering was the Production offering for a PRE problem; now it prefers the offering for the environment.
+#   - event_properties showed [object Object]; Summary carried a raw JSON dump; both cleaned.
+#   - caller_id / u_on_behalf_of were sent as names; task 4 looks up the sys_id you should use.
+#
+# Press Run (no event) to test the sample event P-260916863 below.
+# The trigger is active so real problems are also checked; it is read-only, set isActive: false to stop it.
 metadata:
   version: "1"
   dependencies:
@@ -19,10 +24,11 @@ metadata:
         version: ^1.3301.5
   inputs: []
 workflow:
-  title: PREVIEW v7 - prepared SILVA and PagerDuty data (no POST)
+  title: TEST v7 - validate extraction and SNOW payload (no POST)
   description: >-
-    Runs the OPEN v7 preparation (extract, SILVA lookups, payload build) and shows the SILVA incident body and the
-    PagerDuty body with a readiness check. Never creates a SILVA incident and never calls PagerDuty.
+    Read-only test of the OPEN workflow logic. Extracts the event, resolves group, business service and offering in
+    SILVA, builds the SNOW incident body as a preview, then validates every value with GET lookups. Never creates
+    a SILVA incident and never calls PagerDuty.
   schemaVersion: 3
   trigger:
     eventTrigger:
@@ -134,15 +140,20 @@ workflow:
             const i = x.indexOf(":");
             return { raw: s, key: i > 0 ? x.slice(0, i).trim() : x.trim(), value: i > 0 ? x.slice(i + 1).trim() : "" };
           }
+          // Keys like "snow-service" must still match as written, so try the raw key and the "-" -> "_" form.
+          function keyMatches(key, test) {
+            const k = key.toLowerCase();
+            return test(k) || test(k.replace(/-/g, "_"));
+          }
           function findByKey(parsed, test) {
-            const hit = parsed.find(t => t.value && test(t.key.toLowerCase()));
+            const hit = parsed.find(t => t.value && keyMatches(t.key, test));
             return hit ? { key: hit.key, value: hit.value } : null;
           }
           function allByKey(parsed, tests) {
             const out = [];
             for (const test of tests) {
               for (const t of parsed) {
-                if (t.value && test(t.key.toLowerCase()) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
+                if (t.value && keyMatches(t.key, test) && !out.some(o => o.value.toLowerCase() === t.value.toLowerCase())) {
                   out.push({ key: t.key, value: t.value });
                 }
               }
@@ -700,7 +711,7 @@ workflow:
 
     build-payload:
       name: build-payload
-      description: Build the SNOW incident body, the PagerDuty body and the decision (create or skip). No network.
+      description: Build the SNOW incident body exactly as OPEN would send it (preview only) and show the source of each field.
       action: dynatrace.automations:run-javascript
       active: true
       position:
@@ -715,9 +726,9 @@ workflow:
         script: |
           import { execution } from '@dynatrace-sdk/automation-utils';
 
-          // ---------- settings (edit) ----------
+          // ---------- settings (edit, then copy the same values into OPEN) ----------
           const SHORT_PREFIX = "[DYNATRACE JAPAN]";
-          const CALLER = "Dynatrace JP";
+          const CALLER = "Dynatrace JP";            // name; task 4 looks up its sys_id
           const CALLER_SYS_ID = "8ddef691fb34cf547b0dfe7b4eefdcbc";        // Dynatrace JP, from INC30340215
           const ON_BEHALF_OF = "Dynatrace JP";
           const ON_BEHALF_OF_SYS_ID = "8ddef691fb34cf547b0dfe7b4eefdcbc";
@@ -802,52 +813,9 @@ workflow:
               source: src
             }));
 
-            const missing = [];
-            if (!snowIncident.assignment_group) missing.push("assignment_group");
-            if (!snowIncident.u_business_service) missing.push("u_business_service (Business service)");
-            if (!snowIncident.cmdb_ci) missing.push("cmdb_ci (Service Offering)");
-            if (!snowIncident.u_environment) missing.push("u_environment");
-            if (!snowIncident.short_description) missing.push("short_description");
-            const maintenance = !!a.maintenance;
-            const decision = {
-              create_incident: missing.length === 0 && !maintenance,
-              reason: maintenance ? "maintenance is on" : missing.length ? "missing: " + missing.join(", ") : "ok"
-            };
-
-            const pagerduty = {
-              routing_key: "__PD_ROUTING_KEY__",
-              event_action: "trigger",
-              dedup_key: "dt-problem-" + a.problem_id,
-              client: "Dynatrace",
-              client_url: a.problem_url,
-              payload: {
-                summary: shortDescription,
-                source: target || "dynatrace",
-                severity: a.impact_level === "Infrastructure" ? "error" : "warning",
-                group: req.environment.label,
-                component: a.trigram || a.service_name,
-                custom_details: {
-                  problem_id: a.problem_id,
-                  event_name: a.event_name,
-                  service_name: a.service_name,
-                  host: a.host,
-                  environment: req.environment.label,
-                  business_service: display.u_business_service || "unknown",
-                  service_offering: display.cmdb_ci || "",
-                  assignment_group: req.assignment_group.name,
-                  db_type: a.db_type,
-                  trigram: a.trigram,
-                  snow_correlation_id: a.problem_id
-                }
-              }
-            };
-
             const out = {
-              decision: decision,
-              missing: missing,
-              used_sample_event: e.usedSample,
+              note: "PREVIEW ONLY - this test workflow never sends this body",
               snow_incident_payload: snowIncident,
-              pagerduty_payload: pagerduty,
               field_sources: fieldSources,
               servicenow_enrichment: en,
               environment: req.environment,
@@ -857,9 +825,9 @@ workflow:
             return out;
           }
 
-    preview-silva-incident:
-      name: preview-silva-incident
-      description: Show the SILVA incident body OPEN would POST, a readiness check per field, and the duplicate check (GET only).
+    validate-extraction:
+      name: validate-extraction
+      description: GET-only checks of every payload value in SILVA. PASS / WARN / FAIL table and a verdict. Sends nothing.
       action: dynatrace.automations:run-javascript
       active: true
       position:
@@ -878,136 +846,206 @@ workflow:
           const BASE_URL = "https://silvastg.service-now.com";
           const USERNAME = "Tech_DynatraceJP_WS";
           const PASSWORD = "JGyUG4XW^h^zCaW.U*(_Wnt0{+=XIqwNkL(pF*Z}";
+          const REFERENCE_INCIDENT = "INC30340215";   // a known-good incident to compare with
+          // Fill in what YOU expect for this problem (display names). Empty = not compared.
+          const EXPECTED = {
+            assignment_group: "",      // e.g. "AGS_FR_QAS_Service-Managers"
+            business_service: "",      // e.g. "QA Platforms"
+            service_offering: "",
+            company: "",               // e.g. "AXA GROUP OPERATIONS"
+            u_environment: ""          // e.g. "Pre-Production"
+          };
+          const CHOICE_FIELDS = ["u_environment", "category", "subcategory", "impact", "urgency", "contact_type"];
           // -------------------------------------
 
           const headers = {
             Authorization: "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64"),
             Accept: "application/json"
           };
+          const calls = [];
+          async function getRows(table, query, fields, limit) {
+            const url = BASE_URL + "/api/now/v2/table/" + table +
+              "?sysparm_query=" + encodeURIComponent(query) +
+              "&sysparm_fields=" + fields.join(",") +
+              "&sysparm_display_value=all&sysparm_exclude_reference_link=true&sysparm_limit=" + (limit || 1);
+            try {
+              const res = await fetch(url, { method: "GET", headers: headers });
+              const text = await res.text();
+              let json = {};
+              try { json = JSON.parse(text); } catch (e) { json = {}; }
+              calls.push({ table: table, query: query, status: res.status, rows: (json.result || []).length });
+              return { status: res.status, rows: json.result || [] };
+            } catch (e) {
+              calls.push({ table: table, query: query, status: 0, error: String((e && e.message) || e).slice(0, 200) });
+              return { status: 0, rows: [] };
+            }
+          }
+          const dv = (row, f) => (row && row[f] && typeof row[f] === "object") ? String(row[f].display_value || "") : String((row && row[f]) || "");
+          const val = (row, f) => (row && row[f] && typeof row[f] === "object") ? String(row[f].value || "") : String((row && row[f]) || "");
           const isSysId = v => /^[0-9a-f]{32}$/.test(String(v || ""));
-
-          // form label, payload key, mandatory, must be a sys_id
-          const FORM = [
-            ["Caller", "caller_id", true, true],
-            ["On Behalf Of", "u_on_behalf_of", true, true],
-            ["Contact type", "contact_type", true, false],
-            ["Company", "company", true, true],
-            ["Environment", "u_environment", true, false],
-            ["Business service", "u_business_service", true, true],
-            ["Service Offering", "cmdb_ci", true, true],
-            ["Configuration item", "u_configuration_item", false, true],
-            ["Category", "category", true, false],
-            ["Subcategory", "subcategory", true, false],
-            ["Impact", "impact", true, false],
-            ["Urgency", "urgency", true, false],
-            ["Assignment group", "assignment_group", true, true],
-            ["Short description", "short_description", true, false],
-            ["Summary", "description", true, false],
-            ["Correlation ID", "correlation_id", true, false]
-          ];
+          const same = (x, y) => String(x || "").trim().toLowerCase() === String(y || "").trim().toLowerCase();
 
           export default async function ({ executionId }) {
             const ex = await execution(executionId);
+            const e = await ex.result("extract-event-tags");
+            const s = await ex.result("resolve-snow-values");
             const b = await ex.result("build-payload");
-            const body = b.snow_incident_payload;
-            const names = {};
-            for (const f of b.field_sources || []) names[f.field] = { display_name: f.display_name, source: f.source };
+            const a = e.dynatrace_alert;
+            const req = s.snow_required;
+            const en = s.servicenow_enrichment;
+            const pl = b.snow_incident_payload;
 
-            const fieldCheck = FORM.map(([label, key, mandatory, needsSysId]) => {
-              const v = body[key];
-              let status = "OK";
-              let note = "";
-              if (!v) { status = mandatory ? "MISSING" : "EMPTY"; note = mandatory ? "mandatory on the SILVA form" : "optional"; }
-              else if (needsSysId && !isSysId(v)) { status = "WRONG"; note = "reference field needs a 32-character sys_id"; }
-              return {
-                form_label: label,
-                key: key,
-                status: status,
-                value: String(v || "").split("\n")[0].slice(0, 120),
-                display_name: (names[key] || {}).display_name || "",
-                source: (names[key] || {}).source || "",
-                note: note
-              };
-            });
+            const checks = [];
+            const add = (area, field, value, silva, status, note) =>
+              checks.push({ status: status, area: area, field: field, value: String(value || "").slice(0, 120), silva: String(silva || "").slice(0, 120), note: note || "" });
+            const expect = (field, silvaName) => {
+              if (!EXPECTED[field]) return;
+              add("expected", field, EXPECTED[field], silvaName, same(EXPECTED[field], silvaName) ? "PASS" : "FAIL",
+                same(EXPECTED[field], silvaName) ? "matches EXPECTED" : "differs from EXPECTED");
+            };
 
-            // Duplicate check: would OPEN find an open incident for this problem?
-            let duplicate = { checked: false };
-            if (body.correlation_id) {
-              const url = BASE_URL + "/api/now/v2/table/incident?sysparm_query=" +
-                encodeURIComponent("correlation_id=" + body.correlation_id + "^active=true") +
-                "&sysparm_fields=number,state,assignment_group&sysparm_display_value=true&sysparm_limit=1";
-              try {
-                const res = await fetch(url, { method: "GET", headers: headers });
-                const json = await res.json().catch(() => ({}));
-                const hit = (json.result || [])[0];
-                duplicate = { checked: true, http: res.status, open_incident: hit ? hit.number : "", state: hit ? hit.state : "" };
-              } catch (e) {
-                duplicate = { checked: false, error: String((e && e.message) || e).slice(0, 200) };
-              }
+            // ===== 1) Extraction =====
+            add("extract", "problem_id", a.problem_id, "", a.problem_id ? "PASS" : "FAIL", "used as correlation_id and PD dedup_key");
+            add("extract", "event_name", a.event_name, "", a.event_name ? "PASS" : "FAIL", "");
+            add("extract", "environment", req.environment.label, req.environment.from,
+              /default/.test(req.environment.from || "") ? "WARN" : "PASS",
+              /default/.test(req.environment.from || "") ? "no environment found in tags or security context" : "taken from the event");
+            add("extract", "app_code", a.app_code, (e.snow_inputs.app_code || {}).key, a.app_code ? "PASS" : "WARN", "used to search the business service");
+            add("extract", "group tag", (s.group_sources.tag || {}).name, (s.group_sources.tag || {}).from,
+              s.group_sources.tag ? "PASS" : "WARN", s.group_sources.tag ? "" : "no group tag on the entity; group comes from " + req.assignment_group.from);
+            add("extract", "maintenance", String(a.maintenance), e.snow_inputs.maintenance.from, a.maintenance ? "WARN" : "PASS",
+              a.maintenance ? "OPEN would skip this problem" : "");
+            add("resolve", "business service method", en.match_method, "", /default/.test(en.match_method) ? "WARN" : "PASS",
+              /default/.test(en.match_method) ? "fell back to the default service; add SERVICE_MAP or a service tag" : "");
+
+            // ===== 2) Assignment group =====
+            if (isSysId(pl.assignment_group)) {
+              const r = await getRows("sys_user_group", "sys_id=" + pl.assignment_group, ["sys_id", "name", "active"], 1);
+              const g = r.rows[0];
+              add("silva", "assignment_group", pl.assignment_group, g ? dv(g, "name") + " (active " + dv(g, "active") + ")" : "HTTP " + r.status,
+                g && val(g, "active") === "true" ? "PASS" : "FAIL", g ? "exists in sys_user_group" : "sys_id not found");
+              expect("assignment_group", g ? dv(g, "name") : "");
+            } else {
+              add("silva", "assignment_group", pl.assignment_group, "", pl.assignment_group ? "WARN" : "FAIL",
+                pl.assignment_group ? "sent as a name, not a sys_id" : "empty");
+              expect("assignment_group", pl.assignment_group);
+            }
+            const fromTag = /^tag |^GROUP_MAP/.test(req.assignment_group.from || "");
+            add("rule", "assignment_group = servicenow_enrichment", req.assignment_group.name, en.assignment_group,
+              fromTag ? "INFO" : (same(req.assignment_group.sys_id, en.assignment_group_id) && en.assignment_group_id ? "PASS" : "FAIL"),
+              fromTag ? "group tag wins over enrichment (GROUP_ORDER)" : "payload group must equal the business service assignment group");
+
+            // ===== 3) Business service =====
+            if (isSysId(pl.u_business_service)) {
+              const r = await getRows("cmdb_ci_service", "sys_id=" + pl.u_business_service, ["sys_id", "name", "number", "assignment_group", "company", "sys_class_name"], 1);
+              const sv = r.rows[0];
+              add("silva", "u_business_service", pl.u_business_service, sv ? dv(sv, "name") + " " + dv(sv, "number") : "HTTP " + r.status,
+                sv && val(sv, "sys_class_name") !== "service_offering" ? "PASS" : "FAIL",
+                !sv ? "sys_id not found" : val(sv, "sys_class_name") === "service_offering" ? "this is an offering, not a business service" : "exists in cmdb_ci_service");
+              expect("business_service", sv ? dv(sv, "name") : "");
+            } else {
+              add("silva", "u_business_service", pl.u_business_service, "", "FAIL", "missing or not a sys_id");
             }
 
-            const problems = fieldCheck.filter(f => f.status === "MISSING" || f.status === "WRONG");
-            let wouldDo = "CREATE incident";
-            if (!b.decision.create_incident) wouldDo = "SKIP (" + b.decision.reason + ")";
-            else if (b.used_sample_event) wouldDo = "SKIP (sample event; OPEN needs ALLOW_SAMPLE_POST = true)";
-            else if (duplicate.open_incident) wouldDo = "SKIP (already open: " + duplicate.open_incident + ")";
+            // ===== 4) Service offering (SILVA stores it in cmdb_ci) =====
+            if (isSysId(pl.cmdb_ci)) {
+              const r = await getRows("service_offering", "sys_id=" + pl.cmdb_ci, ["sys_id", "name", "parent", "u_environment", "operational_status"], 1);
+              const o = r.rows[0];
+              add("silva", "cmdb_ci (service offering)", pl.cmdb_ci, o ? dv(o, "name") : "HTTP " + r.status, o ? "PASS" : "FAIL", o ? "exists in service_offering" : "not a service_offering sys_id");
+              if (o) {
+                add("rule", "offering parent = u_business_service", dv(o, "parent"), en.business_service,
+                  val(o, "parent") === pl.u_business_service ? "PASS" : "FAIL", "offering must belong to the business service");
+                // SILVA offerings have no u_environment field; the environment is part of the name ("... - Production - Silver_...")
+                const envInName = !!req.environment.label && dv(o, "name").toLowerCase().includes(req.environment.label.toLowerCase());
+                add("rule", "offering name contains incident environment", dv(o, "name"), req.environment.label,
+                  envInName ? "PASS" : "WARN", "a " + req.environment.label + " problem should use the " + req.environment.label + " offering");
+                add("info", "offering operational status", dv(o, "operational_status"), "", "INFO", "");
+              }
+              expect("service_offering", o ? dv(o, "name") : "");
+            } else {
+              add("silva", "cmdb_ci (service offering)", pl.cmdb_ci, "", "FAIL", "missing or not a sys_id");
+            }
+            if ((s.offering_candidates || []).length) {
+              add("info", "offerings of the business service", s.offering_candidates.map(o => o.name || "?").join(" | "), "", "INFO",
+                "offerings available under " + en.business_service);
+            }
 
+            // ===== 4b) Host CI (form "Configuration item" = u_configuration_item) =====
+            if (isSysId(pl.u_configuration_item)) {
+              const r = await getRows("cmdb_ci", "sys_id=" + pl.u_configuration_item, ["sys_id", "name", "fqdn", "sys_class_name"], 1);
+              const h = r.rows[0];
+              add("silva", "u_configuration_item (host)", pl.u_configuration_item, h ? dv(h, "name") + " (" + dv(h, "sys_class_name") + ")" : "HTTP " + r.status,
+                h ? "PASS" : "FAIL", h ? "exists in cmdb_ci" : "sys_id not found");
+            } else {
+              add("silva", "u_configuration_item (host)", pl.u_configuration_item, "", "WARN", "host CI not found; incident will have no Configuration item");
+            }
+
+            // ===== 5) Company =====
+            if (isSysId(pl.company)) {
+              const r = await getRows("core_company", "sys_id=" + pl.company, ["sys_id", "name"], 1);
+              const c = r.rows[0];
+              add("silva", "company", pl.company, c ? dv(c, "name") : "HTTP " + r.status, c ? "PASS" : (r.status === 403 ? "WARN" : "FAIL"),
+                c ? "exists in core_company" : r.status === 403 ? "no read access to core_company" : "sys_id not found");
+              add("rule", "company = servicenow_enrichment", pl.company, en.company_id, same(pl.company, en.company_id) ? "PASS" : "FAIL", "");
+              expect("company", c ? dv(c, "name") : en.company);
+            } else {
+              add("silva", "company", pl.company, "", "WARN", "sent as a name; SILVA needs sys_id or sysparm_input_display_value=true");
+            }
+
+            // ===== 6) Caller and On Behalf Of (reference to sys_user) =====
+            for (const f of ["caller_id", "u_on_behalf_of"]) {
+              const v = pl[f];
+              if (!v) { add("silva", f, "", "", "WARN", "empty"); continue; }
+              const r = await getRows("sys_user", isSysId(v) ? "sys_id=" + v : "name=" + v + "^ORuser_name=" + v, ["sys_id", "name", "user_name", "active"], 2);
+              const u = r.rows[0];
+              if (isSysId(v)) add("silva", f, v, u ? dv(u, "name") : "HTTP " + r.status, u ? "PASS" : "FAIL", u ? "user exists" : "sys_id not found");
+              else add("silva", f, v, u ? "sys_id " + val(u, "sys_id") : "HTTP " + r.status, u ? "WARN" : "FAIL",
+                u ? "a name in a reference field is ignored by the Table API; put this sys_id in build-payload settings" : "no sys_user with this name");
+            }
+
+            // ===== 7) Choice values =====
+            const choices = {};
+            for (const f of CHOICE_FIELDS) {
+              const r = await getRows("sys_choice", "name=incident^element=" + f + "^inactive=false", ["value", "label", "dependent_value"], 100);
+              choices[f] = r.rows.map(x => ({ value: val(x, "value"), label: dv(x, "label"), depends_on: val(x, "dependent_value") }));
+              const v = pl[f];
+              if (!r.rows.length) {
+                add("choice", f, v, "HTTP " + r.status + ", 0 choices", "WARN", "not a choice field or no read access; compare with " + REFERENCE_INCIDENT);
+                continue;
+              }
+              const hit = choices[f].find(c => c.value === v);
+              const byLabel = choices[f].find(c => same(c.label, v));
+              add("choice", f, v, hit ? hit.label : byLabel ? "label of value " + byLabel.value : "valid: " + choices[f].map(c => c.value).slice(0, 15).join(", "),
+                hit ? "PASS" : "FAIL", hit ? "valid stored value" : byLabel ? "this is the label; send value " + byLabel.value : "not a valid value");
+              if (f === "u_environment") expect("u_environment", hit ? hit.label : v);
+            }
+
+            // ===== 8) Side by side with the reference incident =====
+            const refFields = ["caller_id", "u_on_behalf_of", "contact_type", "company", "u_environment", "u_business_service",
+              "cmdb_ci", "u_configuration_item", "category", "subcategory", "impact", "urgency", "assignment_group"];
+            const rr = await getRows("incident", "number=" + REFERENCE_INCIDENT, refFields, 1);
+            const ref = rr.rows[0];
+            const reference = refFields.map(f => ({
+              field: f,
+              reference_value: val(ref, f),
+              reference_label: dv(ref, f),
+              payload_value: String(pl[f] || ""),
+              same_value: !!ref && val(ref, f) === String(pl[f] || "")
+            }));
+
+            const count = st => checks.filter(c => c.status === st).length;
+            const verdict = count("FAIL") ? "FAIL - " + count("FAIL") + " check(s) failed" : count("WARN") ? "PASS WITH WARNINGS" : "PASS";
+            const order = { FAIL: 0, WARN: 1, INFO: 2, PASS: 3 };
             const out = {
-              note: "PREVIEW ONLY - nothing was sent to SILVA",
-              ready: problems.length === 0 && b.decision.create_incident,
-              open_v7_would: wouldDo,
-              problems: problems.map(p => p.form_label + " (" + p.key + "): " + p.status + " - " + p.note),
-              field_check: fieldCheck,
-              duplicate_check: duplicate,
-              used_sample_event: b.used_sample_event,
-              snow_incident_payload: body
-            };
-            console.log(JSON.stringify(out, null, 2));
-            return out;
-          }
-
-    preview-pagerduty:
-      name: preview-pagerduty
-      description: Show the PagerDuty trigger body OPEN would send in parallel with SILVA (routing key hidden). Sends nothing.
-      action: dynatrace.automations:run-javascript
-      active: true
-      position:
-        x: 1
-        y: 4
-      predecessors:
-        - build-payload
-      conditions:
-        states:
-          build-payload: OK
-      input:
-        script: |
-          import { execution } from '@dynatrace-sdk/automation-utils';
-
-          export default async function ({ executionId }) {
-            const ex = await execution(executionId);
-            const b = await ex.result("build-payload");
-            const event = JSON.parse(JSON.stringify(b.pagerduty_payload));
-            event.routing_key = "__hidden__ (set in OPEN v7 trigger-pagerduty)";
-            event.links = event.client_url ? [{ href: event.client_url, text: "Dynatrace " + b.snow_incident_payload.correlation_id }] : [];
-
-            const p = event.payload || {};
-            const checks = [
-              ["event_action", event.event_action === "trigger"],
-              ["dedup_key", /^dt-problem-P-/.test(event.dedup_key || "")],
-              ["payload.summary", !!p.summary && p.summary.length <= 1024],
-              ["payload.source", !!p.source],
-              ["payload.severity", ["critical", "error", "warning", "info"].includes(p.severity)]
-            ].map(([field, ok]) => ({ field: field, status: ok ? "OK" : "WRONG" }));
-
-            let wouldDo = "SEND trigger (in parallel with the SILVA POST)";
-            if (!b.decision.create_incident) wouldDo = "NOT send (" + b.decision.reason + ")";
-            else if (b.used_sample_event) wouldDo = "NOT send (sample event; OPEN needs ALLOW_SAMPLE_POST = true)";
-            const out = {
-              note: "PREVIEW ONLY - nothing was sent to PagerDuty",
-              ready: checks.every(c => c.status === "OK"),
-              open_v7_would: wouldDo,
-              checks: checks,
-              pagerduty_payload: event
+              verdict: verdict,
+              counts: { fail: count("FAIL"), warn: count("WARN"), pass: count("PASS"), info: count("INFO") },
+              used_sample_event: e.usedSample,
+              problem_id: a.problem_id,
+              checks: checks.slice().sort((x, y) => order[x.status] - order[y.status]),
+              reference_incident: { number: REFERENCE_INCIDENT, found: !!ref, fields: reference },
+              valid_choices: choices,
+              payload_preview: pl,
+              silva_calls: calls
             };
             console.log(JSON.stringify(out, null, 2));
             return out;

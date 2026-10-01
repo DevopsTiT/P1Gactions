@@ -5,13 +5,15 @@
 ```
 Davis problem CREATED
  └─ 1 extract-event-tags → 2 resolve-snow-values → 3 build-payload
+        ├─ 4a post-silva-incident   ┐ both start after build-payload
+        └─ 4b trigger-pagerduty     ┘ and run in parallel
         decision.create_incident?
-         ├─ no (maintenance, or missing group / service / offering / environment) → 4 skipped → 5 skipped
+         ├─ no (maintenance or missing data) → 4a skipped, 4b skipped
          └─ yes
-              ├─ sample event and ALLOW_SAMPLE_POST false → 4 skipped → 5 skipped
-              ├─ open incident with same correlation_id    → 4 exists  → 5 skipped (no re-page)
-              ├─ DRY_RUN true                              → 4 dry_run → 5 dry_run
-              └─ POST /incident → 4 created → 5 PagerDuty trigger (dedup_key dt-problem-<id>)
+              ├─ sample event                → 4a skipped, 4b skipped
+              ├─ DRY_RUN                     → 4a dry_run, 4b dry_run
+              ├─ SILVA already open          → 4a exists,  4b triggers (PD dedup_key keeps one PD incident)
+              └─ normal                      → 4a POST /incident, 4b PD trigger (dedup_key dt-problem-<id>)
 ```
 
 ## Short Takeaway
@@ -36,8 +38,8 @@ OPEN v7 keeps the TEST v7 logic that was verified step by step and adds the two 
 | 1 extract-event-tags | Reads the event, tags, environment, app code, host | dynatrace_alert, tags, snow_inputs |
 | 2 resolve-snow-values | GET lookups in SILVA: group, business service (not offering), offering for the environment, host CI, company | snow_required, servicenow_enrichment |
 | 3 build-payload | Builds the SNOW body, the PagerDuty body and the decision | snow_incident_payload, pagerduty_payload, decision |
-| 4 post-silva-incident | Skips, finds an existing open incident, or POSTs a new one | number, sys_id, url, action |
-| 5 trigger-pagerduty | Sends the trigger with the SILVA number and link | status, dedup_key |
+| 4a post-silva-incident | Skips, finds an existing open incident, or POSTs a new one (parallel with 4b) | number, sys_id, url, action |
+| 4b trigger-pagerduty | Sends the trigger with the problem id as link to SILVA (parallel with 4a) | status, dedup_key |
 
 ## SNOW Payload Keys
 
@@ -89,8 +91,8 @@ Davis problem
   → extract-event-tags
   → resolve-snow-values  (GET SILVA)
   → build-payload        (decision, SNOW body, PD body)
-  → post-silva-incident  (GET duplicate check → POST /api/now/v2/table/incident)
-  → trigger-pagerduty    (POST events.pagerduty.com/v2/enqueue)
+  ├→ post-silva-incident (GET duplicate check → POST /api/now/v2/table/incident)
+  └→ trigger-pagerduty   (POST events.pagerduty.com/v2/enqueue)        ← parallel
 CLOSE workflow later resolves with the same correlation_id and dedup_key
 ```
 
