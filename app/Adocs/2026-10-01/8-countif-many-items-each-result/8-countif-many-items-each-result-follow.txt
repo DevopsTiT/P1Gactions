@@ -1,0 +1,20 @@
+MANY ITEMS WITH YOUR countIf QUERY
+
+A (one wide row):
+| summarize c01 = countIf(contains(log.source, "<path1>", caseSensitive: false)),
+            c02 = countIf(contains(log.source, "<path2>", caseSensitive: false))
+| fieldsAdd r01 = if(c01 > 0, "YES", else: "NO"), r02 = if(c02 > 0, "YES", else: "NO")
+
+B (one row per item):
+| summarize c01 = countIf(...), c02 = countIf(...)
+| fieldsAdd items = array(record(item = "01 <path1>", log_count = c01), record(item = "02 <path2>", log_count = c02))
+| fields items
+| expand items
+| fieldsFlatten items
+| fieldsAdd result = if(items.log_count > 0, "YES", else: "NO"), code = if(items.log_count > 0, 1, else: 0)
+| fields item = items.item, log_count = items.log_count, result, code
+| sort item asc
+
+C = B but summarize by log.source first, then cNN = sum(if(contains(...), n, else: 0))
+
+Scan cost is the same for 1 or 23 items -> combine them. Full 11-item queries: 8-countif-many-items-each-result.dql
