@@ -1,0 +1,19 @@
+// Query 1: where do batch_monitoring lines land?
+fetch logs, from:now()-24h
+| filter contains(log.source, "batch_monitoring") or contains(content, "batch_monitoring")
+| summarize lines = count(), by:{log.source, dt.system.bucket}
+| sort lines desc
+| limit 20
+
+// Query 2: preview what tomorrow's 08:00 email would contain
+fetch logs, from:now()-8h
+| filter matchesValue(log.source, "*batch_monitoring*")
+| sort timestamp asc
+| fieldsAdd time_jst = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss", timezone:"Asia/Tokyo")
+| fields time_jst, content
+| limit 500
+
+// Query 3: lines per day over 7 days (is 500 enough?)
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*batch_monitoring*")
+| makeTimeseries lines = count(default: 0), interval:1d
