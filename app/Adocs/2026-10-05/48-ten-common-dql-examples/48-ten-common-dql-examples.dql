@@ -1,0 +1,61 @@
+// 1. Error logs in the last hour, counted per host
+fetch logs, from:now()-1h
+| filter loglevel == "ERROR"
+| summarize errors = count(), by:{host.name}
+| sort errors desc
+| limit 10
+
+// 2. Search logs for a phrase and show the latest lines
+fetch logs, from:now()-30m
+| filter contains(content, "timed out", caseSensitive: false)
+| fields timestamp, host.name, log.source, content
+| sort timestamp desc
+| limit 50
+
+// 3. Error trend per minute, split by log level
+fetch logs, from:now()-2h
+| filter in(loglevel, {"ERROR", "WARN"})
+| makeTimeseries lines = count(default: 0), by:{loglevel}, interval:1m
+
+// 4. Extract a value from log text and get percentiles
+fetch logs, from:now()-1h
+| filter contains(content, "duration=")
+| parse content, "LD 'duration=' DOUBLE:duration_ms"
+| summarize p50 = percentile(duration_ms, 50), p95 = percentile(duration_ms, 95), worst = max(duration_ms)
+
+// 5. Host CPU usage (metric), average per host
+timeseries cpu = avg(dt.host.cpu.usage), by:{dt.entity.host}, from:now()-1h
+| fieldsAdd host = entityName(dt.entity.host)
+
+// 6. Hosts with the highest average CPU in the last hour
+timeseries cpu = avg(dt.host.cpu.usage), by:{dt.entity.host}, from:now()-1h
+| fieldsAdd avg_cpu = arrayAvg(cpu), host = entityName(dt.entity.host)
+| fields host, avg_cpu
+| sort avg_cpu desc
+| limit 10
+
+// 7. Slowest services from traces (p95 response time)
+fetch spans, from:now()-1h
+| filter request.is_root_span == true
+| summarize requests = count(), p95 = percentile(duration, 95), by:{dt.entity.service}
+| fieldsAdd service = entityName(dt.entity.service)
+| sort p95 desc
+| limit 10
+
+// 8. Kubernetes container restarts per namespace
+timeseries restarts = sum(dt.kubernetes.container.restarts), by:{k8s.namespace.name}, from:now()-24h
+| fieldsAdd total = arraySum(restarts)
+| filter total > 0
+| sort total desc
+
+// 9. Open Dynatrace problems right now
+fetch dt.davis.problems, from:now()-24h
+| filter event.status == "ACTIVE"
+| fields timestamp, display_id, event.name, event.category
+| sort timestamp desc
+
+// 10. List hosts (entities) with their names and OS
+fetch dt.entity.host
+| fields id, entity.name, osType
+| sort entity.name asc
+| limit 100

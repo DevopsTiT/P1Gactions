@@ -1,0 +1,118 @@
+// ===== 1. Find where logs land (first step for every migrated alert) =====
+fetch logs, from:now()-24h
+| filter contains(content, "Connection timed out")
+| summarize lines = count(), by:{log.source, host.name, k8s.namespace.name, k8s.pod.name}
+| sort lines desc
+| limit 20
+
+// ===== 2. Latest raw lines (Splunk: index=x "text" | table _time _raw) =====
+fetch logs, from:now()-1h
+| filter matchesValue(log.source, "*batch_monitoring*")
+| fields timestamp, content
+| sort timestamp desc
+| limit 100
+
+// ===== 3. Keyword AND / OR / NOT =====
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "agportalapi-prod-axa-li-jp"
+| filter contains(content, "ERROR") and not contains(content, "Error stacktraces are turned on")
+| filter contains(content, "BadRequest") or contains(content, "NotFound")
+
+// ===== 4. Case-insensitive match and wildcard =====
+fetch logs, from:now()-1h
+| filter contains(content, "timed out", caseSensitive: false)
+| filter matchesValue(host.name, "wpalja21b*")
+
+// ===== 5. Count total (Splunk: | stats count) =====
+fetch logs, from:now()-15m
+| filter loglevel == "ERROR"
+| summarize errors = count()
+
+// ===== 6. Count by field (Splunk: | stats count by host) =====
+fetch logs, from:now()-1h
+| filter loglevel == "ERROR"
+| summarize errors = count(), by:{host.name}
+| sort errors desc
+
+// ===== 7. Count per minute chart (Splunk: | timechart span=1m count) =====
+fetch logs, from:now()-2h
+| filter loglevel == "ERROR"
+| makeTimeseries errors = count(default: 0), interval:1m
+
+// ===== 8. Count per minute split by field (Splunk: | timechart span=1m count by host) =====
+fetch logs, from:now()-2h
+| filter loglevel == "ERROR"
+| makeTimeseries errors = count(default: 0), by:{host.name}, interval:1m
+
+// ===== 9. Rolling count "more than N in 5 minutes" (detector-ready) =====
+fetch logs
+| filter contains(content, "IamCChangePasswordBadRequestResponse")
+| makeTimeseries count = count(default: 0), interval:1m
+| fieldsAdd count = arrayMovingSum(count, 5)
+
+// ===== 10. Parse a number out of a line (Splunk: rex) =====
+fetch logs, from:now()-1h
+| filter contains(content, "[HTTP Monitor]")
+| parse content, "LD 'duration' LD DOUBLE:responsetime 's'"
+| summarize p50 = percentile(responsetime, 50), p95 = percentile(responsetime, 95), worst = max(responsetime)
+
+// ===== 11. Parse key=value and JSON =====
+fetch logs, from:now()-1h
+| parse content, "LD 'Status=' LD:status ' '"
+| parse content, "JSON:j"
+| fieldsAdd job = j[job_name]
+
+// ===== 12. New field, if/else, replace (Splunk: eval) =====
+fetch logs, from:now()-1h
+| fieldsAdd failed = if(contains(content, "FAILURE"), 1, else: 0)
+| fieldsAdd name = replaceString(log.source, "%20", " ")
+| fieldsAdd host_or_pod = coalesce(k8s.pod.name, host.name, "unknown")
+
+// ===== 13. Show time in JST =====
+fetch logs, from:now()-1h
+| fieldsAdd time_jst = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss", timezone:"Asia/Tokyo")
+| fields time_jst, content
+
+// ===== 14. Latest value per key (Splunk: | stats latest(x) by y / dedup) =====
+fetch logs, from:now()-24h
+| parse content, "LD 'job_name=' LD:job_name ' ' LD 'status=' LD:status"
+| sort timestamp desc
+| dedup job_name
+| fields timestamp, job_name, status
+
+// ===== 15. First and last seen (Splunk: | stats min(_time) max(_time) by x) =====
+fetch logs, from:now()-24h
+| parse content, "LD 'order_id=' LD:order_id ' '"
+| summarize first_seen = min(timestamp), last_seen = max(timestamp), lines = count(), by:{order_id}
+
+// ===== 16. Join a lookup table (Splunk: | lookup configuration job_name OUTPUT application) =====
+fetch logs, from:now()-1h
+| fieldsAdd name = "my-job"
+| lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{application, pager_duty}
+
+// ===== 17. Top N (Splunk: | top limit=10 host) =====
+fetch logs, from:now()-1h
+| filter loglevel == "ERROR"
+| summarize errors = count(), by:{k8s.pod.name}
+| sort errors desc
+| limit 10
+
+// ===== 18. "Today since midnight JST" when running at 08:00 =====
+fetch logs, from:now()-8h
+| filter matchesValue(log.source, "*batch_monitoring*")
+
+// ===== 19. Daily volume over 7 days =====
+fetch logs, from:now()-7d
+| filter loglevel == "ERROR"
+| makeTimeseries lines = count(default: 0), interval:1d
+
+// ===== 20. Problems and events opened by detectors =====
+fetch dt.davis.problems, from:now()-24h
+| filter contains(event.name, "Prod_")
+| fields timestamp, display_id, event.name, event.status, event.category
+| sort timestamp desc
+
+fetch events, from:now()-24h
+| filter event.type == "CUSTOM_ALERT"
+| fields timestamp, event.name, event.status
+| sort timestamp desc

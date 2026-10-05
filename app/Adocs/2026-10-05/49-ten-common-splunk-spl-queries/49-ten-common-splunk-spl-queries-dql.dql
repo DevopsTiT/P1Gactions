@@ -1,0 +1,66 @@
+// DQL equivalents of the 10 Splunk searches (field names depend on how logs are ingested)
+
+// 1. Search for a phrase and show raw lines
+fetch logs, from:now()-30m
+| filter contains(content, "Connection timed out")
+| fields timestamp, host.name, log.source, content
+| sort timestamp desc
+| limit 50
+
+// 2. Count errors per host
+fetch logs, from:now()-1h
+| filter loglevel == "ERROR"
+| summarize count = count(), by:{host.name}
+| sort count desc
+
+// 3. Errors per minute
+fetch logs, from:now()-2h
+| filter loglevel == "ERROR"
+| makeTimeseries count = count(default: 0), interval:1m
+
+// 4. Errors per minute split by host
+fetch logs, from:now()-2h
+| filter loglevel == "ERROR"
+| makeTimeseries count = count(default: 0), by:{host.name}, interval:1m
+
+// 5. Top 10 values of a field (status parsed from the line)
+fetch logs, from:now()-1h
+| parse content, "LD 'status=' INT:status LD 'path=' LD:uri_path ' '"
+| filter status >= 500
+| summarize count = count(), by:{uri_path}
+| sort count desc
+| limit 10
+
+// 6. Extract a value and get percentiles
+fetch logs, from:now()-1h
+| filter contains(content, "duration=")
+| parse content, "LD 'duration=' DOUBLE:duration_ms"
+| summarize p50 = percentile(duration_ms, 50), p95 = percentile(duration_ms, 95), worst = max(duration_ms)
+
+// 7. Error rate percentage
+fetch logs, from:now()-1h
+| parse content, "LD 'status=' INT:status"
+| fieldsAdd is_error = if(status >= 500, 1, else: 0)
+| summarize total = count(), errors = sum(is_error), by:{host.name}
+| fieldsAdd error_rate = round(errors * 100.0 / total, decimals: 2)
+| sort error_rate desc
+
+// 8. Latest status per job
+fetch logs, from:now()-24h
+| filter matchesValue(log.source, "*controlm*")
+| parse content, "LD 'job_name=' LD:job_name ' ' LD 'status=' LD:status"
+| sort timestamp desc
+| dedup job_name
+| fields timestamp, job_name, status
+
+// 9. Enrich with a lookup table
+fetch logs, from:now()-15m
+| filter contains(content, "[HTTP Monitor]")
+| parse log.source, "LD 'job/' LD:name '/' INT '/console'"
+| lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{application, pager_duty}
+| summarize count = count(), by:{cfg.application, cfg.pager_duty}
+
+// 10. Alert-style: more than 50 in a minute
+fetch logs, from:now()-5m
+| filter contains(content, "Cannot read properties of undefined")
+| makeTimeseries count = count(default: 0), interval:1m
