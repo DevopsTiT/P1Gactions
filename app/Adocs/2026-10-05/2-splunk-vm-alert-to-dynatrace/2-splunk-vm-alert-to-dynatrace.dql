@@ -1,0 +1,13 @@
+// Step 1 - are the VM's eventID 258 lines in Dynatrace?
+fetch logs, from:-7d
+| filter log.source == "Windows Application Log"
+| filter winlog.eventid == "258"
+| fields timestamp, host.name, loglevel, winlog.provider, winlog.eventid, content
+| sort timestamp desc
+| limit 20
+
+// Option B - anomaly detector query
+fetch logs
+| filter log.source == "Windows Application Log"
+| filter winlog.eventid == "258"
+| makeTimeseries count = count(), by:{dt.entity.host, host.name}, interval:1m

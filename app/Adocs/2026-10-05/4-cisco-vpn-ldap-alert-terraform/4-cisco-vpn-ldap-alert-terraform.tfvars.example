@@ -1,0 +1,4 @@
+bucket_pattern    = "network*"
+sourcetype_filter = "| filter sourcetype == \"asa_networksyslog\""
+actor_id          = null
+enabled           = true

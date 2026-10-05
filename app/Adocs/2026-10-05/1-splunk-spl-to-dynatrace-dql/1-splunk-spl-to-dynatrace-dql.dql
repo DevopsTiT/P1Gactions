@@ -1,0 +1,33 @@
+// Step 0a - which bucket holds network syslog
+fetch logs, from:-1h
+| summarize count = count(), by:{dt.system.bucket}
+| sort count desc
+
+// Step 0b - look at sample records
+fetch logs, from:-1h
+| filter dt.system.bucket == "networksyslog"
+| limit 5
+
+// Query 1 - which sources exist
+fetch logs, from:-30d
+| filter dt.system.bucket == "networksyslog"
+| filter in(log.source, array("/var/log/app/a.log", "/var/log/app/b.log", "/var/log/app/c.log"))
+| summarize count = count(), by:{log.source}
+
+// Query 2 - yes/no for every source
+data record(source = "/var/log/app/a.log"),
+     record(source = "/var/log/app/b.log"),
+     record(source = "/var/log/app/c.log")
+| lookup [
+    fetch logs, from:-30d
+    | filter dt.system.bucket == "networksyslog"
+    | summarize events = count(), by:{log.source}
+  ], sourceField:source, lookupField:log.source, fields:{events}
+| fieldsAdd events = coalesce(events, 0)
+| fieldsAdd found = if(events > 0, "yes", else:"no")
+
+// Query 3 - first and last seen per source
+fetch logs, from:-30d
+| filter dt.system.bucket == "networksyslog"
+| summarize count = count(), firstSeen = min(timestamp), lastSeen = max(timestamp), by:{log.source}
+| sort lastSeen desc

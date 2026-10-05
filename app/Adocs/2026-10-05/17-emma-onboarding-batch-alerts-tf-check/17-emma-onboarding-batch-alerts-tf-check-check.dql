@@ -1,0 +1,16 @@
+// How often each of the 5 alerts would have matched in the last 7 days
+fetch logs, from:now()-7d
+| filter aws.log_group == "/aws/lambda/myaxa-onboarding-batch-prod"
+| summarize
+    send_notifications_error = countIf(contains(content, "sendNotifications :: error", caseSensitive: false)),
+    handle_onboarded_error = countIf(contains(content, "handleOnboardedCustomers", caseSensitive: false) and contains(content, "error", caseSensitive: false)),
+    email_sending_failed = countIf(contains(content, "sendNotificationsQueueConsumer :: email_sending_failed", caseSensitive: false)),
+    message_sending_failed = countIf(contains(content, "sendNotificationsQueueConsumer :: message_sending_failed", caseSensitive: false)),
+    queue_consumer_error = countIf(contains(content, "sendNotificationsQueueConsumer :: error", caseSensitive: false))
+
+// Sample handleOnboardedCustomers lines that match "error" (check for false positives like "errorCount=0")
+fetch logs, from:now()-7d
+| filter aws.log_group == "/aws/lambda/myaxa-onboarding-batch-prod"
+| filter contains(content, "handleOnboardedCustomers", caseSensitive: false) and contains(content, "error", caseSensitive: false)
+| fields timestamp, content
+| limit 20

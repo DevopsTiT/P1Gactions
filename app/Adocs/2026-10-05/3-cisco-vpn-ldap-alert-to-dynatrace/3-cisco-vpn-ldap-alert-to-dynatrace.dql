@@ -1,0 +1,28 @@
+// Step 1a - find the real failure lines and their fields
+fetch logs, from:-24h
+| filter contains(content, "Windows_LDAP as FAILED")
+| fields timestamp, dt.system.bucket, log.source, host.name, content
+| sort timestamp desc
+| limit 20
+
+// Step 1b - confirm ASA syslog arrives at all
+fetch logs, from:-1h
+| filter contains(content, "%ASA-")
+| summarize count = count(), by:{dt.system.bucket, log.source}
+
+// Option A - custom alert query (threshold 3, Above, window 1, violating 1)
+fetch logs
+| filter dt.system.bucket == "networksyslog"
+| filter contains(content, "Windows_LDAP as FAILED")
+| makeTimeseries count = count(default: 0), interval:1m
+
+// Option B - after creating OpenPipeline counter metric log.cisco.vpn.ldap_failed
+timeseries count = sum(log.cisco.vpn.ldap_failed, default: 0), interval:1m
+
+// History check - how often would it have fired in the last 7 days
+fetch logs, from:-7d
+| filter dt.system.bucket == "networksyslog"
+| filter contains(content, "Windows_LDAP as FAILED")
+| summarize count = count(), by:{minute = bin(timestamp, 1m)}
+| filter count > 3
+| sort minute desc

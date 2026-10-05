@@ -1,0 +1,31 @@
+{
+  "schemaId": "builtin:davis.anomaly-detectors",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "title": "Cisco VPN : LDAP Connections are failing",
+    "description": "Converted from Splunk alert on networksyslog cisco:asa 'Windows_LDAP as FAILED' > 3 per minute",
+    "source": "Davis Anomaly Detection",
+    "analyzer": {
+      "name": "dt.statistics.ui.anomaly_detection.StaticThresholdAnomalyDetectionAnalyzer",
+      "input": [
+        { "key": "query", "value": "fetch logs | filter dt.system.bucket == \"networksyslog\" | filter contains(content, \"Windows_LDAP as FAILED\") | makeTimeseries count = count(default: 0), interval:1m" },
+        { "key": "threshold", "value": "3" },
+        { "key": "alertCondition", "value": "ABOVE" },
+        { "key": "alertOnMissingData", "value": "false" },
+        { "key": "violatingSamples", "value": "1" },
+        { "key": "slidingWindow", "value": "1" },
+        { "key": "dealertingSamples", "value": "5" }
+      ]
+    },
+    "eventTemplate": {
+      "properties": [
+        { "key": "event.type", "value": "CUSTOM_ALERT" },
+        { "key": "event.name", "value": "Cisco VPN : LDAP Connections are failing which will impact end users using windows basic" },
+        { "key": "event.description", "value": "More than 3 'Windows_LDAP as FAILED' messages in 1 minute from Cisco ASA (networksyslog). VPN users with Windows credentials cannot log in." },
+        { "key": "alert.severity", "value": "critical" },
+        { "key": "alert.source", "value": "networksyslog cisco:asa" }
+      ]
+    }
+  }
+}

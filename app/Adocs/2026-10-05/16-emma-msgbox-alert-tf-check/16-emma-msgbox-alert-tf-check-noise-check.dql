@@ -1,0 +1,21 @@
+// 1) How often would the alert have fired in the last 7 days? (5-minute buckets above 5)
+fetch logs, from:now()-7d
+| filter aws.log_group == "/aws/lambda/message-box-api-prod"
+| filter contains(content, "error", caseSensitive: false) or contains(content, "warn", caseSensitive: false)
+| summarize n = count(), by:{ bucket = bin(timestamp, 5m) }
+| summarize buckets_over_5 = countIf(n > 5), worst_bucket = max(n)
+
+// 2) Which messages drive the count? (top 20 by frequency)
+fetch logs, from:now()-7d
+| filter aws.log_group == "/aws/lambda/message-box-api-prod"
+| filter contains(content, "error", caseSensitive: false) or contains(content, "warn", caseSensitive: false)
+| summarize n = count(), by:{ content }
+| sort n desc
+| limit 20
+
+// 3) Check the rolling 5-minute sum used by the detector (view as a chart)
+fetch logs, from:now()-1d
+| filter aws.log_group == "/aws/lambda/message-box-api-prod"
+| filter contains(content, "error", caseSensitive: false) or contains(content, "warn", caseSensitive: false)
+| makeTimeseries count = count(default: 0), interval:1m
+| fieldsAdd count = arrayMovingSum(count, 5)
