@@ -1,0 +1,20 @@
+// Run in a Notebook. Set timeframe in the picker (no from: needed).
+
+// 1. Which field replaces index="batch_monitoring_logs"? (Last 7 days)
+fetch logs
+| filter contains(content, "batch", caseSensitive: false)
+| summarize lines = count(), by:{ dt.system.bucket, log.source, host.name }
+| sort lines desc
+| limit 50
+
+// 2. How many lines per day? Tells you if the 500-line limit is enough. (Last 7 days)
+fetch logs
+| filter matchesValue(log.source, "*batch_monitoring*")
+| summarize lines = count(), by:{ day = bin(timestamp, 1d) }
+
+// 3. Preview exactly what the email will contain. (Today, 00:00 to 08:00 JST)
+fetch logs
+| filter matchesValue(log.source, "*batch_monitoring*")
+| sort timestamp asc
+| fields timestamp, content
+| limit 500

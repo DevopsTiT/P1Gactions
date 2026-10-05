@@ -1,0 +1,46 @@
+// Run in a Notebook. Set the timeframe in the picker (no from: needed).
+
+// 1. Where do Jenkins logs live? (Last 24 hours)
+fetch logs
+| filter contains(content, "[HTTP Monitor]") or contains(content, "testsuite", caseSensitive: false)
+| summarize lines = count(), by:{ dt.system.bucket, log.source, host.name }
+| sort lines desc
+| limit 50
+
+// 2. HTTP Monitor raw lines: where is the response code? (Last 1 hour)
+fetch logs
+| filter contains(content, "[HTTP Monitor]")
+| fields timestamp, log.source, content
+| limit 20
+
+// 3. jenkins/test records: JSON keys for job_name, job_result, testcase name and status (Last 6 hours)
+fetch logs
+| filter matchesValue(log.source, "*jenkins/test*")
+| limit 3
+
+// 4. How often does each functional check run? Needed to confirm "2 runs fit in 2 hours" (Last 24 hours)
+fetch logs
+| filter matchesValue(log.source, "*jenkins/test*")
+| summarize runs = count(), first = min(timestamp), last = max(timestamp), by:{ job_name }
+| fieldsAdd minutes_between_runs = toDouble(last - first) / 60000000000.0 / (runs - 1)
+| sort minutes_between_runs desc
+
+// 5. Is the configuration lookup uploaded, and which apps have pager_duty = 0?
+load "/lookups/jenkins/configuration"
+| summarize jobs = count(), by:{ application, pager_duty }
+
+// 6. Is the old source (jenkins_statistics, json:jenkins:old) still written? (Last 24 hours)
+fetch logs
+| filter matchesValue(log.source, "*jenkins_statistics*") or matchesValue(log.source, "*jenkins:old*")
+| summarize lines = count(), last = max(timestamp)
+
+// 7. Dry run of the functional signal for one app (Last 6 hours)
+fetch logs
+| filter matchesValue(log.source, "*jenkins/test*")
+| filter job_result != "ABORTED" and job_result != "FAILURE"
+| parse content, "JSON:j"
+| expand tc = j[testsuite][testcase]
+| fieldsAdd testname = toString(tc[testname]), status = toString(tc[status])
+| sort timestamp desc
+| fields timestamp, job_name, testname, status
+| limit 100

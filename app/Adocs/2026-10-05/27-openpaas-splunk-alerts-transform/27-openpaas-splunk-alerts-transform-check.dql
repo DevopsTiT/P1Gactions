@@ -1,0 +1,42 @@
+// 1) Find the Dynatrace fields for each Splunk index / sourcetype / host
+fetch logs, from:now()-24h
+| filter contains(content, "/maam/")
+    or contains(content, "SocketTimeoutException")
+    or contains(content, "Problem routing to")
+    or contains(content, "ESG120")
+    or contains(toString(k8s.namespace.name), "eopt")
+| summarize lines = count(), by:{ dt.system.bucket, log.source, k8s.namespace.name, host.name }
+| sort lines desc
+| limit 40
+
+// 2) Egress IPs: how often each proxy IP appears per hour (should never be zero for both)
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*apigw_syslog*")
+| filter contains(content, "/maam/")
+| summarize
+    ip_52_76 = countIf(contains(content, "52.76.125.86")),
+    ip_54_179 = countIf(contains(content, "54.179.120.88")),
+    by:{ hour = bin(timestamp, 1h) }
+| sort hour desc
+
+// 3) eopt: does the backend parse and the frontend JSON level work?
+fetch logs, from:now()-24h
+| filter k8s.namespace.name == "eopt-prod-axa-li-jp"
+| parse content, "LD ISO8601:log_ts SPACE+ WORD:level"
+| parse content, "JSON:j"
+| summarize
+    backend_error = countIf(upper(level) == "ERROR"),
+    frontend_error = countIf(upper(toString(j[level])) == "ERROR"),
+    status_error = countIf(status == "ERROR")
+
+// 4) Emma BE timeouts: 5-minute peaks over 7 days (how often > 20)
+fetch logs, from:now()-7d
+| filter (k8s.namespace.name == "myaxabackend-prod-axa-li-jp"
+          and contains(content, "api-jp-cert.corp.intraxa", caseSensitive: false)
+          and contains(content, "java.net.SocketTimeoutException", caseSensitive: false))
+      or (matchesValue(log.source, "*apigw_syslog*")
+          and contains(content, "Problem routing to", caseSensitive: false)
+          and contains(content, "timed out", caseSensitive: false)
+          and contains(content, "myaxa-api.alj.intraxa", caseSensitive: false))
+| summarize n = count(), by:{ bucket = bin(timestamp, 5m) }
+| summarize buckets_over_20 = countIf(n > 20), worst = max(n)

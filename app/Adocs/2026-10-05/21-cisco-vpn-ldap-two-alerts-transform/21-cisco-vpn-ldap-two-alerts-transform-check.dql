@@ -1,0 +1,19 @@
+// 1) Where do the LDAP FAILED lines land, and are they duplicated across sources?
+fetch logs, from:now()-30d
+| filter contains(content, "Windows_LDAP as FAILED", caseSensitive: false)
+| summarize lines = count(), distinct_lines = countDistinct(concat(toString(timestamp), content)), by:{ dt.system.bucket, log.source }
+
+// 2) If lines > distinct_lines overall, the same ASA message arrives twice (Splunk A and B were double paging)
+fetch logs, from:now()-30d
+| filter matchesValue(dt.system.bucket, "network*")
+| filter contains(content, "Windows_LDAP as FAILED", caseSensitive: false)
+| summarize lines = count(), distinct_lines = countDistinct(concat(toString(timestamp), content))
+
+// 3) Minutes over the threshold in the last 30 days (how often it would page)
+fetch logs, from:now()-30d
+| filter matchesValue(dt.system.bucket, "network*")
+| filter contains(content, "Windows_LDAP as FAILED", caseSensitive: false)
+| dedup timestamp, content
+| summarize n = count(), by:{ minute = bin(timestamp, 1m) }
+| filter n > 3
+| sort minute desc

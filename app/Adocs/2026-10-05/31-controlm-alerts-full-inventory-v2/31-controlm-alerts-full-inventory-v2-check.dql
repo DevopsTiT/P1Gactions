@@ -1,0 +1,38 @@
+// Run in a Notebook. Set the timeframe in the picker (no from: needed).
+
+// 1. Where do Control-M logs live? (Last 24 hours) → fix local.cm_activejobs and local.cm_alert
+fetch logs
+| filter contains(content, "CHDE010M") or contains(content, "Ended not OK", caseSensitive: false)
+| summarize lines = count(), by:{ dt.system.bucket, log.source, host.name }
+| sort lines desc
+
+// 2. Are job_name, status, start_time ... real fields, or only text inside content? (Last 1 hour)
+fetch logs
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| limit 5
+
+// 3. Snapshot frequency: how often does the same job appear? (Last 24 hours)
+//    Needed for the "first seen" logic in job_result_notify, rerun_check and claims_job_overrun.
+fetch logs
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| filter job_name == "CHDE010M"
+| summarize snapshots = count(), first = min(timestamp), last = max(timestamp), by:{ order_id, status }
+
+// 4. Abend volume per job (Last 7 days) → how many problems the detector would open
+fetch logs
+| filter matchesValue(log.source, "*controlm_alert*")
+| filter lower(message) == "ended not ok"
+| summarize abends = count(), by:{ job_name }
+| sort abends desc
+
+// 5. Are the lookup files uploaded?
+fetch dt.system.files
+| filter startsWith(name, "/lookups/controlm")
+
+// 6. Preview the CHDE010M yesterday report
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| filter job_name == "CHDE010M"
+| sort timestamp desc
+| dedup odate
+| filter odate == formatTimestamp(now() - 1d, format:"yyyyMMdd", timezone:"Asia/Tokyo")

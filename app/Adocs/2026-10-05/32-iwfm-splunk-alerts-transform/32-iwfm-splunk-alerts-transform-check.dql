@@ -1,0 +1,38 @@
+// Run in a Notebook. Set the timeframe in the picker (no from: needed).
+
+// 1. Where do the lines live? (Last 24 hours) → fix log.source and namespace guesses
+fetch logs
+| filter contains(content, "GenerateFormImage-v2", caseSensitive: false)
+      or contains(content, "IWFMReportException", caseSensitive: false)
+      or contains(content, "Caution", caseSensitive: false)
+| summarize lines = count(), by:{ dt.system.bucket, log.source, k8s.namespace.name, host.name }
+| sort lines desc
+| limit 50
+
+// 2. How do Status and LOGLEVEL look in the raw line? (Last 24 hours)
+fetch logs
+| filter matchesValue(log.source, "*eip_mediator_serverlog*") or matchesValue(log.source, "*fmwsagentlog*")
+| filter contains(content, "FAILURE", caseSensitive: false) or contains(content, "Caution", caseSensitive: false) or contains(content, "Fatal", caseSensitive: false)
+| fields timestamp, log.source, content
+| limit 20
+
+// 3. EIP006 failures per minute (Last 7 days): how often above 2?
+fetch logs
+| filter matchesValue(log.source, "*eip_mediator_serverlog*")
+| filter contains(content, "jp-Distributing-Sell-GenerateFormImage-v2-vs", caseSensitive: false)
+| filter contains(content, "Status=FAILURE", caseSensitive: false)
+| summarize per_minute = count(), by:{ minute = bin(timestamp, 1m) }
+| summarize minutes_over_2 = countIf(per_minute > 2), max_per_minute = max(per_minute)
+
+// 4. IWFMReportException per 5 minutes (Last 7 days): how often above 15?
+fetch logs
+| filter k8s.namespace.name == "compass-prod-axa-li-jp"
+| filter contains(content, "IWFMReportException", caseSensitive: false)
+| summarize per_5m = count(), by:{ slot = bin(timestamp, 5m) }
+| summarize slots_over_15 = countIf(per_5m > 15), max_per_5m = max(per_5m)
+
+// 5. IWFM agent Caution and Fatal per hour (Last 7 days): is it noisy?
+fetch logs
+| filter matchesValue(log.source, "*fmwsagentlog*")
+| filter contains(content, "LOGLEVEL=\"Caution\"", caseSensitive: false) or contains(content, "LOGLEVEL=\"Fatal\"", caseSensitive: false)
+| summarize lines = count(), by:{ hour = bin(timestamp, 1h) }

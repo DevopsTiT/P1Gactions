@@ -1,0 +1,22 @@
+// 1) Find where the OUD service logs land (Splunk index=ods sourcetype=oud_service)
+fetch logs, from:now()-7d
+| filter contains(log.source, "oud", caseSensitive: false) or contains(content, "oud", caseSensitive: false)
+| summarize lines = count(), by:{ dt.system.bucket, log.source, host.name, dt.entity.host }
+| sort lines desc
+| limit 30
+
+// 2) Past "failed" lines and when they happen (is it always around the 04:00 restart?)
+fetch logs, from:now()-30d
+| filter matchesValue(log.source, "*oud_service*")
+| filter matchesPhrase(content, "failed")
+| fields timestamp, host.name, content
+| sort timestamp desc
+| limit 50
+
+// 3) Noise check: lines containing "failed" that are NOT restart failures
+fetch logs, from:now()-30d
+| filter matchesValue(log.source, "*oud_service*")
+| filter matchesPhrase(content, "failed")
+| summarize n = count(), by:{ content }
+| sort n desc
+| limit 20
