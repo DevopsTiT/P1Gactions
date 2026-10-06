@@ -1,0 +1,10 @@
+// 1. Your query as-is: raw lines (paste in a Notebook, last 30 days)
+fetch logs, from:now()-30d
+| filter contains(log.source, "/var/log/ASA/") or matchesValue(host.name, "ljcmgt14*")
+| filter contains(content, "Windows_LDAP as FAILED")
+
+// 2. What the detector sees: same query plus the per-minute count
+fetch logs, from:now()-2h
+| filter contains(log.source, "/var/log/ASA/") or matchesValue(host.name, "ljcmgt14*")
+| filter contains(content, "Windows_LDAP as FAILED")
+| makeTimeseries count = count(default: 0), interval:1m

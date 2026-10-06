@@ -1,0 +1,11 @@
+// 1. Same search as Splunk: lines that should raise the alert (last 30 days)
+fetch logs, from:now()-30d
+| filter matchesValue(log.source, "/var/log/ASA/*")
+| filter matchesPhrase(content, "Windows_LDAP as FAILED")
+| fields timestamp, host.name, log.source, content
+| sort timestamp desc
+
+// 2. If query 1 is empty: find where the ASA lines actually arrive
+fetch logs, from:now()-30d
+| filter matchesPhrase(content, "Windows_LDAP as FAILED")
+| summarize count(), by:{log.source, host.name, dt.system.bucket}
