@@ -1,0 +1,25 @@
+// 1. Where do Control-M logs arrive?
+fetch logs, from:now()-1d
+| filter contains(log.source, "controlm")
+| summarize lines = count(), by:{ log.source }
+
+// 2. Are the Control-M fields real attributes?
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| fields timestamp, job_name, status, order_id, start_time, end_time, odate
+| limit 20
+
+// 3. Abends per job in the last 7 days (how noisy will job_abend be?)
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*controlm_alert*")
+| filter lower(message) == "ended not ok"
+| summarize abends = count(), by:{ job_name }
+| sort abends desc
+
+// 4. Run days of the report jobs (sets the lookback windows)
+fetch logs, from:now()-14d
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| filter job_name == "CHDE010M" or job_name == "CHDR010M" or startsWith(job_name, "PDDW")
+| filter status == "Ended OK"
+| summarize runs = countDistinct(order_id), by:{ job_name, day = formatTimestamp(timestamp, format:"yyyy-MM-dd EEE", timezone:"Asia/Tokyo") }
+| sort day desc

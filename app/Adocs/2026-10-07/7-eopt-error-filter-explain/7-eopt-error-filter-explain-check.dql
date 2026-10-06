@@ -1,0 +1,13 @@
+// Compare the filters over 2 days: how many lines each one catches
+fetch logs, from:now()-2d
+| filter startsWith(host.name, "eopt")
+| fieldsAdd your_filter = contains(content, "ERROR ", caseSensitive:false),
+            level_filter = contains(content, "Z ERROR ")
+| summarize your_filter = countIf(your_filter), level_filter = countIf(level_filter)
+
+// Lines your filter catches that are NOT ERROR-level (the false alerts)
+fetch logs, from:now()-2d
+| filter startsWith(host.name, "eopt")
+| filter contains(content, "ERROR ", caseSensitive:false) and not contains(content, "Z ERROR ")
+| fields timestamp, content
+| limit 50

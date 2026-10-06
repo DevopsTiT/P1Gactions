@@ -1,0 +1,19 @@
+// 1. Source 1: backend timeouts (Splunk shows 5 on 10/6)
+fetch logs, from:now()-2d
+| filter startsWith(host.name, "myaxabackend-")
+| filter contains(content, "api-jp-cert.corp.intraxa") and contains(content, "java.net.SocketTimeoutException")
+| fields timestamp, host.name, log.source, content
+
+// 2. Source 2: API gateway "Problem routing to ... timed out" lines
+fetch logs, from:now()-2d
+| filter contains(log.source, "/SYSLOG/APIGW/prod/")
+| filter contains(content, "Problem routing to") and contains(content, "timed out") and contains(content, "myaxa-api.alj.intraxa")
+| fields timestamp, content
+
+// 3. Busiest 5-minute windows over 7 days (review the > 20 threshold)
+fetch logs, from:now()-7d
+| filter (startsWith(host.name, "myaxabackend-") and contains(content, "api-jp-cert.corp.intraxa") and contains(content, "java.net.SocketTimeoutException"))
+      or (contains(log.source, "/SYSLOG/APIGW/prod/") and contains(content, "Problem routing to") and contains(content, "timed out") and contains(content, "myaxa-api.alj.intraxa"))
+| summarize count = count(), by:{bin(timestamp, 5m)}
+| sort count desc
+| limit 10

@@ -1,0 +1,9 @@
+cd "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-07/8-eopt-pod-error-frontend-tf"
+terraform init
+terraform validate
+terraform plan
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-07/8-eopt-pod-error-frontend-tf" "/Users/k/Work/AIProjects/Files/2026-10-07/"
+cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-07/8-eopt-pod-error-frontend-tf" "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-07/"
+cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git add app/Adocs/2026-10-07/8-eopt-pod-error-frontend-tf/*.md app/Adocs/2026-10-07/8-eopt-pod-error-frontend-tf/*.txt app/Adocs/2026-10-07/8-eopt-pod-error-frontend-tf/*.tf app/Adocs/2026-10-07/8-eopt-pod-error-frontend-tf/*.dql
+cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git commit -m "docs: eopt OpenPaaS pod error frontend Splunk alert as Dynatrace Records detector"
+cd /Users/k/Codes/Pra/P1GithubActions/P1Gactions && git push

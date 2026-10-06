@@ -1,0 +1,23 @@
+// 1. Where do the batch_monitoring lines arrive? (fix the log.source filter if empty)
+fetch logs, from:now()-2d
+| filter contains(content, "Process Start") or contains(content, "sent to UDM")
+| summarize count(), by:{host.name, log.source}
+
+// 2. Today's batch lines in JST (same as the Splunk email)
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*batch_monitoring*")
+| fieldsAdd time_jst = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss", timezone:"Asia/Tokyo")
+| fields time_jst, content
+| sort time_jst asc
+
+// 3. Lines per night over 30 days (expect 8; fewer means the batch stopped early)
+fetch logs, from:now()-30d
+| filter matchesValue(log.source, "*batch_monitoring*")
+| summarize lines = count(), by:{day = formatTimestamp(timestamp, format:"yyyy-MM-dd", timezone:"Asia/Tokyo")}
+| sort day desc
+
+// 4. Failed steps over 30 days ("Failed to delete Data LINEBOT.csv" shows up every night)
+fetch logs, from:now()-30d
+| filter matchesValue(log.source, "*batch_monitoring*")
+| filter contains(content, "Failed")
+| summarize count(), by:{content}

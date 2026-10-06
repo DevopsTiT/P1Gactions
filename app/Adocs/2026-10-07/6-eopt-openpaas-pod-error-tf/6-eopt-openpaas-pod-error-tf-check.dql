@@ -1,0 +1,23 @@
+// 1. How do eopt logs arrive? (Splunk: index eopt-prod-axa-li-jp, host eoptsystemapi-*, source s3://axa-li-jp-logforwarders-prod/...)
+fetch logs, from:now()-1h
+| filter startsWith(host.name, "eopt") or contains(k8s.namespace.name, "eopt")
+| summarize count(), by:{host.name, k8s.namespace.name, log.source}
+
+// 2. Detector query over 2 days: should show the 11 ERROR lines from 10/6 09:30 JST
+fetch logs, from:now()-2d
+| filter startsWith(host.name, "eopt")
+| filter contains(content, "Z ERROR ", caseSensitive:false)
+| fields timestamp, host.name, content
+| sort timestamp desc
+
+// 3. Does Dynatrace already parse the level? If yes, loglevel == "ERROR" is a cleaner filter
+fetch logs, from:now()-2d
+| filter startsWith(host.name, "eopt")
+| summarize count(), by:{loglevel}
+
+// 4. Daily noise: ERROR lines per hour over 7 days (is the 09:30 import job the only source?)
+fetch logs, from:now()-7d
+| filter startsWith(host.name, "eopt")
+| filter contains(content, "Z ERROR ", caseSensitive:false)
+| summarize count(), by:{bin(timestamp, 1h)}
+| sort count desc

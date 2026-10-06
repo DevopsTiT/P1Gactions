@@ -1,0 +1,23 @@
+// 1. Where do ISP_MASTER_ELECT_LOCK lines come from? (add a host or log.source filter once known)
+fetch logs, from:now()-30d
+| filter contains(content, "ISP_MASTER_ELECT_LOCK")
+| summarize count(), by:{host.name, log.source}
+
+// 2. Raw lines over 30 days
+fetch logs, from:now()-30d
+| filter contains(content, "ISP_MASTER_ELECT_LOCK")
+| fields timestamp, host.name, log.source, content
+| sort timestamp desc
+| limit 100
+
+// 3. Lines per minute during past outages (which thresholds would have fired?)
+fetch logs, from:now()-30d
+| filter contains(content, "ISP_MASTER_ELECT_LOCK")
+| summarize count = count(), by:{bin(timestamp, 1m)}
+| sort count desc
+| limit 20
+
+// 4. Are PowerCenter / Informatica logs ingested at all?
+fetch logs, from:now()-1d
+| filter contains(log.source, "nformatica") or contains(log.source, "powercenter") or contains(host.name, "infa")
+| summarize count(), by:{host.name, log.source}
