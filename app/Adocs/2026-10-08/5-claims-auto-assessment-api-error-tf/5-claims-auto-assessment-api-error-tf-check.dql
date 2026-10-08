@@ -1,0 +1,19 @@
+// 1. Where does the pod name land? (host.name or k8s.pod.name)
+fetch logs, from:now()-1d
+| filter contains(host.name, "claims-auto-assessment-api") or contains(k8s.pod.name, "claims-auto-assessment-api")
+| summarize lines = count(), by:{ host.name, k8s.pod.name, log.source }
+
+// 2. Same result as the Splunk search, last 24 hours
+fetch logs, from:now()-24h
+| filter startsWith(host.name, "claims-auto-assessment-api") or startsWith(k8s.pod.name, "claims-auto-assessment-api")
+| filter contains(content, "] ERROR ", caseSensitive:false)
+| filter not contains(content, "Error stacktraces are turned on", caseSensitive:false)
+| fields timestamp, host.name, k8s.pod.name, content
+| sort timestamp asc
+
+// 3. How often would it fire? ERROR lines per hour over 7 days
+fetch logs, from:now()-7d
+| filter startsWith(host.name, "claims-auto-assessment-api") or startsWith(k8s.pod.name, "claims-auto-assessment-api")
+| filter contains(content, "] ERROR ", caseSensitive:false)
+| filter not contains(content, "Error stacktraces are turned on", caseSensitive:false)
+| makeTimeseries errors = count(), interval:1h
