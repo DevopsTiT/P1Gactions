@@ -1,0 +1,2 @@
+| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_HPM*" | table title cron_schedule dispatch.earliest_time actions action.* alert.expires
+index=_internal sourcetype=scheduler savedsearch_name="Prod_Life_HPM*" earliest=-30d status=success result_count>0 | stats count latest(_time) as last_fired by savedsearch_name

@@ -1,0 +1,23 @@
+// 1. Do MyAXA External Check results reach Dynatrace, and what are the exact job_name values?
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "MyAXA", caseSensitive:false)
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| summarize runs = count(), last_seen = max(timestamp), by:{ job_name, job_result }
+
+// 2. Is the maintenance window lookup uploaded, and what format are start and end?
+load "/lookups/maintenance_window"
+| filter application == "MyAXA"
+| limit 20
+
+// 3. Run history for both checks over the last day (look for NG streaks of 10+ minutes)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "MyAXA", caseSensitive:false)
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| filter contains(job_name, "External%20Check%20-%20MyAXA")
+| fields timestamp, job_name, job_result
+| sort timestamp desc
+| limit 200

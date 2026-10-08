@@ -1,0 +1,25 @@
+// 1. Are jenkins/test build_report events separable from jenkins_statistics events?
+//    jenkins/test should have no top-level job_duration; jenkins_statistics events do.
+fetch logs, from:now()-1h
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "build_report")
+| parse content, "JSON:j"
+| fieldsAdd has_job_duration = isNotNull(j[job_duration]), job_name = toString(j[job_name])
+| summarize lines = count(), sample_job = takeFirst(job_name), by:{ log.source, has_job_duration }
+
+// 2. Configuration rows for the four applications
+load "/lookups/jenkins/configuration"
+| filter in(application, { "HPM_Owner_Portal", "AG Portal NTTGW", "Banca Portal", "Compass AG" })
+| summarize jobs = count(), by:{ application }
+
+// 3. Which job names each application really has in jenkins/test (App-Ops and plain applications/*)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "build_report")
+| parse content, "JSON:j"
+| filter isNull(j[job_duration])
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| fieldsAdd name = replaceString(replaceString(job_name, "job/", ""), "%20", " ")
+| lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{ application }
+| filter in(cfg.application, { "HPM_Owner_Portal", "AG Portal NTTGW", "Banca Portal", "Compass AG" })
+| summarize runs = count(), by:{ cfg.application, job_name, job_result }

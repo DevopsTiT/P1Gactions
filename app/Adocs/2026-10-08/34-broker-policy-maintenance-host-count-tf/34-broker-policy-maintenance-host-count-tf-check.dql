@@ -1,0 +1,10 @@
+// 1. Where do broker-policy-maintenance logs land in Dynatrace, and which field holds the pod name?
+fetch logs, from:now()-1h
+| filter contains(content, "broker-policy-maintenance") or matchesValue(k8s.pod.name, "broker-policy-maintenance*") or matchesValue(host.name, "broker-policy-maintenance*")
+| summarize lines = count(), by:{ host.name, k8s.pod.name, k8s.workload.name, k8s.namespace.name, log.source }
+
+// 2. Same count the detector uses, per pod
+fetch logs, from:now()-60m
+| filter matchesValue(k8s.pod.name, "broker-policy-maintenance-web-*") or matchesValue(host.name, "broker-policy-maintenance-web-*")
+| fieldsAdd pod = coalesce(k8s.pod.name, host.name)
+| summarize lines = count(), last_seen = max(timestamp), by:{ pod }

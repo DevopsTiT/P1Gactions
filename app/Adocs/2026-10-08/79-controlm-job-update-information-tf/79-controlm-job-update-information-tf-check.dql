@@ -1,0 +1,18 @@
+// 1. log.source values for the job definition data
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*controlm_def_ver*")
+| summarize count(), by:{ log.source }
+
+// 2. Field names and formats on current-version definitions
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*controlm_def_ver_jobs*") or matchesValue(log.source, "*controlm_def_ver_lnki_p*")
+| filter is_current_version == "Y"
+| fields timestamp, log.source, job_id, table_id, job_name, condition, change_date, change_time, creation_date, creation_time, cmd_line, mem_lib, memname, version_user
+| limit 20
+
+// 3. How many definitions change per hour (how noisy the detector will be)
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*controlm_def_ver_jobs*") or matchesValue(log.source, "*controlm_def_ver_lnki_p*")
+| filter is_current_version == "Y"
+| summarize jobs = countDistinct(job_id), by:{ hour = bin(timestamp, 1h) }
+| sort hour desc

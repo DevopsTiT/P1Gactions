@@ -1,0 +1,2 @@
+| inputlookup configuration | search application="FCR"
+| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_FCR_RealTimeAndFunctionalCheck_NG" | table title action.* alert.*

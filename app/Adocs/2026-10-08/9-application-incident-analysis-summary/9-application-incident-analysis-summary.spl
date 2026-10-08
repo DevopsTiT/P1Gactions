@@ -1,0 +1,7 @@
+| rest /servicesNS/-/-/saved/searches splunk_server=local | search search="*monitor_logs*" | table title eai:acl.app cron_schedule search
+
+index=monitoring_summary_idx sourcetype=application_summary earliest=-30d | table _time ctime application OK NG Maintenance
+
+| inputlookup monitor_logs | head 20
+
+| inputlookup monitor_logs | stats count by application status isMaintenance

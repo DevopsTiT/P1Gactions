@@ -1,0 +1,3 @@
+index=jenkins_statistics sourcetype="json:jenkins:old" earliest=-1h | stats count by source event_tag
+index=jenkins_statistics sourcetype="json:jenkins:old" earliest=-1d (job_name=applications* OR job_name=group-jobs*) | where isnotnull(job_duration) | stats count by source event_tag
+| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_FCR_RealTimeAndFunctionalCheck_NG" | table title action.* alert.*

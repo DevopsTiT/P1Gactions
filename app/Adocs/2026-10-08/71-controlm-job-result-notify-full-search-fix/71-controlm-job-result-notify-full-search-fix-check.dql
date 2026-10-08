@@ -1,0 +1,40 @@
+// 1. Where do Control-M logs arrive?
+fetch logs, from:now()-1d
+| filter contains(log.source, "controlm")
+| summarize lines = count(), by:{ host.name, log.source }
+
+// 2. Are the Control-M fields real attributes?
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| fields timestamp, job_name, status, application, order_id, isn, start_time, end_time, odate, group_name, owner, current_time
+| limit 20
+
+// 3. Alert side fields
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*controlm_alert*")
+| fields timestamp, order_id, job_name, message, host_time, data_center, run_counter
+| limit 20
+
+// 4. Jobs that abended and ended again in the last 24 hours (how many problems per day?)
+fetch logs, from:now()-24h
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| filter status == "Ended OK" or status == "Ended not OK"
+| filter not endsWith(job_name, "-F") and not endsWith(job_name, "-S")
+| lookup [ fetch logs, from:now()-48h | filter matchesValue(log.source, "*controlm_alert*") | summarize n = count(), by:{ order_id } ],
+         sourceField:order_id, lookupField:order_id, prefix:"alert."
+| filter isNotNull(alert.n)
+| summarize runs = countDistinct(concat(order_id, isn)), by:{ job_name, status }
+| sort runs desc
+
+// 5. Lookups uploaded with the expected columns (run one at a time)
+load "/lookups/controlm/addresslist" | limit 5
+load "/lookups/controlm/job_definition" | limit 5
+load "/lookups/controlm/specific_contact" | limit 5
+
+// 6. Jobs with no contact or no 対応方法 (would show Email empty or "N/A")
+fetch logs, from:now()-7d
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| summarize by:{ job_name }
+| lookup [ load "/lookups/controlm/addresslist" ], sourceField:job_name, lookupField:JobID, prefix:"addr.", fields:{ Method }
+| lookup [ load "/lookups/controlm/specific_contact" ], sourceField:job_name, lookupField:job_name, prefix:"contact.", fields:{ Email }
+| filter isNull(addr.Method) or isNull(contact.Email)

@@ -1,0 +1,20 @@
+// 1. Jobs with "Management" in the name, results and response codes
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "Management")
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result]), responsecode = toString(j[status])
+| summarize runs = count(), last_seen = max(timestamp), by:{ job_name, job_result, responsecode }
+
+// 2. Configuration row for the job (application name)
+load "/lookups/jenkins/configuration"
+| filter contains(job_name, "Management")
+
+// 3. Run interval: runs per hour for the Management URL check
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "Management")
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), responsecode = toString(j[status])
+| filter contains(job_name, "Management")
+| makeTimeseries runs = count(), by:{ responsecode }, interval:1h

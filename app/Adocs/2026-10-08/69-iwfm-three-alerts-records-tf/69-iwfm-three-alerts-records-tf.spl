@@ -1,0 +1,5 @@
+index=eip1015 sourcetype=eip_mediator_serverlog jp-Distributing-Sell-GenerateFormImage-v2-vs* Status=FAILURE earliest=-24h | bin _time span=1m | stats count by _time | where count > 2
+index=compass-prod-axa-li-jp "IWFMReportException" earliest=-24h | bin _time span=5m | stats count by _time | where count > 15
+index=iwfm sourcetype=fmwsagentlog earliest=-24h (LOGLEVEL="Caution" OR LOGLEVEL="Fatal") | stats count by host LOGLEVEL
+index=compass-prod-axa-li-jp "IWFMReportException" earliest=-1h | stats count by kubernetes.namespace_name source
+| rest /servicesNS/-/-/saved/searches | search title="EIP - IWFM*" OR title="*IWFMReportException*" OR title="IWFM_Errors" | table title cron_schedule dispatch.earliest_time alert_threshold actions action.email.priority

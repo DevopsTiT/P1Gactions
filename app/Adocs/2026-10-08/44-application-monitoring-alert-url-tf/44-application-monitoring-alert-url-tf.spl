@@ -1,0 +1,3 @@
+index="jenkins_console" sourcetype="text:jenkins" "[HTTP Monitor]" earliest=-1h | table _time source status _raw | head 20
+index="jenkins_console" sourcetype="text:jenkins" "[HTTP Monitor]" earliest=-15m | eval name=replace(source,"job/",""), name=replace(name,"%20"," "), name=replace(name,"/\d+/console","") | stats count values(status) as codes by name
+| rest /servicesNS/-/-/saved/searches | search title="Application Monitoring Alert - URL" | table title actions action.* alert.*

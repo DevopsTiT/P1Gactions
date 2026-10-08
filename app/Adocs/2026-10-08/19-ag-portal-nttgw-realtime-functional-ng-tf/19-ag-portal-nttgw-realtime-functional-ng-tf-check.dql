@@ -1,0 +1,27 @@
+// 1. Real Time and Functional job names and results on the Jenkins host
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "App-Ops-OpenOps")
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| summarize runs = count(), last_seen = max(timestamp), by:{ job_name, job_result }
+| sort job_name asc
+
+// 2. Which configuration rows belong to AG Portal NTTGW?
+load "/lookups/jenkins/configuration"
+| filter application == "AG Portal NTTGW"
+
+// 3. Raw testsuite shape for a Functional run (is testcase an array?)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "App-Ops-OpenOps/app-check-jobs/Functional/")
+| fields timestamp, content
+| limit 5
+
+// 4. Real Time results over a day (chart)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "Real%20Time%20Check") or contains(content, "Real Time Check")
+| parse content, "JSON:j"
+| fieldsAdd job_result = toString(j[job_result])
+| makeTimeseries runs = count(), by:{ job_result }, interval:30m

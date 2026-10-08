@@ -1,0 +1,25 @@
+// Query 1: EIP006 - is Status an attribute, or only text in content? Where do these logs come from?
+fetch logs, from:now()-24h
+| filter contains(content, "jp-Distributing-Sell-GenerateFormImage-v2-vs")
+| fieldsAdd status_attr = toString(Status), has_text = contains(content, "Status=FAILURE")
+| summarize events = count(), by:{ log.source, host.name, status_attr, has_text }
+
+// Query 2: Compass - which namespace / source holds IWFMReportException, and the normal 5-minute rate
+fetch logs, from:now()-24h
+| filter contains(content, "IWFMReportException")
+| summarize events = count(), by:{ k8s.namespace.name, log.source, bin(timestamp, 5m) }
+| sort events desc
+| limit 50
+
+// Query 3: IWFM agent - log.source of fmwsagentlog and how LOGLEVEL looks
+fetch logs, from:now()-24h
+| filter matchesValue(log.source, "*fmwsagentlog*") or contains(content, "AGENTID")
+| fieldsAdd loglevel_attr = toString(LOGLEVEL)
+| summarize events = count(), by:{ log.source, host.name, loglevel_attr }
+
+// Query 4: dry-run each detector over 1 day to see how often it would fire
+fetch logs, from:now()-24h
+| filter contains(content, "jp-Distributing-Sell-GenerateFormImage-v2-vs")
+| filter toString(Status) == "FAILURE" or contains(content, "Status=FAILURE")
+| summarize failures = count(), by:{ minute = bin(timestamp, 1m) }
+| filter failures > 2

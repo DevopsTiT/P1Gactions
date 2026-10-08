@@ -1,0 +1,25 @@
+// 1. AG Portal NTTGW rows in configuration (exact application spelling and job_name values)
+load "/lookups/jenkins/configuration"
+| filter contains(toString(application), "NTTGW")
+| fields application, job_name, pager_duty
+
+// 2. Runs per AG Portal NTTGW job in the last 30 minutes (need at least 2 each)
+fetch logs, from:now()-30m
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "build_report")
+| parse content, "JSON:j"
+| filter isNull(j[job_duration])
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| fieldsAdd project = replaceString(replaceString(job_name, "%20", " "), "App-Ops-OpenOps/app-check-group/Real Time Check/", "App-Ops-OpenOps/app-check-jobs/Functional/")
+| fieldsAdd name = replaceString(replaceString(project, "job/", ""), "/App", "App")
+| fieldsAdd name = if(endsWith(name, "/"), substring(name, from:0, to:stringLength(name) - 1), else: name)
+| lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{ application }
+| filter cfg.application == "AG Portal NTTGW"
+| summarize runs = count(), results = collectDistinct(job_result), by:{ name }
+
+// 3. Which job_result values exist (FAILURE and ABORTED are excluded by the alert)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "build_report")
+| parse content, "JSON:j"
+| summarize count(), by:{ job_result = toString(j[job_result]) }

@@ -1,0 +1,26 @@
+// 1. Jenkins console log.source format
+fetch logs, from:now()-1h
+| filter contains(content, "[HTTP Monitor]")
+| summarize lines = count(), by:{ log.source }
+| limit 20
+
+// 2. HTTP Monitor line format (where is the status code?)
+fetch logs, from:now()-1h
+| filter contains(content, "[HTTP Monitor]")
+| fields timestamp, log.source, content
+| limit 20
+
+// 3. Is the configuration lookup uploaded?
+load "/lookups/jenkins/configuration"
+| fields job_name, application, pager_duty
+| limit 20
+
+// 4. Parsed name and response code (before the threshold)
+fetch logs, from:now()-15m
+| filter contains(log.source, "/console")
+| filter contains(content, "[HTTP Monitor]")
+| fieldsAdd src = replaceString(replaceString(log.source, "job/", ""), "%20", " ")
+| parse src, "LD:name '/' INT '/console'"
+| parse content, "LD 'status' LD INT:responsecode"
+| summarize fails = countIf(responsecode != 200), oks = countIf(responsecode == 200), by:{ name }
+| sort fails desc

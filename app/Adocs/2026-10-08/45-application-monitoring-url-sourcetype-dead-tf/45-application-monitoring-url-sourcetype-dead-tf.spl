@@ -1,0 +1,6 @@
+index="jenkins_console" earliest=-7d | stats count by sourcetype
+index="jenkins_console" sourcetype="text:jenkins" earliest=-30d | stats count
+index="jenkins_console" "[HTTP Monitor]" earliest=-1d | stats count by sourcetype
+index="jenkins_console" "[HTTP Monitor]" earliest=-1h | table _time source status _raw | head 20
+| rest /servicesNS/-/-/saved/searches | search title="Application Monitoring Alert - URL" | table title search
+index=_internal sourcetype=scheduler savedsearch_name="Application Monitoring Alert - URL" earliest=-7d | stats count by status result_count

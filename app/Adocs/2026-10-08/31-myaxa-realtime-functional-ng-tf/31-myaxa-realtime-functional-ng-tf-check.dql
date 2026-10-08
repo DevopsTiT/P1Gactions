@@ -1,0 +1,15 @@
+// 1. MyAXA rows in configuration (exact application spelling)
+load "/lookups/jenkins/configuration"
+| filter contains(lower(application), "myaxa")
+| fields job_name, application, pager_duty
+
+// 2. Build events for MyAXA projects in the last day
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "job_duration")
+| filter not contains(content, "audit_trail")
+| filter contains(lower(content), "myaxa")
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| summarize runs = count(), by:{ job_name, job_result }
+| sort runs desc

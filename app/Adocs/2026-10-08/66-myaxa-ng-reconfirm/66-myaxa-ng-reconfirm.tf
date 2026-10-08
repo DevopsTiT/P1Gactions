@@ -1,0 +1,114 @@
+# Splunk: Prod_Life_MyAXA_RealTimeAndFunctionalCheck_NG
+#   Same jenkins_statistics template as FCR (seq 26) and Claims ICM (seq 30), except:
+#     | where application="MyAXA"
+#   index=jenkins_statistics sourcetype="json:jenkins:old" (job_name=applications* OR job_name=group-jobs*)
+#   | where isnotnull(job_duration) | rex tempname from "Building ...", remarks "OKメンテナンス中"
+#   | lookup configuration -> application | streamstats ... where index<=2 (last 2 runs)
+#   | status OK if any SUCCESS, else NG | check_maintenance_window | add_alert_info
+#   | search event > 0 OR (status="OK" AND prev_status="NG")
+#   cron */1, Last 2 hours, Expires 24h, results > 0, For each result, no throttle
+#   Action: Alert Status Manager, email Production (PagerDuty setting cut off in the screenshot)
+#
+# Seq 66 = seq 41 (and seq 31) unchanged. The new screenshots show the same search, cron */1,
+#   Last 2 hours, Expires 24h, Alert Status Manager with email Production. PagerDuty is still cut off
+#   below Recipients, so pagerduty.enabled stays "0". Apply from ONE folder only (31, 41 or 66).
+#
+# Not the same alert as "MYAXA NG state for 10min" (seq 18): that one reads Login_Check / Function_Check
+# job results directly; this one is the Real Time + Functional project check from jenkins_statistics.
+#
+# Dynatrace: one problem per application + name (project).
+#   Opens when the Real Time (group-jobs) run returned 2+ non-SUCCESS results in 2 hours with no SUCCESS.
+#   Closes on the first SUCCESS.
+#
+# CONFIRM before apply (check.dql):
+#   1. PagerDuty Enable or Disable on the Alert Status Manager; set pagerduty.enabled
+#   2. /lookups/jenkins/configuration has rows with application "MyAXA" (exact case)
+
+terraform {
+  required_providers {
+    dynatrace = {
+      source = "dynatrace-oss/dynatrace"
+    }
+  }
+}
+
+provider "dynatrace" {}
+
+resource "dynatrace_davis_anomaly_detectors" "myaxa_realtime_functional_ng" {
+  title       = "Prod_Life_MyAXA_RealTimeAndFunctionalCheck_NG"
+  description = "MyAXA Real Time check returned 2 or more non-SUCCESS results in the last 2 hours with no SUCCESS. One problem per project."
+  enabled     = true
+  source      = "Davis Anomaly Detection"
+
+  analyzer {
+    name = "dt.statistics.anomaly_detection.RecordAnomalyDetectionAnalyzer"
+    input {
+      analyzer_input_field {
+        key   = "query.expression"
+        value = <<-EOT
+          fetch logs, from:now()-2h
+          | filter matchesValue(host.name, "ceaa2099*")
+          | filter contains(content, "job_duration")
+          | filter not contains(content, "audit_trail")
+          | parse content, "JSON:j"
+          | fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result]), job_duration = j[job_duration]
+          | filter matchesValue(job_name, "applications*") or matchesValue(job_name, "group-jobs*")
+          | filter isNotNull(job_duration)
+          | parse content, "LD '\"name\":\"Building ' LD:tempname '\"'"
+          | fieldsAdd is_realtime = matchesValue(job_name, "group-jobs*")
+          | fieldsAdd name = if(isNotNull(tempname), replaceString(tempname, " » ", "/"), else: job_name)
+          | fieldsAdd remark = if(contains(content, "OKメンテナンス中"), "OKメンテナンス中")
+          | lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{ application, pager_duty }
+          | filter cfg.application == "MyAXA"
+          | fieldsAdd application = cfg.application
+          | summarize rt_fails = countIf(is_realtime and job_result != "SUCCESS"),
+                      rt_oks = countIf(is_realtime and job_result == "SUCCESS"),
+                      functional_runs = countIf(not is_realtime),
+                      remarks = collectDistinct(remark),
+                      last_seen = max(timestamp),
+                      by:{ application, name }
+          | filter rt_fails >= 2 and rt_oks == 0
+        EOT
+      }
+      analyzer_input_field {
+        key   = "alertIdentityFields[0]"
+        value = "application"
+      }
+      analyzer_input_field {
+        key   = "alertIdentityFields[1]"
+        value = "name"
+      }
+    }
+  }
+
+  event_template {
+    properties {
+      property {
+        key   = "event.type"
+        value = "CUSTOM_ALERT"
+      }
+      property {
+        key   = "event.name"
+        value = "Prod_Life_MyAXA_RealTimeAndFunctionalCheck_NG"
+      }
+      property {
+        key   = "event.description"
+        value = "MyAXA Real Time check is NG (2+ non-SUCCESS results, no SUCCESS, last 2 hours). See name, rt_fails and remarks on the problem."
+      }
+      property {
+        key   = "alert.severity"
+        value = "high"
+      }
+      property {
+        key   = "app.name"
+        value = "MyAXA"
+      }
+      property {
+        key   = "pagerduty.enabled"
+        value = "0"
+      }
+    }
+  }
+
+  execution_settings {}
+}

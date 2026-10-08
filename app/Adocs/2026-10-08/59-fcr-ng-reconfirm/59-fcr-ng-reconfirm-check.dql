@@ -1,0 +1,20 @@
+// 1. How much of the Jenkins host log is audit_trail vs build events?
+fetch logs, from:now()-1h
+| filter matchesValue(host.name, "ceaa2099*")
+| fieldsAdd kind = if(contains(content, "audit_trail"), "audit_trail",
+                  else: if(contains(content, "job_duration"), "build_with_duration", else: "other"))
+| summarize lines = count(), by:{ kind, log.source }
+
+// 2. Build events the detector keeps (should include applications* and group-jobs*)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "job_duration")
+| filter not contains(content, "audit_trail")
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| summarize runs = count(), by:{ job_name, job_result }
+| sort runs desc
+
+// 3. FCR rows in configuration
+load "/lookups/jenkins/configuration"
+| filter application == "FCR"

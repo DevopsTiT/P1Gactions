@@ -1,0 +1,3 @@
+| rest /servicesNS/-/-/saved/searches | search title="*MyAXA UL Email*" OR title="CH:UL Email Job status" | table title eai:acl.owner disabled cron_schedule action.email.to action.email.cc action.email.subject
+index=_audit action=alert_fired (ss_name="Job Status for MyAXA UL Email" OR ss_name="CHDE010MJob Status for MyAXA UL Email") earliest=-90d | eval day=strftime(_time,"%Y-%m-%d") | stats values(ss_name) as alerts count by day | sort - day
+index=controlm_temp sourcetype=controlm_activejobs job_name=CHDE010M earliest=-35d | dedup odate | table _time odate status start_time end_time

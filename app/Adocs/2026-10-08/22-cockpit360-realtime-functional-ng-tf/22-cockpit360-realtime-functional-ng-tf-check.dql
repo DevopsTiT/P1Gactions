@@ -1,0 +1,26 @@
+// 1. Where do jenkins_statistics events arrive? (Splunk shows host ceaa2099, sources jenkins, jenkins/job_event, audit_trail)
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "job_name")
+| summarize lines = count(), by:{ log.source }
+
+// 2. Does the tempname parse work on group-jobs runs?
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "group-jobs")
+| parse content, "JSON:j"
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| parse content, "LD '\"name\":\"Building ' LD:tempname '\"'"
+| fields timestamp, job_name, job_result, tempname
+| limit 50
+
+// 3. Cockpit360 rows in configuration
+load "/lookups/jenkins/configuration"
+| filter application == "Cockpit360"
+
+// 4. Maintenance remarks in the last day
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "メンテナンス中")
+| fields timestamp, log.source, content
+| limit 20

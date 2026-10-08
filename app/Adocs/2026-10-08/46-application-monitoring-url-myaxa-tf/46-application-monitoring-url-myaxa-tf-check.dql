@@ -1,0 +1,22 @@
+// 1. Do "[HTTP Monitor]" lines exist and carry job_result?
+fetch logs, from:now()-1d
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "[HTTP Monitor]")
+| fields timestamp, log.source, content
+| limit 20
+
+// 2. Which configuration rows are MyAXA (exact application value)
+load "/lookups/jenkins/configuration"
+| filter contains(lower(application), "myaxa")
+| fields job_name, application, pager_duty
+
+// 3. What the detector would raise right now (run before enabling)
+fetch logs, from:now()-15m
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "[HTTP Monitor]")
+| parse content, "LD 'job_result=' WORD:job_result"
+| fieldsAdd name = replacePattern(replaceString(replaceString(toString(log.source), "job/", ""), "%20", " "), "'/' INT '/console' EOS", "")
+| lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{ application, job_name }
+| filter isNotNull(cfg.job_name)
+| summarize runs = count(), results = collectArray(job_result), by:{ application = cfg.application, name }
+| sort application asc

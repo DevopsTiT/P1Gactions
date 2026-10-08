@@ -1,0 +1,3 @@
+| inputlookup ControlmRerunHistory.csv | eval day=substr(JOB_CODE, len(JOB_CODE)-13, 8) | stats count by day | sort - day
+| inputlookup ControlmRerunHistory.csv | sort - end_time | head 20
+| rest /servicesNS/-/-/saved/searches | search title="CTL-M:リラン確認" | table title cron_schedule dispatch.earliest_time actions action.email.to action.email.priority action.email.subject action.lookup.filename

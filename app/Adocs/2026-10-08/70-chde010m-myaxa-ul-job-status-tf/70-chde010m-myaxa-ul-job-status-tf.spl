@@ -1,0 +1,3 @@
+index=controlm_temp sourcetype=controlm_activejobs job_name=CHDE010M earliest=-35d | dedup odate | eval MSG=case(status="Ended OK","OK",true(),"正常終了していません要確認") | table odate status start_time end_time MSG
+index=controlm_temp sourcetype=controlm_activejobs job_name=CHDE010M earliest=-35d | eval odate_len=len(odate), start_len=len(start_time) | stats count by odate_len start_len
+| rest /servicesNS/-/-/saved/searches | search title="*CHDE010M*" OR title="*UL Email*" | table title cron_schedule dispatch.earliest_time actions action.email.priority action.email.subject

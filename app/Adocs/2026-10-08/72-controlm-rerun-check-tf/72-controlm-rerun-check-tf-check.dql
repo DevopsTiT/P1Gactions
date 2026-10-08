@@ -1,0 +1,25 @@
+// 1. Where do Control-M logs arrive?
+fetch logs, from:now()-1d
+| filter contains(log.source, "controlm")
+| summarize lines = count(), by:{ host.name, log.source }
+
+// 2. activejobs fields used by this detector
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| fields timestamp, order_id, job_name, status, start_time, end_time, avg_start_time, avg_runtime, group_name, odate, cmd_line, mem_lib, memname, owner
+| limit 20
+
+// 3. controlm_alert fields (current_time used as abend_time)
+fetch logs, from:now()-1d
+| filter matchesValue(log.source, "*controlm_alert*")
+| fields timestamp, order_id, job_name, current_time, message
+| limit 20
+
+// 4. Dry run over 24 hours: how many reruns would open a problem?
+fetch logs, from:now()-24h
+| filter matchesValue(log.source, "*controlm_activejobs*")
+| filter not endsWith(job_name, "-F") and not endsWith(job_name, "-S")
+| summarize statuses = collectDistinct(status), job_name = max(job_name), by:{ order_id }
+| filter iAny(statuses[] == "Ended not OK" or statuses[] == "Ended Not OK")
+| filter iAny(statuses[] == "Ended OK")
+| sort job_name asc

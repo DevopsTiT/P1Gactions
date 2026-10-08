@@ -1,0 +1,2 @@
+index="jenkins" source="jenkins/test" earliest=-1d job_result!=ABORTED job_result!=FAILURE | lookup configuration job_name as job_name OUTPUT application | stats count by application job_name job_result
+| inputlookup configuration | search application="HPM_Owner_Portal"

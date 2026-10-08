@@ -1,0 +1,2 @@
+index=brokerpolicymaintenance-prod-axa-li-jp earliest=-60m | stats dc(host) as host
+index=brokerpolicymaintenance-prod-axa-li-jp earliest=-60m | stats count latest(_time) as last_seen by host source

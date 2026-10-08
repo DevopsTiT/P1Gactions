@@ -1,0 +1,24 @@
+// 1. Does statusCode exist on /meta/health lines, and with which values?
+fetch logs, from:now()-1d
+| filter matchesValue(k8s.pod.name, "broker-policy-maintenance-web-*") or matchesValue(host.name, "broker-policy-maintenance-web-*")
+| filter contains(content, "/meta/health")
+| parse content, "JSON:j"
+| fieldsAdd statusCode = toString(j[statusCode]), message = toString(j[message])
+| summarize lines = count(), by:{ statusCode, message }
+| sort lines desc
+
+// 2. Any line in the index that carries statusCode at all (in case it is on another message type)
+fetch logs, from:now()-1d
+| filter matchesValue(k8s.pod.name, "broker-policy-maintenance-web-*") or matchesValue(host.name, "broker-policy-maintenance-web-*")
+| filter contains(content, "statusCode")
+| fields timestamp, k8s.pod.name, host.name, content
+| limit 20
+
+// 3. Detector output without the final filter, per pod
+fetch logs, from:now()-5m
+| filter matchesValue(k8s.pod.name, "broker-policy-maintenance-web-*") or matchesValue(host.name, "broker-policy-maintenance-web-*")
+| filter contains(content, "/meta/health")
+| parse content, "JSON:j"
+| fieldsAdd statusCode = toString(j[statusCode]), pod = coalesce(k8s.pod.name, host.name)
+| sort timestamp asc
+| summarize latest_status = takeLast(statusCode), checks = count(), by:{ pod }

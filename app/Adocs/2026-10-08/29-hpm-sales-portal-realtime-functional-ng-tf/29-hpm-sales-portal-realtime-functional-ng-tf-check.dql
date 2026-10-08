@@ -1,0 +1,11 @@
+// 1. jenkins/test events should have no top-level job_duration
+fetch logs, from:now()-1h
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "build_report")
+| parse content, "JSON:j"
+| fieldsAdd has_job_duration = isNotNull(j[job_duration]), job_name = toString(j[job_name])
+| summarize lines = count(), sample_job = takeFirst(job_name), by:{ log.source, has_job_duration }
+
+// 2. HPM_Sales_Portal rows in configuration
+load "/lookups/jenkins/configuration"
+| filter application == "HPM_Sales_Portal"

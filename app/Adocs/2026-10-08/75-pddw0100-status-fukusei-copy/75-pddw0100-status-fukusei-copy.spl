@@ -1,0 +1,3 @@
+| rest /servicesNS/-/-/saved/searches | search title="Claims Status Service PDDW0100 Status*" | table title eai:acl.owner disabled cron_schedule action.email.to action.email.priority
+| rest /servicesNS/-/-/saved/searches | search title="Claims Status Service PDDW0100 Status*" | eval search_hash=md5(search) | table title search_hash
+index=_audit action=alert_fired ss_name="Claims Status Service PDDW0100 Status*" earliest=-30d | stats count by ss_name

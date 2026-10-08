@@ -1,0 +1,3 @@
+index=eip10 sourcetype=eip_nd_mode earliest=-1d | stats count by ACTIVEMQMODE host source
+index=eip10 sourcetype=eip_nd_mode earliest=-1d | timechart span=10m count as event_count
+index=eip10 sourcetype=eip_nd_mode earliest=-10m | stats count as event_count | where event_count=0

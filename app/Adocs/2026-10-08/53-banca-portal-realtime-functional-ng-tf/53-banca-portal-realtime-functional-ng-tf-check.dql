@@ -1,0 +1,18 @@
+// 1. Banca Portal rows in configuration (exact application spelling and job_name values)
+load "/lookups/jenkins/configuration"
+| filter contains(lower(toString(application)), "banca")
+| fields application, job_name, pager_duty
+
+// 2. Runs and results per Banca Portal job in the last 2 hours
+fetch logs, from:now()-2h
+| filter matchesValue(host.name, "ceaa2099*")
+| filter contains(content, "build_report")
+| parse content, "JSON:j"
+| filter isNull(j[job_duration])
+| fieldsAdd job_name = toString(j[job_name]), job_result = toString(j[job_result])
+| fieldsAdd project = replaceString(replaceString(job_name, "%20", " "), "App-Ops-OpenOps/app-check-group/Real Time Check/", "App-Ops-OpenOps/app-check-jobs/Functional/")
+| fieldsAdd name = replaceString(replaceString(project, "job/", ""), "/App", "App")
+| fieldsAdd name = if(endsWith(name, "/"), substring(name, from:0, to:stringLength(name) - 1), else: name)
+| lookup [ load "/lookups/jenkins/configuration" ], sourceField:name, lookupField:job_name, prefix:"cfg.", fields:{ application }
+| filter cfg.application == "Banca Portal"
+| summarize runs = count(), results = collectDistinct(job_result), by:{ name }
