@@ -1,3 +1,0 @@
-index="jenkins_console" "[HTTP Monitor]" job_name="HTTP Monitor - AGGW LB" earliest=-24h | stats count by sourcetype
-index="jenkins_console" "[HTTP Monitor]" "AGGW" earliest=-24h | table _time source job_name duration _raw | head 20
-index=_internal sourcetype=scheduler savedsearch_name="HTTP Response Check Outlier" earliest=-7d | stats count by status result_count

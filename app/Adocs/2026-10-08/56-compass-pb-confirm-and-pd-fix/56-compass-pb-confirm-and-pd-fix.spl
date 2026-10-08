@@ -1,2 +1,0 @@
-| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_CompassPB_RealTimeAndFunctionalCheck_NG" OR title="Prod_Life_AGPortalNTTGW_RealTimeAndFunctionalCheck_NG" OR title="Prod_Life_BancaPortal_RealTimeAndFunctionalCheck_NG" | table title actions action.*
-| inputlookup configuration | search application="Compass AG" OR application="AG Portal NTTGW" OR application="Banca Portal" | stats count by application pager_duty

@@ -1,2 +1,0 @@
-| inputlookup configuration | search application="HPM_Sales_Portal"
-| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_HPM_Sales_Portal_RealTimeAndFunctionalCheck_NG" | table title actions action.* alert.*

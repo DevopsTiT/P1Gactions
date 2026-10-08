@@ -1,4 +1,0 @@
-index="jenkins" source="jenkins/test" job_result!=ABORTED job_name="*Management*" earliest=-24h | stats count values(job_result) as results by job_name
-index="jenkins" source="jenkins/test" job_name="*Management*" earliest=-24h | eval has_status=if(isnotnull(status),"yes","no") | stats count by source has_status
-index=_internal sourcetype=scheduler savedsearch_name="Prod_Life_CCIGoalManagement_URLCheck_NG" earliest=-7d | stats count by status result_count
-index=_audit action=alert_fired ss_name="Prod_Life_CCIGoalManagement_URLCheck_NG" earliest=-30d | stats count latest(_time) as last_fired

@@ -1,3 +1,0 @@
-| inputlookup configuration | search application="Banca Portal" | table application job_name pager_duty
-| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_BancaPortal_RealTimeAndFunctionalCheck_NG" | table title actions action.* alert.*
-index=_internal sourcetype=scheduler savedsearch_name="Prod_Life_BancaPortal_RealTimeAndFunctionalCheck_NG" earliest=-7d | stats count by status result_count

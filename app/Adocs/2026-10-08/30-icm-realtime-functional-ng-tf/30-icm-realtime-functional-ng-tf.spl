@@ -1,2 +1,0 @@
-| inputlookup configuration | search application="Claims ICM" | table job_name application pager_duty
-| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_ICM_RealTimeAndFunctionalCheck_NG" | table title actions action.* alert.*

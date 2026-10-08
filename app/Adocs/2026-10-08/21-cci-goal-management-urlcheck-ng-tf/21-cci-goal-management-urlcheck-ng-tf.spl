@@ -1,3 +1,0 @@
-index="jenkins" source="jenkins/test" earliest=-1d job_result!=ABORTED job_name="*Management*" | stats count latest(_time) as last_seen by job_name job_result status source
-index="jenkins" source="jenkins/test" earliest=-1d job_name="*Management*" | timechart span=1h count by status
-| inputlookup configuration | search job_name="*Management*"

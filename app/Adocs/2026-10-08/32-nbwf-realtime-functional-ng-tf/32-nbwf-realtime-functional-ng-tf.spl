@@ -1,2 +1,0 @@
-| inputlookup configuration | search application="NBWF" | table job_name application pager_duty
-| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_NBWF_RealTimeAndFunctionalCheck_NG" | table title actions action.* alert.*

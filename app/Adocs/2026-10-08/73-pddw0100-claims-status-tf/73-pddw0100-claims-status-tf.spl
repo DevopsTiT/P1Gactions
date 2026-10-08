@@ -1,4 +1,0 @@
-index=controlm_temp sourcetype=controlm_activejobs job_name="PDDW*" NOT job_name=*-S NOT job_name=*-F earliest=-7d | eventstats max(current_time) as max_time by odate,order_id | where current_time=max_time | eval end_hhmm=substr(end_time,9,4) | table odate job_name status end_hhmm | sort - end_hhmm
-| inputlookup claims_job_list.csv | search job_id="PDDW*" | table job_id exec_time exec_no app_name processing job_name_jp
-| inputlookup controlm_avg_run_info_lookup.csv | search job_name="PDDW*" | head 5
-| rest /servicesNS/-/-/saved/searches | search title="Claims Status Service PDDW0100 Status" | table title cron_schedule dispatch.earliest_time action.email.priority action.email.message.alert

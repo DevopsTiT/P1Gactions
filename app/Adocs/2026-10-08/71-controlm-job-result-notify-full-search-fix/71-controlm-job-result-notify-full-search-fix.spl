@@ -1,6 +1,0 @@
-| inputlookup controlm_addresslist.csv | head 5
-| inputlookup controlm_job_Definition.csv | head 5
-| inputlookup controlm_SpecificContact.csv | head 5
-| rest /servicesNS/-/-/data/props/fieldaliases | search value="*対応方法*" | table title value
-| rest /servicesNS/-/-/data/transforms/lookups | search filename="controlm_*" | table title filename fields_list
-| rest /servicesNS/-/-/saved/searches | search title="CTL-M:ジョブ実行結果通知" | table title cron_schedule alert.suppress alert.suppress.fields alert.suppress.period action.email.priority

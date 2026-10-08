@@ -1,5 +1,0 @@
-index=* host="CEAA204C*" earliest=-7d | stats count latest(_time) as last_seen by index sourcetype source
-
-index=* "RETURN_CD:2" earliest=-30d | stats count latest(_time) as last_seen by index host source
-
-| rest /servicesNS/-/-/saved/searches splunk_server=local | search title="Control-M job health check" | table title triggered_alert_count next_scheduled_time

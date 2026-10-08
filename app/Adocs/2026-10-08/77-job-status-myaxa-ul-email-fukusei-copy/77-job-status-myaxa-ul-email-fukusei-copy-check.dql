@@ -1,7 +1,0 @@
-// Same data check as seq 70: the latest CHDE010M record for each order date in the last 7 days
-fetch logs, from:now()-7d
-| filter matchesValue(log.source, "*controlm_activejobs*")
-| filter job_name == "CHDE010M"
-| sort timestamp asc
-| summarize status = takeLast(status), start_time = takeLast(start_time), end_time = takeLast(end_time), last_seen = max(timestamp), by:{ job_name, odate }
-| sort odate desc

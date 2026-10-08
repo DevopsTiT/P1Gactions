@@ -1,2 +1,0 @@
-| rest /servicesNS/-/-/saved/searches | search title="*MyAXA UL Email*" | eval search_hash=md5(search) | table title eai:acl.owner disabled cron_schedule search_hash
-index=_audit action=alert_fired ss_name="Job Status for MyAXA UL Email複製" earliest=-90d | stats count latest(_time) as last_fired | eval last_fired=strftime(last_fired,"%Y-%m-%d %H:%M")

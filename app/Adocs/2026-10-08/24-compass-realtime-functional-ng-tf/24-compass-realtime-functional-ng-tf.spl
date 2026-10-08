@@ -1,2 +1,0 @@
-| inputlookup configuration | search application="Compass*" | stats count by application
-| rest /servicesNS/-/-/saved/searches | search title="Prod_Life_Compass_RealTimeAndFunctionalCheck_NG" | table title action.* alert.*

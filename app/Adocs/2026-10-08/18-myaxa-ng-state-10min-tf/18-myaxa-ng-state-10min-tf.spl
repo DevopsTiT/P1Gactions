@@ -1,4 +1,0 @@
-index=jenkins earliest=-1d job_name="*External%20Check%20-%20MyAXA*" | stats count latest(_time) as last_seen by job_name job_result host source
-| inputlookup MYAXA_Monitoring.csv
-| inputlookup maintenance_window.csv | where application="MyAXA"
-| rest /servicesNS/-/-/saved/searches | search search="*MYAXA_Monitoring.csv*" | table title cron_schedule search

@@ -1,3 +1,0 @@
-| rest /servicesNS/-/-/saved/searches | search title="controlm_job_update_infomation" | table title cron_schedule dispatch.earliest_time search
-index=_audit action=alert_fired ss_name="controlm_job_update_infomation" earliest=-30d | timechart span=1d count
-index=controlm_temp (sourcetype=controlm_def_ver_jobs OR sourcetype=controlm_def_ver_lnki_p) is_current_version=Y earliest=-7d | stats count dc(job_id) as jobs by sourcetype

@@ -1,3 +1,0 @@
-index=brokerpolicymaintenance-prod-axa-li-jp GET "/meta/health" earliest=-24h | stats count by statusCode message
-index=brokerpolicymaintenance-prod-axa-li-jp statusCode=* earliest=-7d | stats count by statusCode host
-index=brokerpolicymaintenance-prod-axa-li-jp GET "/meta/health" statusCode!="" earliest=-24h | table _time host statusCode message

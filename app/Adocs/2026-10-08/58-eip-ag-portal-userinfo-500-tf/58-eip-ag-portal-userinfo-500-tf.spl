@@ -1,4 +1,0 @@
-index=eip10 API_VERSION="jp-Distributing-Sell-UserInfoService-v1-vs" earliest=-1h | table _time host source sourcetype RESPONSE_CODE _raw | head 20
-index=eip10 API_VERSION="jp-Distributing-Sell-UserInfoService-v1-vs" earliest=-7d | timechart span=1h count by RESPONSE_CODE
-index=eip10 API_VERSION="jp-Distributing-Sell-UserInfoService-v1-vs" RESPONSE_CODE=500 earliest=-30d | timechart span=1d count
-index=_audit action=alert_fired ss_name="Prod_Life_EIP_AGPortalUserInfoService_High" earliest=-30d | stats count latest(_time) as last_fired

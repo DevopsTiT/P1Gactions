@@ -1,3 +1,0 @@
-| rest /servicesNS/-/-/saved/searches | search search="*CHDR010M*" | eval search_hash=md5(search) | table title disabled cron_schedule dispatch.earliest_time alert.severity search_hash
-index=controlm_temp sourcetype=controlm_activejobs job_name=CHDR010M earliest=-14d | dedup odate | table _time odate status start_time end_time
-index=_audit action=alert_fired ss_name="Prod_Life_Emma_MyAXAUserRegistrationBatchStatus_Normal" earliest=-30d | table _time ss_name

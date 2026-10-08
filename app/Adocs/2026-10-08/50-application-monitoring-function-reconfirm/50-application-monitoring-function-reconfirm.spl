@@ -1,7 +1,0 @@
-index=jenkins_statistics earliest=-7d | stats count by sourcetype
-index=jenkins_statistics sourcetype="json:jenkins:old" earliest=-1d | stats count
-index=jenkins_console source="job/applications/job/*" "Application is in mantenance" earliest=-7d | rex field=source "(?P<build_url>.*)console" | stats count values(_raw) as remarks by build_url
-index=jenkins_statistics sourcetype="json:jenkins:old" job_name=applications* earliest=-1d | where isnotnull(job_duration) | table _time job_name build_url job_result
-| inputlookup configuration | search pager_duty="0" | stats count by application
-| rest /servicesNS/-/-/saved/searches | search title="Application Monitoring Alert - function" | table title actions action.* alert.*
-index=_internal sourcetype=scheduler savedsearch_name="Application Monitoring Alert - function" earliest=-7d | stats count by status result_count
