@@ -1,0 +1,22 @@
+// 1. Run after the forwarder change: are eopt logs arriving?
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "eopt-prod-axa-li-jp" or contains(k8s.pod.name, "eopt", caseSensitive:false)
+| summarize lines = count(), by:{ k8s.namespace.name, k8s.pod.name, log.source }
+
+// 2. Which OpenPaaS namespaces the multilogforwarder already sends (eopt should join this list)
+fetch logs, from:now()-1h
+| filter log.source == "multilogforwarder-log-handler-dynatrace"
+| summarize lines = count(), by:{ k8s.namespace.name }
+| sort k8s.namespace.name asc
+
+// 3. Test the level parse today on a similar Java app (taxdeduction uses the same LoggableDispatcherServlet logging)
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "taxdeduction-prod-axa-li-jp"
+| parse content, "NSPACE:log_ts SPACE+ ALPHA:level"
+| summarize lines = count(), sample_ts = takeFirst(log_ts), by:{ level, loglevel }
+
+// 4. One raw taxdeduction line, to compare with the eopt line format in Splunk
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "taxdeduction-prod-axa-li-jp"
+| fields timestamp, k8s.pod.name, loglevel, content
+| limit 5
