@@ -1,0 +1,25 @@
+// 1. Which log groups contain "myaxa-onboarding-batch"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "myaxa-onboarding-batch")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. Which " :: " messages really exist (fixes Alerts 4 and 5)
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "myaxa-onboarding-batch")
+| filter contains(content, " :: ")
+| parse content, "LD:prefix ' :: ' LD:message"
+| fieldsAdd fn = splitString(prefix, " ")[-1]
+| summarize hits = count(), last_seen = max(timestamp), by:{ fn, message }
+| sort hits desc
+| limit 100
+
+// 3. Hits per alert text over 30 days
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "myaxa-onboarding-batch")
+| fieldsAdd matched = if(contains(content, "sendNotificationsQueueConsumer :: email sending failed"), "QueueConsumer email sending failed",
+    else: if(contains(content, "sendNotificationsQueueConsumer :: message sending failed"), "QueueConsumer message sending failed",
+    else: if(contains(content, "sendNotificationsQueueConsumer :: error"), "QueueConsumer error",
+    else: if(contains(content, "sendNotifications :: error"), "sendNotifications error",
+    else: if(contains(content, "handleOnboardedCustomers :: error"), "handleOnboardedCustomers error")))))
+| filter isNotNull(matched)
+| summarize hits = count(), last_seen = max(timestamp), by:{ matched }

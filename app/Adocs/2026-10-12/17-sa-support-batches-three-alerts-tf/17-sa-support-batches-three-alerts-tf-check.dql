@@ -1,0 +1,29 @@
+// 1. Which log groups contain "sa-support-batches"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "sa-support-batches")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. What Alert 1 should really catch: error lines that are NOT timeouts
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "sa-support-batches")
+| filter contains(content, "error", caseSensitive:false)
+| filter not contains(content, "Task timed out", caseSensitive:false)
+| summarize hits = count(), sample = takeFirst(content)
+
+// 3. Import lines per day, split by which phrase matched (is "started" too broad?)
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "sa-support-batches")
+| fieldsAdd phrase = if(contains(content, "importFileHandler :: runner :"), "runner",
+                     else: if(contains(content, "importSagaFundGroup"), "sagaFundGroup",
+                     else: if(contains(content, "started"), "started", else: "none")))
+| filter phrase != "none"
+| summarize hits = count(), by:{ day = bin(timestamp, 1d), phrase }
+
+// 4. Does the JST guard work? Run at 08:30-08:59 JST on a weekday and expect both true
+fetch logs, from:now()-1m
+| limit 1
+| fieldsAdd jst_day = formatTimestamp(now(), format:"EEE", timezone:"Asia/Tokyo"),
+            jst_hhmm = toLong(formatTimestamp(now(), format:"HHmm", timezone:"Asia/Tokyo"))
+| fieldsAdd weekday_ok = in(jst_day, {"Mon", "Tue", "Wed", "Thu", "Fri"}),
+            window_ok = jst_hhmm >= 830 and jst_hhmm < 900
+| fields jst_day, jst_hhmm, weekday_ok, window_ok

@@ -1,0 +1,15 @@
+// 1. Where do the Cisco ASA LDAP lines live in Dynatrace? (replaces Splunk index and sourcetype)
+fetch logs, from:now()-24h
+| filter contains(content, "Windows_LDAP", caseSensitive:false)
+| summarize lines = count(), by:{ log.source, dt.openpipeline.source, host.name }
+
+// 2. How many FAILED lines per minute? Is "more than 3" a good threshold?
+fetch logs, from:now()-7d
+| filter contains(content, "Windows_LDAP as FAILED", caseSensitive:false)
+| makeTimeseries failures = count(), interval:1m
+
+// 3. Sample lines to confirm the text matches
+fetch logs, from:now()-7d
+| filter contains(content, "Windows_LDAP as FAILED", caseSensitive:false)
+| fields timestamp, content
+| limit 20

@@ -1,0 +1,17 @@
+// 1. Are the ASA lines in Dynatrace at all? Splunk shows 2 events between 9/12 and 10/12
+fetch logs, from:now()-35d
+| filter contains(content, "113022")
+| filter contains(content, "Windows_LDAP as FAILED", caseSensitive:false)
+| parse content, "LD 'LDAP server ' NSPACE:ldap_server"
+| fields timestamp, ldap_server, host.name, log.source, content
+
+// 2. Which source and host carry ASA syslog (Splunk: host ljcmgt14, source /var/log/ASA/JPNDH-VASA19-ALJ.log)
+fetch logs, from:now()-24h
+| filter contains(content, "%ASA-")
+| summarize lines = count(), by:{ host.name, log.source }
+
+// 3. Does the parse work? Expect 10.3.87.1 or 10.3.87.2
+fetch logs, from:now()-35d
+| filter contains(content, "113022")
+| parse content, "LD 'LDAP server ' NSPACE:ldap_server"
+| summarize hits = count(), by:{ ldap_server }

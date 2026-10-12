@@ -1,0 +1,21 @@
+// 1. Which log groups contain "myaxa-onboarding-batch"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "myaxa-onboarding-batch")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. Which " :: " error markers exist (confirms the exact text for all alerts)
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "myaxa-onboarding-batch")
+| filter contains(content, " :: ")
+| parse content, "LD:prefix ' :: ' LD:marker"
+| filter contains(marker, "error", caseSensitive:false) or contains(marker, "failed", caseSensitive:false)
+| summarize hits = count(), last_seen = max(timestamp), by:{ marker }
+| sort hits desc
+
+// 3. Alert 3 vs Alert 4: does "message sending failed" exist?
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "myaxa-onboarding-batch")
+| filter contains(content, "sendNotificationsQueueConsumer :: email sending failed")
+    or contains(content, "sendNotificationsQueueConsumer :: message sending failed")
+| fieldsAdd kind = if(contains(content, "message sending failed"), "message", else: "email")
+| summarize hits = count(), by:{ kind }

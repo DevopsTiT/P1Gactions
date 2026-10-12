@@ -1,0 +1,36 @@
+// 1. Which log groups contain "pmt-api"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "pmt-api")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. Alert 2: old parse vs fixed parse on real REPORT lines
+fetch logs, from:now()-24h
+| filter contains(aws.log_group, "pmt-api")
+| filter contains(content, "Max Memory Used", caseSensitive:false)
+| parse content, "LD 'Used:' SPACE? LD:old_MemoryUsage"
+| parse content, "LD 'Max Memory Used:' SPACE? INT:MemoryUsage"
+| fields timestamp, aws.log_group, old_MemoryUsage, old_as_number = toLong(old_MemoryUsage), MemoryUsage
+| sort MemoryUsage desc
+| limit 20
+
+// 3. Alert 9: "occured" vs "occurred" in real logs
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "pmt-api")
+| filter contains(content, "during email sending process", caseSensitive:false)
+| fieldsAdd spelling = if(contains(content, "occurred", caseSensitive:false), "occurred",
+    else: if(contains(content, "occured", caseSensitive:false), "occured", else: "other"))
+| summarize hits = count(), by:{ spelling }
+
+// 4. Hits per alert text over 30 days
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "pmt-api")
+| fieldsAdd matched = if(contains(content, "An error occurred while calling sfdc api", caseSensitive:false), "SFDC error",
+    else: if(contains(content, "Unexpected error", caseSensitive:false), "Unexpected error",
+    else: if(contains(content, "Task timed out", caseSensitive:false), "Task timed out",
+    else: if(contains(content, "SendApprovalReminder handler failed", caseSensitive:false), "SendApprovalReminder failed",
+    else: if(contains(content, "Exception in myAxaMailSender", caseSensitive:false), "myAxaMailSender exception",
+    else: if(contains(content, "Exception in ExportData", caseSensitive:false), "ExportData exception",
+    else: if(contains(content, "during email sending process", caseSensitive:false), "Email sending error")))))))
+| filter isNotNull(matched)
+| summarize hits = count(), last_seen = max(timestamp), by:{ matched }
+| sort hits desc

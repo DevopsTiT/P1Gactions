@@ -1,0 +1,60 @@
+// A. Fix for "technology isn't allowed here": no field called "Main technology"; use softwareTechnologies
+fetch dt.entity.process_group_instance
+| filter processType == "NODE_JS"
+| fieldsAdd metadata, softwareTechnologies, host_id = belongs_to[dt.entity.host]
+| lookup [ fetch dt.entity.host | fields id, entity.name ], sourceField:host_id, lookupField:id, fields:{ host.name = entity.name }
+
+// B. Node.js versions inventory: one row per version, with how many processes and hosts
+fetch dt.entity.process_group_instance
+| fields softwareTechnologies, host_id = belongs_to[dt.entity.host]
+| expand softwareTechnologies
+| fieldsAdd tech = softwareTechnologies[type], version = softwareTechnologies[version]
+| filter tech == "NODE_JS"
+| summarize processes = count(), hosts = countDistinct(host_id), by:{ version }
+| sort version asc
+
+// C. Fix for "FROM isn't allowed here": DQL has no SELECT / FROM / GROUP BY. First find the real metric keys
+metrics
+| filter contains(metric.key, "compassccifa")
+
+// C2. Then read them for 2025-12-10 12:00-13:00 JST (= the epoch ms values in the SQL)
+timeseries { rt = avg(service.alj_ga_report_compassccifa_responsetime), errors = sum(service.alj_ga_report_compassccifa_errorcount) },
+  from:"2025-12-10T12:00:00+09:00", to:"2025-12-10T13:00:00+09:00", interval:1h
+
+// D. Service health with a wider problem window and no 1,000-row cut
+fetch dt.entity.service
+| filter serviceType != "DATABASE_SERVICE"
+| lookup [
+    fetch dt.davis.problems, from:now()-7d
+    | filter event.status == "ACTIVE"
+    | expand affected_entity_ids
+  ], sourceField:id, lookupField:affected_entity_ids, fields:{ event.id, event.name }
+| fieldsAdd affected = if(isNotNull(event.id), "yes", else:"no")
+| fields affected, id, name = entity.name, event.id, event.name
+| limit 10000
+
+// D2. Only the affected services (the useful list behind the honeycomb)
+fetch dt.davis.problems, from:now()-7d
+| filter event.status == "ACTIVE"
+| expand affected_entity_ids
+| filter startsWith(affected_entity_ids, "SERVICE-")
+| fields event.id, event.name, service = entityName(affected_entity_ids, type:"dt.entity.service"), affected_entity_ids
+
+// F. Service to host list with real host names (oneAgentCustomHostName lives on the host, not the service)
+fetch dt.entity.service
+| expand host_id = runs_on[dt.entity.host]
+| lookup [ fetch dt.entity.host | fields id, entity.name, oneAgentCustomHostName ], sourceField:host_id, lookupField:id, fields:{ host.name = entity.name, oneAgentCustomHostName }
+| fields service = entity.name, id, host_id, host.name, oneAgentCustomHostName
+| limit 10000
+
+// F2. Services with no host (external, API gateway, database)
+fetch dt.entity.service
+| filter isNull(runs_on[dt.entity.host])
+| fields entity.name, id, serviceType
+
+// G. Simple service and host name list (works as in the screenshot); raise the row limit
+fetch dt.entity.service
+| expand dt.entity.host = runs_on[dt.entity.host]
+| fieldsAdd service.name = entity.name, host.name = entityName(dt.entity.host)
+| fields service.name, host.name
+| limit 10000

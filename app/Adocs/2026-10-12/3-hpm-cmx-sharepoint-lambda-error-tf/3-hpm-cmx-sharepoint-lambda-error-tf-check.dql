@@ -1,0 +1,12 @@
+// 1. Exact log group value
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "cmx-sharepoint-api")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. What the "Error" filter matches (look for noise such as errorCount=0)
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "/aws/lambda/cmx-sharepoint-api")
+| filter contains(content, "Error", caseSensitive:false)
+| fields timestamp, aws.log_group, content
+| sort timestamp desc
+| limit 100

@@ -1,0 +1,27 @@
+// 1. All gov-inquiry-system log groups (confirms validateAndComputeAnswer, logFailure and the Alert 2 group)
+fetch logs, from:now()-7d
+| filter contains(toString(aws.log_group), "gov-inquiry-system-prod")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. "Biz file summary" lines: which fileCategory values exist, and what real file names look like
+fetch logs, from:now()-7d
+| filter contains(toString(aws.log_group), "gov-inquiry-system-prod")
+| filter contains(content, "Biz file summary")
+| parse content, "LD 'fileCategory:' NSPACE:fileCategory"
+| parse content, "LD 'fileName:' NSPACE:fileName_full"
+| summarize lines = count(), sample_file = takeFirst(fileName_full), by:{ aws.log_group, fileCategory }
+
+// 3. Alert 2 candidates: answer-file summaries (find the log group and counter names)
+fetch logs, from:now()-7d
+| filter contains(toString(aws.log_group), "gov-inquiry-system-prod")
+| filter contains(content, "Biz file summary")
+| filter contains(content, "ANSWER", caseSensitive:false)
+| fields timestamp, aws.log_group, content
+| sort timestamp desc
+| limit 20
+
+// 4. Alert 4: how often "level:ERROR" appears
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "/aws/lambda/gov-inquiry-system-prod-logFailure")
+| filter contains(content, "level:ERROR")
+| makeTimeseries hits = count(), interval:1h

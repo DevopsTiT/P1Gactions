@@ -1,0 +1,20 @@
+// 1. Which log groups contain "recruitimp-serverless"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "recruitimp-serverless")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. Alert 2 noise: lines with "error" that are NOT level:ERROR lines
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "recruitimp-serverless")
+| filter contains(content, "ERROR", caseSensitive:false)
+| fieldsAdd is_level_error = contains(content, "level:ERROR", caseSensitive:false)
+| summarize hits = count(), by:{ is_level_error }
+
+// 3. Sample of the lines Alert 2 catches but Alert 1 does not
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "recruitimp-serverless")
+| filter contains(content, "ERROR", caseSensitive:false)
+| filter not contains(content, "level:ERROR", caseSensitive:false)
+| fields timestamp, content
+| sort timestamp desc
+| limit 30

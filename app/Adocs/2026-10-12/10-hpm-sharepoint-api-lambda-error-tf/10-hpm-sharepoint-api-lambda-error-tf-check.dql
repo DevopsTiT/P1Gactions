@@ -1,0 +1,17 @@
+// 1. Exact log group value
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "hpm-sharepoint-api")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. Real ERROR lines vs. the word "error" inside normal text
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "/aws/lambda/hpm-sharepoint-api")
+| filter contains(content, "ERROR", caseSensitive:false)
+| fieldsAdd upper_case_ERROR = contains(content, "ERROR")
+| summarize hits = count(), by:{ upper_case_ERROR, loglevel }
+
+// 3. Errors per day (what the old daily alert would have reported)
+fetch logs, from:now()-30d
+| filter contains(aws.log_group, "/aws/lambda/hpm-sharepoint-api")
+| filter contains(content, "ERROR", caseSensitive:false)
+| makeTimeseries hits = count(), interval:1d

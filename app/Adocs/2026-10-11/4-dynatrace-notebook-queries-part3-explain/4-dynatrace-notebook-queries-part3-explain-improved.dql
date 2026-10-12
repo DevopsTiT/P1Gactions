@@ -1,0 +1,42 @@
+// H. Services on ADJ-tagged hosts, keeping ONLY the ADJ host rows (filter after expand)
+fetch dt.entity.service
+| expand dt.entity.host = runs_on[dt.entity.host]
+| filter in(dt.entity.host, classicEntitySelector("type(HOST),tag(ADJ)"))
+| fieldsAdd service.name = entity.name, host.name = entityName(dt.entity.host)
+| fields service.name, host.name
+| sort service.name asc
+
+// H2. Same list, one row per service with its ADJ hosts collected
+fetch dt.entity.service
+| expand dt.entity.host = runs_on[dt.entity.host]
+| filter in(dt.entity.host, classicEntitySelector("type(HOST),tag(ADJ)"))
+| summarize hosts = collectDistinct(entityName(dt.entity.host)), host_count = countDistinct(dt.entity.host), by:{ service.name = entity.name }
+| sort host_count desc
+
+// I0. What host tags really look like (run this before filtering on a tag)
+fetch dt.entity.host
+| fields entity.name, osType, tags
+| limit 20
+
+// I. Windows host CPU, filtered on the OS type instead of a tag
+timeseries cpu_usage = avg(dt.host.cpu.usage), by:{ dt.entity.host }
+| fieldsAdd host.name = entityName(dt.entity.host), os = entityAttr(dt.entity.host, "osType")
+| filter os == "WINDOWS"
+| fieldsAdd average_usage = arrayAvg(cpu_usage)
+| sort average_usage desc
+
+// I2. If you must use a tag, match part of the text, not the exact whole tag
+timeseries cpu_usage = avg(dt.host.cpu.usage), by:{ dt.entity.host }
+| fieldsAdd host.name = entityName(dt.entity.host), tags = entityAttr(dt.entity.host, "tags")
+| filter contains(toString(tags), "Windows", caseSensitive:false)
+| fieldsAdd average_usage = arrayAvg(cpu_usage)
+
+// J. Tagged entities across types, with partial tag matching
+fetch dt.entity.host
+| append [ fetch dt.entity.service ]
+| append [ fetch dt.entity.process_group_instance ]
+| fields id, entity.name, tags
+| expand tags
+| filter contains(tags, "env", caseSensitive:false) or contains(tags, "AWS", caseSensitive:false)
+| summarize entities = countDistinct(id), by:{ tags }
+| sort entities desc

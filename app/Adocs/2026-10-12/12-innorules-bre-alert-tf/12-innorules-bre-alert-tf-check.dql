@@ -1,0 +1,20 @@
+// 1. Which log groups contain "innorules"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "innorules")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. Real ERROR lines vs. the word "error" inside normal text
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "innorules")
+| filter contains(content, "ERROR", caseSensitive:false)
+| fieldsAdd upper_case_ERROR = contains(content, "ERROR")
+| summarize hits = count(), by:{ upper_case_ERROR, loglevel }
+
+// 3. Errors by hour in UTC and JST (shows which window matters)
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "innorules")
+| filter contains(content, "ERROR", caseSensitive:false)
+| fieldsAdd hour_utc = getHour(timestamp),
+            hour_jst = toLong(formatTimestamp(timestamp, format:"H", timezone:"Asia/Tokyo"))
+| summarize hits = count(), by:{ hour_utc, hour_jst }
+| sort hour_utc asc

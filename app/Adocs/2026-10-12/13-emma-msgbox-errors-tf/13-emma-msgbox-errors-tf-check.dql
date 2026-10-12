@@ -1,0 +1,18 @@
+// 1. Which log groups contain "message-box-api"
+fetch logs, from:now()-24h
+| filter contains(toString(aws.log_group), "message-box-api")
+| summarize lines = count(), by:{ aws.log_group }
+
+// 2. status values on these logs
+fetch logs, from:now()-24h
+| filter contains(aws.log_group, "message-box-api")
+| summarize lines = count(), by:{ status, loglevel }
+
+// 3. Matches per 5 minutes over 7 days (how often "more than 5" would fire)
+fetch logs, from:now()-7d
+| filter contains(aws.log_group, "message-box-api")
+| filter contains(status, "error", caseSensitive:false)
+    or contains(status, "warn", caseSensitive:false)
+| filter not contains(content, "DeprecationWarning", caseSensitive:false)
+| makeTimeseries matches = count(), interval:5m
+| fieldsAdd windows_over_5 = arraySize(arrayRemoveNulls(iCollectArray(if(matches[] > 5, 1))))
