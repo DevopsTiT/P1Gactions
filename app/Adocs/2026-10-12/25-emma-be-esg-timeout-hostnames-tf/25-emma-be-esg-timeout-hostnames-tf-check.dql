@@ -1,0 +1,33 @@
+// 1. Where do the myaxabackend pod names live in Dynatrace? host.name or k8s.pod.name
+fetch logs, from:now()-1h
+| filter startsWith(host.name, "myaxabackend-") or startsWith(k8s.pod.name, "myaxabackend-")
+| summarize lines = count(), by:{ host.name, k8s.pod.name, k8s.workload.name, k8s.namespace.name }
+
+// 2. Backend part over 30 days. Splunk found 152 events for both parts together
+fetch logs, from:now()-30d
+| filter startsWith(host.name, "myaxabackend-") or startsWith(k8s.pod.name, "myaxabackend-")
+| filter contains(content, "api-jp-cert.corp.intraxa", caseSensitive:false)
+| filter contains(content, "java.net.SocketTimeoutException", caseSensitive:false)
+| summarize hits = count(), by:{ host.name, k8s.pod.name }
+
+// 3. API gateway part: which host and source carry it?
+fetch logs, from:now()-30d
+| filter contains(content, "Problem routing to", caseSensitive:false)
+| filter contains(content, "timed out", caseSensitive:false)
+| filter contains(content, "myaxa-api.alj.intraxa", caseSensitive:false)
+| summarize hits = count(), by:{ host.name, log.source }
+
+// 4. Busiest 5 minute windows: was more than 20 ever reached?
+fetch logs, from:now()-30d
+| filter (
+      (startsWith(host.name, "myaxabackend-") or startsWith(k8s.pod.name, "myaxabackend-"))
+      and contains(content, "api-jp-cert.corp.intraxa", caseSensitive:false)
+      and contains(content, "java.net.SocketTimeoutException", caseSensitive:false)
+    ) or (
+      contains(content, "Problem routing to", caseSensitive:false)
+      and contains(content, "timed out", caseSensitive:false)
+      and contains(content, "myaxa-api.alj.intraxa", caseSensitive:false)
+    )
+| summarize timeouts = count(), by:{ window = bin(timestamp, 5m) }
+| sort timeouts desc
+| limit 20

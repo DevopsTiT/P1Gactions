@@ -1,0 +1,20 @@
+// 1. Do the four OUD files show up in Dynatrace with the same paths as Splunk?
+fetch logs, from:now()-24h
+| filter contains(host.name, "WPALJA2162", caseSensitive:false)
+| filter startsWith(log.source, "/opt/oracle/oud/")
+| summarize lines = count(), by:{ host.name, log.source }
+
+// 2. "failed" per file over 30 days: proves the access logs are the noisy ones
+fetch logs, from:now()-30d
+| filter contains(host.name, "WPALJA2162", caseSensitive:false)
+| filter startsWith(log.source, "/opt/oracle/oud/")
+| filter contains(content, "failed", caseSensitive:false)
+| summarize hits = count(), sample = takeFirst(content), by:{ log.source }
+
+// 3. The detector query over 30 days, per day
+fetch logs, from:now()-30d
+| filter contains(host.name, "WPALJA2162", caseSensitive:false)
+| filter startsWith(log.source, "/opt/oracle/oud/")
+| filter endsWith(log.source, "/OUD/logs/errors")
+| filter contains(content, "failed", caseSensitive:false)
+| makeTimeseries hits = count(), interval:1d

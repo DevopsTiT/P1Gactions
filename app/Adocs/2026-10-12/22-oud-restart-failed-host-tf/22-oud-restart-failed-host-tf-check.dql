@@ -1,0 +1,17 @@
+// 1. Is the host in Dynatrace, and under which name? (Splunk: WPALJA2162.prprivmgmt.intraxa)
+fetch logs, from:now()-24h
+| filter contains(host.name, "WPALJA2162", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, log.source }
+
+// 2. Which files on that host contain "failed"? Find the oud_service log
+//    (Splunk sourcetype oud_service) versus the OUD errors log (odu_errorlog)
+fetch logs, from:now()-30d
+| filter contains(host.name, "WPALJA2162", caseSensitive:false)
+| filter contains(content, "failed", caseSensitive:false)
+| summarize hits = count(), sample = takeFirst(content), by:{ log.source }
+
+// 3. The detector query over 30 days: how often would it have fired?
+fetch logs, from:now()-30d
+| filter contains(host.name, "WPALJA2162", caseSensitive:false)
+| filter contains(content, "failed", caseSensitive:false)
+| makeTimeseries hits = count(), interval:1d
