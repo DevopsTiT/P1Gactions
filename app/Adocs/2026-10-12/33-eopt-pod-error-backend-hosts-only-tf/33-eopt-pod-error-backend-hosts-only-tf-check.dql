@@ -1,0 +1,18 @@
+// 1. Backend hosts (expect eoptsystemapi and eoptprocessapi pods)
+fetch logs, from:now()-1h
+| filter startsWith(host.name, "eoptsystemapi-") or startsWith(host.name, "eoptprocessapi-")
+| summarize lines = count(), by:{ host.name }
+
+// 2. Parse check: level counts (expect DEBUG, INFO, WARN, ERROR)
+fetch logs, from:now()-1h
+| filter startsWith(host.name, "eoptsystemapi-") or startsWith(host.name, "eoptprocessapi-")
+| parse content, "NSPACE:log_ts SPACE+ ALPHA:level"
+| summarize lines = count(), by:{ level }
+
+// 3. ERROR lines per hour per service over 7 days
+fetch logs, from:now()-7d
+| filter startsWith(host.name, "eoptsystemapi-") or startsWith(host.name, "eoptprocessapi-")
+| parse content, "NSPACE:log_ts SPACE+ ALPHA:level"
+| filter level == "ERROR"
+| fieldsAdd service = if(startsWith(host.name, "eoptsystemapi-"), "eoptsystemapi", else:"eoptprocessapi")
+| makeTimeseries errors = count(), by:{ service }, interval:1h

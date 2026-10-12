@@ -1,0 +1,34 @@
+// 1. What does a Control-M "Ended not OK" line look like in Dynatrace? (key=value or key: value?)
+fetch logs, from:now()-7d
+| filter contains(content, "Ended not OK", caseSensitive:false)
+| fields timestamp, host.name, log.source, content
+| limit 20
+
+// 2. Where do they come from? (replaces Splunk sourcetype=controlm_alert)
+fetch logs, from:now()-7d
+| filter contains(content, "Ended not OK", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, log.source }
+
+// 3. Test the parse: every row should have job_name and current_time filled
+fetch logs, from:now()-7d
+| filter contains(content, "Ended not OK", caseSensitive:false)
+| parse content, "LD 'job_name=' NSPACE:job_name"
+| parse content, "LD 'current_time=' NSPACE:current_time"
+| parse content, "LD 'data_center=' NSPACE:data_center"
+| fields timestamp, job_name, current_time, data_center, content
+| limit 20
+
+// 4. Optional: the Splunk left join, owner and cmd_line per job (replaces controlm_def_ver_jobs)
+fetch logs, from:now()-1d
+| filter contains(content, "Ended not OK", caseSensitive:false)
+| parse content, "LD 'job_name=' NSPACE:job_name"
+| join [
+    fetch logs, from:now()-7d
+    | filter contains(content, "cmd_line", caseSensitive:false)
+    | parse content, "LD 'job_name=' NSPACE:job_name"
+    | parse content, "LD 'owner=' NSPACE:owner"
+    | parse content, "LD 'cmd_line=' LD:cmd_line EOL"
+    | dedup job_name
+    | fields job_name, owner, cmd_line
+  ], on:{ job_name }, kind:leftOuter
+| fields timestamp, job_name, right.owner, right.cmd_line

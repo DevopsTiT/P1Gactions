@@ -1,0 +1,36 @@
+// 1. Do the Control-M agent daily logs reach Dynatrace? Which hosts and log.source?
+fetch logs, from:now()-1d
+| filter contains(log.source, "daily_ctmag_", caseSensitive:false)
+    or contains(log.source, "ctmhlx", caseSensitive:false)
+| summarize lines = count(), sample = takeFirst(content), by:{ host.name, log.source }
+
+// 2. Test the parse on STARTED and ENDED lines
+fetch logs, from:now()-1d
+| filter contains(log.source, "daily_ctmag_", caseSensitive:false)
+| filter contains(content, ") STARTED (") or contains(content, " ENDED")
+| parse content, "LD 'JOB ' NSPACE:job_name SPACE '(ORDERID ' INT:order_id ', RUNNO ' INT:run_no ')'"
+| fields timestamp, host.name, job_name, order_id, run_no, content
+| limit 30
+
+// 3. All runs still open right now (no claims filter), with minutes running
+fetch logs, from:now()-24h
+| filter contains(log.source, "daily_ctmag_", caseSensitive:false)
+| filter contains(content, ") STARTED (") or contains(content, " ENDED")
+| parse content, "LD 'JOB ' NSPACE:job_name SPACE '(ORDERID ' INT:order_id ', RUNNO ' INT:run_no ')'"
+| fieldsAdd is_start = contains(content, ") STARTED ("), is_end = contains(content, " ENDED")
+| summarize started = min(if(is_start, timestamp)), ended = max(if(is_end, timestamp)), by:{ job_name, order_id, run_no }
+| filter isNotNull(started) and isNull(ended)
+| fieldsAdd elapsed_min = toLong((now() - started) / 1m)
+| sort elapsed_min desc
+
+// 4. Normal run times per job over 7 days (helps decide if 15 minutes is right)
+fetch logs, from:now()-7d
+| filter contains(log.source, "daily_ctmag_", caseSensitive:false)
+| filter contains(content, ") STARTED (") or contains(content, " ENDED")
+| parse content, "LD 'JOB ' NSPACE:job_name SPACE '(ORDERID ' INT:order_id ', RUNNO ' INT:run_no ')'"
+| fieldsAdd is_start = contains(content, ") STARTED ("), is_end = contains(content, " ENDED")
+| summarize started = min(if(is_start, timestamp)), ended = max(if(is_end, timestamp)), by:{ job_name, order_id, run_no }
+| filter isNotNull(started) and isNotNull(ended)
+| fieldsAdd run_min = toDouble((ended - started) / 1m)
+| summarize runs = count(), avg_min = avg(run_min), max_min = max(run_min), by:{ job_name }
+| sort max_min desc

@@ -1,0 +1,19 @@
+// 1. Do the datalake batch logs reach Dynatrace? What are host.name and log.source exactly?
+fetch logs, from:now()-2d
+| filter contains(host.name, "CEAA20BD", caseSensitive:false)
+    or contains(host.name, "CEAA20BE", caseSensitive:false)
+    or contains(host.name, "CEAA2101", caseSensitive:false)
+| summarize lines = count(), sample = takeFirst(content), by:{ host.name, log.source }
+
+// 2. Today's batch lines, same as the Splunk table _time _raw
+fetch logs, from:now()-1d
+| filter contains(log.source, "datalake_transfer.log", caseSensitive:false)
+| fields timestamp, host.name, content
+| sort timestamp asc
+
+// 3. Optional failure only view: lines that say Failed or Error
+fetch logs, from:now()-1d
+| filter contains(log.source, "datalake_transfer.log", caseSensitive:false)
+| filter contains(content, "Failed", caseSensitive:false)
+    or contains(content, "Error", caseSensitive:false)
+| fields timestamp, host.name, content

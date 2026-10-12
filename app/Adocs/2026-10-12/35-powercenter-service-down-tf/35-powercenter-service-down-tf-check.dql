@@ -1,0 +1,19 @@
+// 1. Which hosts and files carry ISP_MASTER_ELECT_LOCK? (replaces Splunk index=powercenter)
+fetch logs, from:now()-7d
+| filter contains(content, "ISP_MASTER_ELECT_LOCK", caseSensitive:false)
+| summarize lines = count(), sample = takeFirst(content), by:{ host.name, log.source }
+
+// 2. Busiest 1 minute windows: does more than 2 happen, and how often?
+fetch logs, from:now()-30d
+| filter contains(content, "ISP_MASTER_ELECT_LOCK", caseSensitive:false)
+| summarize lock_events = count(), by:{ minute = bin(timestamp, 1m) }
+| filter lock_events > 2
+| sort minute desc
+| limit 50
+
+// 3. Are PowerCenter logs in Dynatrace at all?
+fetch logs, from:now()-1h
+| filter contains(log.source, "infa", caseSensitive:false)
+    or contains(log.source, "powercenter", caseSensitive:false)
+    or contains(host.name, "infa", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, log.source }

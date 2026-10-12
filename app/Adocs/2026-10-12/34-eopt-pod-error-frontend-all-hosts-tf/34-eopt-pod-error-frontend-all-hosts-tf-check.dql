@@ -1,0 +1,20 @@
+// 1. Which services write JSON lines with a level key?
+fetch logs, from:now()-1h
+| filter startsWith(host.name, "eoptsystemapi-")
+    or startsWith(host.name, "eoptprocessapi-")
+    or startsWith(host.name, "eoptfrontend-")
+| parse content, "JSON:j"
+| fieldsAdd level = upper(toString(j[level]))
+| fieldsAdd service = if(startsWith(host.name, "eoptsystemapi-"), "eoptsystemapi", else: if(startsWith(host.name, "eoptprocessapi-"), "eoptprocessapi", else: "eoptfrontend"))
+| summarize lines = count(), by:{ service, level }
+
+// 2. ERROR JSON lines per hour per service over 7 days
+fetch logs, from:now()-7d
+| filter startsWith(host.name, "eoptsystemapi-")
+    or startsWith(host.name, "eoptprocessapi-")
+    or startsWith(host.name, "eoptfrontend-")
+| parse content, "JSON:j"
+| fieldsAdd level = upper(toString(j[level]))
+| filter level == "ERROR"
+| fieldsAdd service = if(startsWith(host.name, "eoptsystemapi-"), "eoptsystemapi", else: if(startsWith(host.name, "eoptprocessapi-"), "eoptprocessapi", else: "eoptfrontend"))
+| makeTimeseries errors = count(), by:{ service }, interval:1h
