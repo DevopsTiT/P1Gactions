@@ -1,0 +1,29 @@
+// Step 1. Is the platform healthy? (right tenant, logs flowing)
+fetch logs, from:now()-1h
+| summarize lines = count(), by:{ dt.openpipeline.source }
+| sort lines desc
+
+// Step 2. Does the app exist in Dynatrace?
+fetch dt.entity.host, from:now()-7d
+| filter startsWith(lower(entity.name), "eopt")
+| fields entity.name, id
+
+// Step 3. Are its logs anywhere? (every field, ignore case, 24 h)
+fetch logs, from:now()-24h
+| filter contains(host.name, "eopt", caseSensitive:false)
+    or contains(k8s.pod.name, "eopt", caseSensitive:false)
+    or contains(k8s.namespace.name, "eopt", caseSensitive:false)
+    or contains(log.source, "eopt", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, k8s.namespace.name, log.source }
+
+// Step 4. How do sibling apps get logs in?
+fetch logs, from:now()-1h
+| filter dt.openpipeline.source == "/api/v2/logs/ingest"
+| summarize lines = count(), by:{ log.source }
+| sort lines desc
+
+// Step 5. Is the app on that path?
+fetch logs, from:now()-1h
+| filter log.source == "multilogforwarder-log-handler-dynatrace"
+| summarize lines = count(), by:{ k8s.namespace.name }
+| sort lines desc

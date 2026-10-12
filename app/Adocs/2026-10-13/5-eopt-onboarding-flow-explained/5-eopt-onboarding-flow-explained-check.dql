@@ -1,0 +1,17 @@
+// 1. Today, on a sibling app: which field holds the pod name?
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "capportalsystemapi-prod-axa-li-jp"
+| fields timestamp, host.name, k8s.pod.name, k8s.node.name, log.source, content
+| limit 10
+
+// 2. After onboarding: are eopt lines arriving, and with which names?
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "eopt-prod-axa-li-jp"
+| summarize lines = count(), by:{ host.name, k8s.pod.name }
+
+// 3. After onboarding: would alert 31 match anything?
+fetch logs, from:now()-1h
+| filter k8s.namespace.name == "eopt-prod-axa-li-jp"
+| parse content, "NSPACE:log_ts SPACE+ ALPHA:level"
+| filter level == "ERROR"
+| summarize errors = count(), by:{ host.name, k8s.pod.name }

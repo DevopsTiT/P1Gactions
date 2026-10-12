@@ -1,0 +1,31 @@
+# Example only. The platform team's real ClusterLogForwarder wins.
+# Shape for OpenShift Logging 5.x (logging.openshift.io/v1).
+# Idea: add eopt-prod-axa-li-jp as an input and send it to the same Dynatrace
+# output that capportalsystemapi-prod-axa-li-jp and the other 10 namespaces use.
+# No tokens in this file. The token lives in the Secret the platform team already uses.
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+  name: multilogforwarder
+  namespace: openshift-logging
+spec:
+  serviceAccountName: multilogforwarder
+  inputs:
+    - name: eopt-prod
+      application:
+        namespaces:
+          - eopt-prod-axa-li-jp
+  outputs:
+    - name: log-handler-dynatrace
+      type: http
+      url: https://<existing-dynatrace-log-handler-endpoint>
+      secret:
+        name: <existing-dynatrace-secret>
+  pipelines:
+    - name: eopt-to-dynatrace
+      inputRefs:
+        - eopt-prod
+      outputRefs:
+        - log-handler-dynatrace
+      labels:
+        app: eopt
