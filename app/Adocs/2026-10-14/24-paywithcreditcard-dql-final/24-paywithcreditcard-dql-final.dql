@@ -1,0 +1,46 @@
+// DQL for:
+// sourcetype="portals-amp-backend" earliest=-1h
+// | eval _raw=replace(_raw,"\\\\\"","\"") | eval _raw=replace(_raw,"\\\\","")
+// | spath
+// | search message.url=*payWithCreditCard_Adj* message.type="EXECUTION_COMPLETED"
+//
+// NOTE: returns 0 rows today, because portals-amp logs are not in Dynatrace yet (answer 21).
+
+fetch logs, from:now()-1h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "portals-amp-backend")
+| filter contains(content, "payWithCreditCard_Adj") and contains(content, "EXECUTION_COMPLETED")
+| fieldsAdd raw = if(contains(content, "\\\""),
+                     replaceString(replaceString(content, "\\\"", "\""), "\\", ""),
+                     else: content)
+| parse raw, "JSON:j"
+| fieldsAdd level         = toString(j[level]),
+            msg_type      = toString(j[message][type]),
+            msg_url       = toString(j[message][url]),
+            method        = toString(j[message][method]),
+            request_id    = toString(j[message][request_id]),
+            target_system = toString(j[message][target_system])
+| filter contains(msg_url, "payWithCreditCard_Adj") and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, src, level, msg_type, method, target_system, request_id, msg_url
+
+
+// Count only (compare with Splunk's "75 events")
+fetch logs, from:now()-1h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "portals-amp-backend")
+| filter contains(content, "payWithCreditCard_Adj") and contains(content, "EXECUTION_COMPLETED")
+| summarize events = count(), by:{ src }
+
+
+// Timeline (same as the Splunk green bars)
+fetch logs, from:now()-1h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "portals-amp-backend")
+| filter contains(content, "payWithCreditCard_Adj") and contains(content, "EXECUTION_COMPLETED")
+| makeTimeseries events = count(), interval:1m
+
+
+// Failures instead of successes (SPL #83): change the type
+// | filter contains(content, "payWithCreditCard_Adj") and contains(content, "CAUGHT_EXCEPTION_ON_BACKEND")
+// | filter contains(msg_url, "payWithCreditCard_Adj") and msg_type == "CAUGHT_EXCEPTION_ON_BACKEND"

@@ -1,0 +1,28 @@
+// Check A: the log text itself, no source filter at all.
+// If this is also 0, the payWithCreditCard logs are not in Dynatrace under any name.
+fetch logs, from:now()-24h
+| filter contains(content, "payWithCreditCard_Adj")
+| summarize lines = count(), by:{ host.name, k8s.pod.name, k8s.namespace.name, log.source, dt.system.bucket }
+
+// Check B: permissions. Can you see logs from every bucket?
+// If a bucket you expect is missing, the 0 may be a permission problem, not missing data.
+fetch logs, from:now()-1h
+| summarize lines = count(), by:{ dt.system.bucket }
+| sort lines desc
+
+// Check C: does Dynatrace see the portals-amp pods at all (as hosts, from App-only OneAgent)?
+fetch dt.entity.host
+| filter contains(entity.name, "portals-amp", caseSensitive:false)
+| fields id, entity.name
+
+// Check D: does Dynatrace see portals-amp as a Kubernetes workload, and in which namespace?
+fetch dt.entity.cloud_application
+| filter contains(entity.name, "portals-amp", caseSensitive:false)
+| fields id, entity.name, namespaceName
+
+// Check E: which "portals" apps DO have logs? (shows what is onboarded)
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "portals")
+| summarize lines = count(), by:{ k8s.namespace.name, src }
+| sort lines desc
