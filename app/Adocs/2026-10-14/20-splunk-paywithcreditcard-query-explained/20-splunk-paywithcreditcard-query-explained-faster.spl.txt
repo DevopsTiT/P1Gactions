@@ -1,5 +1,0 @@
-sourcetype="portals-amp-backend" earliest=-1h "payWithCreditCard_Adj" "EXECUTION_COMPLETED"
-| eval _raw=replace(_raw,"\\\\\"","\"")
-| eval _raw=replace(_raw,"\\\\","")
-| spath
-| search message.url=*payWithCreditCard_Adj* message.type="EXECUTION_COMPLETED"
