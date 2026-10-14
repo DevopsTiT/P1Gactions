@@ -1,0 +1,17 @@
+// Main query: same as the Splunk search
+fetch logs, from:now()-24h
+| filter startsWith(host.name, "camunda8-prod-operate-")
+    or startsWith(k8s.pod.name, "camunda8-prod-operate-")
+| filter contains(content, "ERROR")
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, k8s.pod.name, content
+
+// Check: are Operate logs in Dynatrace, and under which field?
+fetch logs, from:now()-24h
+| filter contains(host.name, "operate", caseSensitive:false)
+    or contains(k8s.pod.name, "operate", caseSensitive:false)
+| filter contains(host.name, "camunda", caseSensitive:false)
+    or contains(k8s.pod.name, "camunda", caseSensitive:false)
+    or contains(k8s.namespace.name, "camunda", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, k8s.pod.name, k8s.namespace.name, log.source }
