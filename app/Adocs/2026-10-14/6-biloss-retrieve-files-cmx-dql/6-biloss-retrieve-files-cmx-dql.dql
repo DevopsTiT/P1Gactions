@@ -1,0 +1,46 @@
+// Main query: same as the Splunk search
+fetch logs, from:now()-24h
+| filter lower(host.name) == "biloss-retrieve-files-cmx-prod"
+| filter contains(content, "CC Error", caseSensitive:false)
+    or contains(content, "CmxApiException", caseSensitive:false)
+    or contains(content, "NetworkException", caseSensitive:false)
+    or contains(content, "RuntimeException", caseSensitive:false)
+    or contains(content, "Failed to initialize clients", caseSensitive:false)
+    or contains(content, "Failed getCCInformations", caseSensitive:false)
+    or contains(content, "NullPointerException", caseSensitive:false)
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "CC Error"), "CC Error"),
+    if(contains(content, "CmxApiException"), "CmxApiException"),
+    if(contains(content, "NetworkException"), "NetworkException"),
+    if(contains(content, "RuntimeException"), "RuntimeException"),
+    if(contains(content, "Failed to initialize clients"), "Failed to initialize clients"),
+    if(contains(content, "Failed getCCInformations"), "Failed getCCInformations"),
+    if(contains(content, "NullPointerException"), "NullPointerException")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, matched_keywords, content
+
+// Check: where does the name live in Dynatrace?
+fetch logs, from:now()-24h
+| filter contains(host.name, "retrieve-files-cmx", caseSensitive:false)
+    or contains(log.source, "retrieve-files-cmx", caseSensitive:false)
+    or contains(k8s.pod.name, "retrieve-files-cmx", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, log.source, k8s.pod.name, dt.openpipeline.source }
+
+// Extra: count per keyword
+fetch logs, from:now()-24h
+| filter lower(host.name) == "biloss-retrieve-files-cmx-prod"
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "CC Error"), "CC Error"),
+    if(contains(content, "CmxApiException"), "CmxApiException"),
+    if(contains(content, "NetworkException"), "NetworkException"),
+    if(contains(content, "RuntimeException"), "RuntimeException"),
+    if(contains(content, "Failed to initialize clients"), "Failed to initialize clients"),
+    if(contains(content, "Failed getCCInformations"), "Failed getCCInformations"),
+    if(contains(content, "NullPointerException"), "NullPointerException")
+  ))
+| expand matched_keywords
+| filter isNotNull(matched_keywords)
+| summarize lines = count(), by:{ matched_keywords }
+| sort lines desc
