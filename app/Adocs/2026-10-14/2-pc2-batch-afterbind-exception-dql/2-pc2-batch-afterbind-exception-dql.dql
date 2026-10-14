@@ -1,0 +1,30 @@
+// Main query: same as the Splunk search
+fetch logs, from:now()-24h
+| filter startsWith(host.name, "pc2-batch-inssuite-prod-")
+    or startsWith(k8s.pod.name, "pc2-batch-inssuite-prod-")
+| filter contains(content, "Exception occured for job", caseSensitive:false)
+    and contains(content, "during afterBind_Adj process", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+// Check 1: are pc2-batch logs in Dynatrace at all? (Splunk gets them from S3 axa-gi-jp-logforwarders-prod)
+fetch logs, from:now()-24h
+| filter contains(host.name, "pc2-batch", caseSensitive:false)
+    or contains(k8s.pod.name, "pc2-batch", caseSensitive:false)
+    or contains(k8s.namespace.name, "pc2", caseSensitive:false)
+    or contains(log.source, "pc2-batch", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, k8s.pod.name, k8s.namespace.name, log.source }
+
+// Check 2: phrase only, no host filter (finds the lines even if the host field differs)
+fetch logs, from:now()-7d
+| filter contains(content, "during afterBind_Adj process", caseSensitive:false)
+| summarize lines = count(), sample = takeFirst(content), by:{ host.name, k8s.pod.name, log.source }
+
+// Extra: how often per day and pod
+fetch logs, from:now()-7d
+| filter startsWith(host.name, "pc2-batch-inssuite-prod-")
+    or startsWith(k8s.pod.name, "pc2-batch-inssuite-prod-")
+| filter contains(content, "Exception occured for job", caseSensitive:false)
+    and contains(content, "during afterBind_Adj process", caseSensitive:false)
+| summarize lines = count(), by:{ day = bin(timestamp, 1d), host.name }
+| sort day desc
