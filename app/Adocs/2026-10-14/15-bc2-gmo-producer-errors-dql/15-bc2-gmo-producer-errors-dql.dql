@@ -1,0 +1,57 @@
+// NOTE: #45 to #49 and #53 repeat earlier SPLs. Use answer 14:
+//   #45 = old #39, #46 = old #40, #47 = old #41, #48 = old #42, #49 = old #43, #53 = old #43
+// src = pod name, or host name when there is no pod name. index=bc2* becomes startsWith(src, "bc2").
+
+// ===== #50 bc2-ui "Map returned by method call" errcode=E01, minus 3 known errinfo codes =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui")
+| filter contains(content, "Map returned by method call", caseSensitive:false)
+| parse content, "LD 'errcode=' ALNUM:errcode"
+| filter errcode == "E01"
+| filter not contains(content, "E01130002")
+    and not contains(content, "E01260010")
+    and not contains(content, "E01110002")
+| sort timestamp desc
+| fields timestamp, src, errcode, content
+
+
+// ===== #51 bc2-batch saveCardWithOrderID errors on MW-Writer-[54] =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-batch")
+| filter contains(content, "Errors in saveCardWithOrderID call", caseSensitive:false)
+    and contains(content, "MW-Writer-[54]", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #52 GMO SearchTrade used to confirm ExecTran status =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "GMO SearchTrade used to confirm ExecTran status with OrderID", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #54 pc2-ui / bc2-ui "Operation failed" with ProducerCode or Producer =====
+// The Japanese text after "ProducerCode" and "Producer" was unreadable in the screenshot.
+// Replace the two contains() below with the full phrases when you have them.
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "pc2-ui") or startsWith(src, "bc2-ui")
+| filter contains(content, "Operation failed", caseSensitive:false)
+| filter contains(content, "ProducerCode ", caseSensitive:false)
+    or contains(content, "Producer ", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #55 bc2* "Producer Contact is missing for Producer" =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter contains(content, "Producer Contact is missing for Producer", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
