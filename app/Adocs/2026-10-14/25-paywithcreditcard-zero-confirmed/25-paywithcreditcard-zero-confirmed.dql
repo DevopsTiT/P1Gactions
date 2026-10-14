@@ -1,0 +1,20 @@
+// Last check 1: the payment text anywhere, no app filter at all.
+// 0 here = no Dynatrace log contains this API name, under any host or pod name.
+fetch logs, from:now()-24h
+| filter contains(content, "payWithCreditCard_Adj")
+| summarize lines = count(), by:{ host.name, k8s.pod.name, k8s.namespace.name, log.source, dt.system.bucket }
+
+// Last check 2: can you see every bucket? (rules out permissions)
+fetch logs, from:now()-1h
+| summarize lines = count(), by:{ dt.system.bucket }
+| sort lines desc
+
+// Last check 3: does Dynatrace monitor the pods at all? (Hosts app equivalent)
+fetch dt.entity.host
+| filter contains(entity.name, "portals-amp", caseSensitive:false)
+| fields id, entity.name
+
+// Last check 4: namespace of the workload (needed for the onboarding request)
+fetch dt.entity.cloud_application
+| filter contains(entity.name, "portals-amp", caseSensitive:false)
+| fields id, entity.name, namespaceName
