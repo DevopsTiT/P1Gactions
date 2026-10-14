@@ -1,0 +1,127 @@
+// NOTE: Splunk "sourcetype" has no Dynatrace field.
+// Each query checks container, pod, and log.source. Run the check query at the bottom
+// and keep only the field that matches.
+// NOTE: The JSON steps copy Splunk's replace() + spath. If OpenPipeline already parses
+// the JSON, use those fields directly and drop the replace/parse lines.
+
+// ===== #20 portals-amp-frontend: distinct account numbers per day =====
+fetch logs, from:now()-30d
+| filter contains(k8s.container.name, "portals-amp-frontend") or contains(k8s.pod.name, "portals-amp-frontend") or contains(log.source, "portals-amp-frontend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd acct = toString(j[message][account_number])
+| filter isNotNull(acct) and contains(acct, " ")
+| fieldsAdd accountNo = substring(acct, from:0, to:indexOf(acct, " "))
+| summarize count = countDistinctExact(accountNo), by:{ day = bin(timestamp, 1d) }
+| fieldsAdd date = formatTimestamp(day, format:"yyyy-MM-dd", timezone:"Asia/Tokyo")
+| sort day asc
+| fields date, count
+
+
+// ===== #21 pc-ui container CPU % of limit, per pod =====
+timeseries { usage = avg(dt.kubernetes.container.cpu_usage), cpu_limit = avg(dt.kubernetes.container.limits_cpu) },
+  by:{ k8s.pod.name },
+  filter: k8s.workload.name == "pc-ui",
+  from:now()-24h
+| fieldsAdd percent = round(arrayAvg(usage) / arrayAvg(cpu_limit) * 100, decimals:2)
+| sort percent desc
+| fields k8s.pod.name, percent
+
+
+// ===== #22 esbv4 license expiring within 100 days =====
+fetch logs, from:now()-7d
+| filter contains(host.name, "esbv4", caseSensitive:false) or contains(k8s.namespace.name, "esbv4", caseSensitive:false) or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+| filter contains(content, "Valid license key --> Evaluation = false, Expiration Date = ")
+| fieldsAdd expiration_date = trim(substring(content, from:indexOf(content, "Expiration Date = ") + 18))
+| fieldsAdd exp_clean = replaceString(expiration_date, " JST ", " ")
+| parse exp_clean, "TIMESTAMP('EEE MMM dd HH:mm:ss yyyy'):exp_as_utc"
+| fieldsAdd expiration_epoch = exp_as_utc - 9h
+| filter expiration_epoch < now() + 100d
+| sort expiration_epoch asc
+| fields timestamp, host.name, expiration_date, expiration_epoch, content
+
+
+// ===== #23 portals-amp-backend doCancel CAUGHT_EXCEPTION_ON_BACKEND (1 day) =====
+fetch logs, from:now()-1d
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter msg_url == "doCancel" and msg_type == "CAUGHT_EXCEPTION_ON_BACKEND"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ===== #24 doCancel EXECUTION_COMPLETED (1 day) =====
+// same as #23, change the filter line to:
+// | filter msg_url == "doCancel" and msg_type == "EXECUTION_COMPLETED"
+
+// ===== #25 doesRefundExist EXECUTION_COMPLETED (1 day) =====
+// | filter msg_url == "doesRefundExist" and msg_type == "EXECUTION_COMPLETED"
+
+// ===== #26 isPolicyCancelAvailable EXECUTION_COMPLETED (1 week) =====
+// change from:now()-1d to from:now()-7d and use:
+// | filter msg_url == "isPolicyCancelAvailable" and msg_type == "EXECUTION_COMPLETED"
+
+// ===== #27 isPolicyCancelAvailable EXECUTION_COMPLETED (1 day) =====
+// | filter msg_url == "isPolicyCancelAvailable" and msg_type == "EXECUTION_COMPLETED"
+
+// ===== #23 to #27 in one table (counts per url and type, 7 days) =====
+fetch logs, from:now()-7d
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter in(msg_url, array("doCancel", "doesRefundExist", "isPolicyCancelAvailable"))
+| filter in(msg_type, array("CAUGHT_EXCEPTION_ON_BACKEND", "EXECUTION_COMPLETED"))
+| summarize last_1d = countIf(timestamp > now() - 1d), last_7d = count(), by:{ msg_url, msg_type }
+| sort msg_url asc, msg_type asc
+
+
+// ===== #28 portals-claim-customer front/back: error on applySimplePayment =====
+fetch logs, from:now()-24h
+| filter contains(k8s.container.name, "portals-claim-customer-frontend") or contains(k8s.pod.name, "portals-claim-customer-frontend") or contains(log.source, "portals-claim-customer-frontend")
+    or contains(k8s.container.name, "portals-claim-customer-backend") or contains(k8s.pod.name, "portals-claim-customer-backend") or contains(log.source, "portals-claim-customer-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd level = toString(j[level]), msg_url = toString(j[message][url])
+| filter lower(level) == "error" and msg_url == "/customer/exposure/applySimplePayment"
+| sort timestamp desc
+| fields timestamp, k8s.pod.name, level, msg_url, raw
+
+
+// ===== #29 inssuite-prod BadInputException ContactName =====
+// The Japanese text after "ContactName:" was unreadable in the screenshot.
+// Add it as a second contains() if you need the exact message.
+fetch logs, from:now()-24h
+| filter contains(host.name, "-inssuite-prod-", caseSensitive:false) or contains(k8s.pod.name, "-inssuite-prod-", caseSensitive:false)
+| filter contains(content, "gw.api.rest.exceptions.BadInputException: ContactName:", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+
+// ===== #30 pc2-ui Metaspace exhausted =====
+fetch logs, from:now()-24h
+| filter contains(k8s.container.name, "pc2-ui") or contains(k8s.pod.name, "pc2-ui") or contains(log.source, "pc2-ui")
+| filter contains(content, "Posting Resource Exhausted event: Metaspace", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+
+// ===== #31 alfrescoacr Failed to get lock =====
+fetch logs, from:now()-24h
+| filter contains(host.name, "alfrescoacr", caseSensitive:false) or contains(k8s.namespace.name, "alfrescoacr", caseSensitive:false) or contains(k8s.pod.name, "alfrescoacr", caseSensitive:false) or contains(dt.system.bucket, "alfrescoacr", caseSensitive:false)
+| filter contains(content, "Failed to get lock", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+
+// ===== Check: which field holds each Splunk sourcetype / index? =====
+fetch logs, from:now()-24h
+| filter contains(k8s.container.name, "portals-", caseSensitive:false)
+    or contains(k8s.pod.name, "portals-", caseSensitive:false)
+    or contains(log.source, "portals-", caseSensitive:false)
+    or contains(k8s.pod.name, "pc2-ui", caseSensitive:false)
+    or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+    or contains(k8s.pod.name, "alfresco", caseSensitive:false)
+| summarize lines = count(), by:{ k8s.namespace.name, k8s.container.name, log.source, dt.system.bucket }
+| sort lines desc

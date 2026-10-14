@@ -1,0 +1,14 @@
+// Main query: same as the Splunk search
+fetch logs, from:now()-24h
+| filter lower(host.name) == "biloss-retrieve-files-cmx-prod"
+| filter contains(content, "CMX Error")
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, content
+
+// Check: where does the name live in Dynatrace?
+fetch logs, from:now()-24h
+| filter contains(host.name, "retrieve-files-cmx", caseSensitive:false)
+    or contains(log.source, "retrieve-files-cmx", caseSensitive:false)
+    or contains(k8s.pod.name, "retrieve-files-cmx", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, log.source, k8s.pod.name, dt.openpipeline.source }

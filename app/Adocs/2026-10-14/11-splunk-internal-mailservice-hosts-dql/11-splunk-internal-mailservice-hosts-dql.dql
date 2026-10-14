@@ -1,0 +1,67 @@
+// ===== SPL #14: daily ingest volume (Splunk license usage) =====
+// Approximation: size of the log text per day. Attributes are not counted.
+fetch logs, from:now()-7d
+| fieldsAdd b = stringLength(content)
+| fieldsAdd s   = coalesce(log.source, "(SQUASHED)"),
+            st  = coalesce(dt.openpipeline.source, "(SQUASHED)"),
+            h   = coalesce(host.name, "(SQUASHED)"),
+            idx = coalesce(dt.system.bucket, "(UNKNOWN)")
+| summarize b = sum(b), by:{ day = bin(timestamp, 1d), s, st, h, idx }
+| fieldsAdd gb = round(toDouble(b) / 1073741824, decimals:3)
+| sort day desc, b desc
+
+// Check: does this tenant expose billing usage events? (exact billed volume)
+fetch dt.system.events, from:now()-7d
+| filter event.kind == "BILLING_USAGE_EVENT"
+| summarize events = count(), by:{ event.type }
+
+
+// ===== SPL #15: mailservice AuthenticationFailedException =====
+fetch logs, from:now()-24h
+| filter contains(host.name, "mailservice", caseSensitive:false)
+    or contains(k8s.namespace.name, "mailservice", caseSensitive:false)
+    or contains(dt.system.bucket, "mailservice", caseSensitive:false)
+| filter contains(content, "AuthenticationFailedException", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, log.source, content
+
+
+// ===== SPL #16: mailservice Tomcat startup =====
+fetch logs, from:now()-24h
+| filter contains(host.name, "mailservice", caseSensitive:false)
+    or contains(k8s.namespace.name, "mailservice", caseSensitive:false)
+    or contains(dt.system.bucket, "mailservice", caseSensitive:false)
+| filter matchesPhrase(content, "Catalina.start Server startup")
+| sort timestamp desc
+| fields timestamp, host.name, log.source, content
+
+// Check for #15 and #16: where does "mailservice" live?
+fetch logs, from:now()-24h
+| filter contains(host.name, "mailservice", caseSensitive:false)
+    or contains(k8s.namespace.name, "mailservice", caseSensitive:false)
+    or contains(log.source, "mailservice", caseSensitive:false)
+    or contains(dt.system.bucket, "mailservice", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, k8s.namespace.name, log.source, dt.system.bucket }
+| sort lines desc
+
+
+// ===== SPL #17: events per minute, top 5 sources =====
+fetch logs, from:now()-1h
+| makeTimeseries events = count(), by:{ log.source }, interval:1m
+| fieldsAdd total = arraySum(events)
+| sort total desc
+| limit 5
+
+
+// ===== SPL #18: prod hosts silent for more than 1 hour =====
+fetch logs, from:now()-7d
+| filter contains(host.name, "-prod-") and not contains(host.name, "amazonaws")
+| summarize count = count(), first_event = min(timestamp), last_event = max(timestamp), by:{ host.name }
+| fieldsAdd last_seen_sec = (toLong(now()) - toLong(last_event)) / 1000000000
+| filter last_seen_sec > 3600
+| fieldsAdd minutes_behind = round(toDouble(last_seen_sec) / 60, decimals:0),
+            hours_behind   = round(toDouble(last_seen_sec) / 3600, decimals:1),
+            days_behind    = round(toDouble(last_seen_sec) / 86400, decimals:1),
+            last_event_jst = formatTimestamp(last_event, format:"EEE MMM dd HH:mm:ss yyyy", timezone:"Asia/Tokyo")
+| sort last_seen_sec desc
+| fields host.name, last_event_jst, minutes_behind, hours_behind, days_behind

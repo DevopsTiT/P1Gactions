@@ -1,0 +1,25 @@
+// ===== SPL #19 =====
+// index=esbv4 "Error sending HTTP request to https://3903926.restlets.api.netsuite.com:443"
+fetch logs, from:now()-24h
+| filter contains(host.name, "esbv4", caseSensitive:false)
+    or contains(k8s.namespace.name, "esbv4", caseSensitive:false)
+    or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+    or contains(dt.system.bucket, "esbv4", caseSensitive:false)
+| filter contains(content, "Error sending HTTP request to https://3903926.restlets.api.netsuite.com:443", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, log.source, content
+
+// Check: where does "esbv4" live in Dynatrace?
+fetch logs, from:now()-24h
+| filter contains(host.name, "esbv4", caseSensitive:false)
+    or contains(k8s.namespace.name, "esbv4", caseSensitive:false)
+    or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+    or contains(log.source, "esbv4", caseSensitive:false)
+    or contains(dt.system.bucket, "esbv4", caseSensitive:false)
+| summarize lines = count(), by:{ host.name, k8s.namespace.name, k8s.pod.name, log.source, dt.system.bucket }
+| sort lines desc
+
+// Extra: error count per 5 minutes (spot outage windows)
+fetch logs, from:now()-24h
+| filter contains(content, "Error sending HTTP request to https://3903926.restlets.api.netsuite.com:443", caseSensitive:false)
+| makeTimeseries errors = count(), interval:5m
