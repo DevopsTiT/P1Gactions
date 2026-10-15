@@ -1,0 +1,80 @@
+// P1 text search on one app
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "<app>")
+| filter contains(content, "<phrase>", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// P2 keyword tagging (add after P1 filters)
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "<KeywordA>"), "<KeywordA>"),
+    if(contains(content, "<KeywordB>"), "<KeywordB>")
+  ))
+
+
+// P3 parse a value
+| parse content, "LD '<key>=' ALNUM:<field>"
+| filter <field> == "<value>"
+
+
+// P4 multi-line split
+| fieldsAdd lines = splitString(content, "\n")
+| expand lines
+| filter matchesValue(lines, "<pattern>*")
+| summarize details = collectArray(lines), by:{timestamp, src}
+
+
+// P5 count and group
+| summarize count = count(), by:{src}
+| sort count desc
+| limit 5
+
+
+// P6 freshness
+fetch logs, from:now()-7d
+| summarize last_seen = max(timestamp), by:{host.name}
+| filter last_seen < now() - 2h
+| sort last_seen asc
+
+
+// P7 subsearch as lookup join
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "<app>")
+| filter contains(content, "<request phrase>", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+    | filter startsWith(src, "<app>")
+    | filter contains(content, "<error phrase>", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+
+// P8 escaped JSON
+fetch logs, from:now()-1d
+| filter contains(k8s.container.name, "<app>") or contains(k8s.pod.name, "<app>") or contains(log.source, "<app>")
+| fieldsAdd raw = replaceString(content, "\\\"", "\"")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "<endpoint>")
+| filter msg_type == "<TYPE>"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+
+// P10 lookup file and date math
+load "/lookups/<table>"
+| fieldsAdd ssl_end = timestampFromUnixSeconds(toLong(ssl_end_time))
+| fieldsAdd days_left = toLong((ssl_end - now()) / 1d)
+| filter ssl_end < now() + 30d
+| fields dest, ssl_end, days_left

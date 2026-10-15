@@ -1,0 +1,16 @@
+// 1 time
+fetch logs, from:now()-24h
+// 2 where (Splunk index / host / sourcetype)
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "<app-prefix>")
+// 3 text (bare word -> matchesPhrase, quoted -> contains caseSensitive:false, CASE -> contains)
+| filter contains(content, "<quoted phrase>", caseSensitive:false)
+| filter not matchesPhrase(content, "<excluded word>")
+// 4 extract (Splunk auto field / rex / spath)
+| parse content, "LD '<key>=' ALNUM:<field>"
+| filter <field> == "<value>"
+// 5 shape (stats / timechart) - delete if the Splunk query only lists events
+// | summarize count = count(), by:{src}
+// 6 output (sort / table)
+| sort timestamp desc
+| fields timestamp, src, content
