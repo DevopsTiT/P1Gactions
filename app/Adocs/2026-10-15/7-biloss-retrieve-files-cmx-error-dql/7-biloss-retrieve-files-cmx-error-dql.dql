@@ -1,0 +1,14 @@
+// #7 BILoss-retrieve-files-cmx-prod "CMX Error" (case-sensitive, like Splunk regex)
+fetch logs, from:now()-24h
+| filter lower(host.name) == "biloss-retrieve-files-cmx-prod"
+| filter contains(content, "CMX Error")
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, content
+
+
+// Check: if the main query returns 0 rows, confirm the host sends logs at all
+fetch logs, from:now()-24h
+| filter contains(lower(host.name), "biloss")
+| summarize count = count(), last_seen = max(timestamp), by:{ host.name }
+| sort count desc
