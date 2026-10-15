@@ -1,0 +1,14 @@
+// ===== #81 Option A: Grail lookup file (only if someone uploads sslcert_lookup) =====
+load "/lookups/sslcert_lookup"
+| filter dest == "ebroker-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa"
+| fieldsAdd ssl_end = timestampFromUnixSeconds(toLong(ssl_end_time))
+| fieldsAdd days_left = toLong((ssl_end - now()) / 1d)
+| filter ssl_end < now() + 30d
+| fields dest, ssl_end, days_left
+
+
+// ===== #81 Option B check: after creating a Synthetic HTTP monitor, list its certificate problems =====
+fetch dt.davis.problems, from:now()-7d
+| filter contains(toString(event.name), "certificate") or contains(toString(event.name), "SSL")
+| sort timestamp desc
+| fields timestamp, event.name, event.status, affected_entity_ids
