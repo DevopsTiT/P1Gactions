@@ -1,0 +1,17 @@
+// ===== #53 bc2-ui, bc2-batch, bcsubledger "Exception during GMO call EXECTRAN" =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #53 count per app per hour (optional) =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| fieldsAdd app = if(startsWith(src, "bc2-ui"), "bc2-ui",
+                  else: if(startsWith(src, "bc2-batch"), "bc2-batch", else: "bcsubledger"))
+| makeTimeseries errors = count(), by:{ app }, interval:1h

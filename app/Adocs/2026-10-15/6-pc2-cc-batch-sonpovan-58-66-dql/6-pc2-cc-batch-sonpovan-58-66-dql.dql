@@ -1,0 +1,100 @@
+// ===== #58 bcsubledger Japanese error text =====
+// The Japanese words in the screenshot are garbled. Paste the real text into <JP_TEXT>.
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bcsubledger")
+| filter contains(content, "<JP_TEXT>", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #59 pc2-batch payment request creation failure =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "pc2-batch")
+| filter contains(content, "Creation of a payment request for transaction", caseSensitive:false)
+| filter matchesPhrase(content, "failure")
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #60 cc-ui or cc-batch RemoveDocumentChain execution duration =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-ui") or startsWith(src, "cc-batch")
+| filter contains(src, "cc-")
+| filter matchesPhrase(content, "RemoveDocumentChain")
+| filter matchesPhrase(content, "Execution")
+| filter matchesPhrase(content, "Duration")
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #61 cc-batch ERROR lines for EnqueteWorkItem_Adj =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-batch")
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "EnqueteWorkItem_Adj", caseSensitive:false)
+| summarize loglevel = collectDistinct(loglevel), log = collectDistinct(content), by:{ timestamp }
+| sort timestamp desc
+
+
+// ===== #62 cc-batch MessageQueueMonitor_Adj ERROR with 10-digit detail lines =====
+// Replace <JP_TEXT> with the real Japanese words from the Splunk "log !=" line.
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter contains(src, "cc-batch")
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "MessageQueueMonitor_Adj", caseSensitive:false)
+| filter not contains(content, "Sonpovan <JP_TEXT>", caseSensitive:false)
+| filter contains(content, "Found ")
+| fieldsAdd queueMessage = substring(content, from: indexOf(content, "Found "))
+| fieldsAdd line = splitString(content, "\n")
+| expand line
+| parse line, "(DIGIT{10} SPACE LD):detail"
+| filter isNotNull(detail)
+| summarize details = collectArray(detail), by:{ timestamp, src, queueMessage }
+| sort timestamp desc
+| fields timestamp, src, queueMessage, details
+
+
+// ===== #63 cc-batch DocNotif_Adj work item failed =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-batch")
+| filter contains(content, "Work item processed \"DocNotif_Adj\"", caseSensitive:false)
+| filter contains(content, "failed=true", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #64 cc-batch FinancialsEsc work item failed =====
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-batch")
+| filter contains(content, "Work item processed \"FinancialsEsc", caseSensitive:false)
+| filter contains(content, "failed=true", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+
+// ===== #65 sonpovan WARN from the account statement API tasklet =====
+// The class name is hard to read in the screenshot. Check the spelling against Splunk.
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter contains(src, "sonpov")
+| filter matchesPhrase(content, "WARN")
+| filter contains(content, "VanTRecvAccountStatementCallApiTasklet", caseSensitive:false)
+| filter contains(content, "Message")
+| parse content, "LD (DIGIT+ '/' DIGIT+):claimNumber"
+| parse content, "LD 'Message : ' LD:message"
+| fieldsAdd suffix = if(stringLength(message) > 400, substring(message, from:400, to:417))
+| sort timestamp desc
+| fields timestamp, src, claimNumber, message, suffix, content
+
+
+// ===== #66 cc-* =====
+// The screenshot is cut off after index="cc-*". Send the full Splunk query to finish this one.
