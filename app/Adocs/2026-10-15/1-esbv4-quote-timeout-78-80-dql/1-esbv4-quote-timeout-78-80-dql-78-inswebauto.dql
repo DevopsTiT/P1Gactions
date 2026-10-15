@@ -1,0 +1,25 @@
+// SPL #78 (top of the SPL was cut off in the screenshot; same pattern as #79 assumed)
+// index=esbv4
+// | search [ search "Error(esb-ebroker.xml) description: HTTP POST on resource 'https://pc-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/pc/service/edge/ebroker/quote' failed: Timeout exceeded."
+//           | rex field=_raw "(?<query>[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12})"
+//           | fields query | format ]
+//   AND "Sending request to /esb/ebroker/inswebauto/online/_quote"
+
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Sending request to /esb/ebroker/inswebauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+    | filter startsWith(src, "esbv4")
+    | filter contains(content, "Error(esb-ebroker.xml) description: HTTP POST on resource 'https://pc-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
