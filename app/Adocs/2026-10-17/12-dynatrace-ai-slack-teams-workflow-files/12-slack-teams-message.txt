@@ -1,5 +1,0 @@
-[Dynatrace AI] {{problem_id}}
-{{title}}
-{{problem_url}}
-
-{{ai_summary_or_template_body}}
