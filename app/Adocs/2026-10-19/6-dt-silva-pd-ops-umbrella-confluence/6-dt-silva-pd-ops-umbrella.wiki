@@ -1,0 +1,252 @@
+h1. Dynatrace SILVA PagerDuty Operations Umbrella
+
+{info:title=Audience}
+SRE / on-call and platform engineers who need the *full picture*: when Dynatrace starts detecting problems, which apps own which step, how S0 OPEN and S2 CLOSE workflows run, and where the related instructions / runbooks live.
+{info}
+
+{warning:title=Safety}
+OPEN and CLOSE workflows *send* to SILVA and PagerDuty when Deployed. Keep Draft or {{DRY_RUN}} until tested. Never put passwords or routing keys in Confluence. Only *one* OPEN and *one* CLOSE workflow should own a given problem scope. Drafts are not triggered.
+{warning}
+
+----
+
+h2. Decision tree
+
+{code}
+Something wrong in monitored apps/hosts?
+  → Davis detects a Problem (Dynatrace Problems app)
+  → Problem becomes ACTIVE + CREATED?
+       → S0 OPEN workflow (Automations) → SILVA ticket + PagerDuty page
+  → Problem becomes CLOSED?
+       → S2 CLOSE workflow (Automations) → SILVA Resolved + PD resolve
+ Need AI catch-up in Slack/Teams without PD Advance?
+  → Optional WF-A / Dynatrace AI Assistant runbooks
+ Chat AI in PagerDuty Slack/Teams?
+  → PagerDuty AI instructions (separate from S0/S2)
+ Stuck?
+  → Open the matching runbook below (preview fail, close_code, Not Connected, …)
+{code}
+
+----
+
+h2. Short takeaway
+
+||Question||Answer||
+|When does detection start?|When Dynatrace *Davis* opens a Problem on monitored entities (apps, services, hosts, …)|
+|When does S0 OPEN start?|Problem *Active* + status transition *CREATED* (and category filters match)|
+|When does S2 CLOSE start?|Problem *Closed* (same category family as configured)|
+|Which Dynatrace app runs the graphs?|*Workflows / Automations* ({{dynatrace.automations}})|
+|Which external apps?|*SILVA* (ServiceNow ITSM) + *PagerDuty* (paging)|
+|Where are deep runbooks?|Child Confluence pages + CursorFiles Daily Files listed below|
+
+----
+
+h2. Summary
+
+Problem *detection* happens in Dynatrace (Davis / Problems). Problem *ticketing and paging* happen in Automations workflows that call SILVA and PagerDuty. This umbrella page explains *when* each stage starts, *which app* owns it, and points to the staff instructions for OPEN, CLOSE, AI notify, and PagerDuty chat AI.
+
+----
+
+h2. Words you need first
+
+||Word||What it means||Why you care||
+|Davis / Problem|Dynatrace’s detected issue object|Detection starts here — before any workflow|
+|Automations / Workflows|Dynatrace app that runs S0 / S2 graphs|Where OPEN/CLOSE logic lives|
+|SILVA|ServiceNow ITSM instance|Incident ticket system|
+|PagerDuty|On-call paging product|Who gets woken|
+|S0 OPEN|Preview then POST workflow|Creates ticket + page on problem open|
+|S2 CLOSE|Direct close workflow|Resolves ticket + PD when problem closes|
+|Alerting profile / tags|Who/what is eligible to alert|Can narrow which problems reach workflows|
+|correlation_id / dedup_key|Shared ids across OPEN and CLOSE|{{P-…}} and {{dt-problem-P-…}}|
+
+----
+
+h2. When does problem detection start?
+
+h3. Detection (before workflows)
+
+Dynatrace continuously monitors entities (services, processes, hosts, synthetic, custom events, …). *Davis* opens a *Problem* when it decides something is wrong (error rate, availability, resource, slowdown, custom, …).
+
+||Stage||What happens||Where you see it||
+|Monitor|OneAgent / extensions / logs / metrics ingest|Dynatrace entity pages|
+|Detect|Davis correlates signals → *Problem*|Problems app / Problems list|
+|Notify (optional)|Alerting profile / notification channels|Email, Slack via DT, webhooks, …|
+|Automate|Workflows trigger on Problem Active or Closed|Automations → Workflows|
+
+*Important:* Opening a Problem is *not* the same as creating a SILVA ticket. The ticket only appears after *S0 OPEN* runs successfully (and is Deployed, not Draft).
+
+h3. What “related to which app” means in practice
+
+Problems are usually tied to *affected entities* (for example a Kubernetes service, a process group, a host named like {{BILoss-…}}, or a custom device). Tags on those entities (business service, assignment group, environment, app code) are what {{extract-event-tags}} / {{resolve-snow-values}} use to fill SILVA fields.
+
+||If the problem is about…||Typical Dynatrace entity / signal||What S0 needs from it||
+|A named host / VM|{{host}} / {{host.name}}|Host CI lookup, environment tags|
+|A K8s workload|pod / namespace / service|App identity via tags / names|
+|A service / PG|service, process group|Service tags → business service|
+|Custom / availability|synthetic or custom event|Category custom / availability|
+
+If tags are missing, S0 preview will report MISSING fields and *skip* create (by design).
+
+----
+
+h2. When do the workflows start?
+
+h3. S0 OPEN — start conditions
+
+||Setting||Typical value||Meaning||
+|Event|Davis problem|Only problems, not raw logs|
+|Status|ACTIVE|Problem is open|
+|Transition|CREATED|Fire on *new* open (not every update)|
+|Categories|error, resource, slowdown, availability, custom|Matches screenshot / standard v7.1|
+|onProblemClose|false|OPEN does not run on close|
+|Workflow status|Deployed (not Draft)|Drafts are not triggered|
+
+h3. S2 CLOSE — start conditions
+
+||Setting||Typical value||Meaning||
+|Event|Davis problem|Same problem family|
+|Event state|closed|Problem recovered / closed|
+|Categories|Same family as OPEN|Keep OPEN/CLOSE aligned|
+|Workflow status|Deployed|Drafts are not triggered|
+
+h3. Timeline (happy path)
+
+{code}
+T0   Davis opens Problem P-…
+T0+  S0 OPEN runs (if Deployed + filters match)
+       → SILVA incident created (correlation_id = P-…)
+       → PagerDuty trigger (dedup_key = dt-problem-P-…)
+T1   Humans investigate / fix
+T2   Davis closes Problem P-…
+T2+  S2 CLOSE runs
+       → SILVA PATCH Resolved (find by correlation_id)
+       → PagerDuty resolve (same dedup_key)
+{code}
+
+----
+
+h2. Related apps (who owns what)
+
+||App / product||Role in this design||What you configure there||
+|*Dynatrace — Problems / Davis*|Detects and closes problems|Monitoring, anomaly detection, problem feed|
+|*Dynatrace — Automations (Workflows)*|Runs S0 OPEN + S2 CLOSE|Workflow Deploy, allowlists, secrets, DRY_RUN|
+|*Dynatrace — Hub Connections*|Credentials for HTTP if used|Prefer secrets in workflow / Connection store|
+|*SILVA (ServiceNow)*|ITSM incident of record|Assignment groups, close codes, CMDB services/CIs|
+|*PagerDuty*|On-call page / resolve|Service, escalation policy, Events API routing key|
+|*PagerDuty Slack / Teams apps* (optional)|PD AI chat (Paige / Scribe)|Advance license + Connected chat — *not* required for S0/S2|
+|*Dynatrace Slack / Teams connectors* (optional)|WF-A AI catch-up messages|Separate from SILVA/PD OPEN|
+
+----
+
+h2. Workflow pair (staff deep-dives)
+
+Publish / link these Confluence pages next to this umbrella:
+
+||Page||Workflow||When it runs||Paste file (CursorFiles)||
+|Dynatrace S0 Preview Then Post SILVA and PagerDuty|S0 OPEN v7.1|Problem Active CREATED|{{2026-10-19/4-s0-preview-post-silva-pd-confluence/4-s0-preview-post-silva-pd-event-path.wiki}}|
+|Dynatrace S2 CLOSE Problem SILVA and PagerDuty|S2 CLOSE direct v5|Problem Closed|{{2026-10-19/5-s2-close-silva-pd-confluence/5-s2-close-silva-pd-event-path.wiki}}|
+
+||Shared contract||Value||
+|SILVA correlation_id|Problem display id ({{P-…}})|
+|PagerDuty dedup_key|{{dt-problem-P-…}}|
+|Allowlist hosts|SILVA stage host + {{events.pagerduty.com}}|
+
+----
+
+h2. Relative instructions and runbooks
+
+Use this catalog as the *related runbooks* section on Confluence (attach or link the pages you publish).
+
+h3. A — Core OPEN / CLOSE (ticketing + paging)
+
+||Runbook / instruction||Use when||
+|This umbrella page|Orientation: detection → apps → which workflow|
+|S0 OPEN Confluence (seq 4)|Explain every OPEN task + API (preview/post)|
+|S2 CLOSE Confluence (seq 5)|Explain every CLOSE task + API (PATCH + resolve)|
+|Standard flow folder {{2026-10-01/36-standard-flow-preview-then-post}}|Source OPEN YAML / local standard (secrets — not for Confluence body)|
+|Close direct folder {{2026-10-01/39-close-direct-silva-pagerduty}}|Source CLOSE YAML (secrets — local only)|
+|SILVA field / CI key notes ({{2026-10-01/10}}, {{14}}, {{15}}, {{21}})|SILVA form keys, CI, verify checklist|
+
+h3. B — Optional Dynatrace AI → Slack/Teams (not SILVA)
+
+||Runbook / instruction||Use when||
+|Event path DT AI replace PD AI ({{2026-10-18/1-…}})|When event opens, AI triage without PD Advance chat|
+|WF-A / WF-B all files ({{2026-10-18/2-…}})|Import AI notify + 30m escalate templates|
+|DT AI replace PD Confluence ({{2026-10-18/3-…}})|Confluence paste for AI replace design|
+|WFA/WFB inputs needed ({{2026-10-18/4-…}})|What to fill after import|
+|WFA/WFB explain ({{2026-10-18/5-…}})|Plain-English workflow explain|
+|How to get WFA chat inputs ({{2026-10-18/6-…}})|How to obtain Slack/Teams connection + channel|
+
+h3. C — PagerDuty AI in Slack / Teams (chat agents)
+
+||Runbook / instruction||Use when||
+|PagerDuty AI Slack/Teams instructions ({{2026-10-18/7-…}})|Enable Paige/Scribe in chat|
+|PagerDuty AI Slack/Teams Confluence ({{2026-10-18/8-…}})|Confluence paste for PD AI steps|
+|Earlier PD Slack Confluence ({{2026-10-17/14}} / {{17}})|Slack-only or Slack/Teams Confluence packs|
+
+h3. D — Operator quick actions
+
+||Symptom||Go to||
+|S0 Draft / “Drafts are not triggered”|S0 page → Deploy checklist|
+|Preview not ready / MISSING fields|S0 page → resolve-snow-values / build-payload; SILVA key runbooks|
+|Duplicate SILVA incident|S0 preview duplicate GET logic|
+|CLOSE did nothing|S2 page → no open correlation_id; or still Draft|
+|Wrong close_code|S2 page → sys_choice / CLOSE_CODE setting|
+|PD page but no SILVA (or reverse)|S0 parallel branches — check each preview|
+|Want Slack AI without PD Advance|Section B AI runbooks|
+|Want @PagerDuty in Slack/Teams|Section C PD AI runbooks|
+
+----
+
+h2. Related apps — setup checklist (high level)
+
+||App||Minimum ready state||
+|Dynatrace monitoring|Entities you care about are monitored; Problems appear for real faults|
+|Dynatrace Automations|Workflows app installed; S0 + S2 imported; allowlists set|
+|SILVA|Service account can GET/POST/PATCH incident; choice lists known|
+|PagerDuty|Events API integration (routing key) on the correct service; escalation policy|
+|Optional DT Slack/Teams|Hub connections + bot in test channels (for WF-A)|
+|Optional PD Slack/Teams AI|Advance licensed; chat Connected + On|
+
+----
+
+h2. Data flow map (full stack)
+
+{code}
+Monitored app / host / service
+  → Dynatrace ingest (OneAgent / extensions / logs / metrics)
+  → Davis Problem (Problems app)     ←── "detection starts" here
+  → Automations Workflows app
+        ├─ S0 OPEN (Active CREATED)
+        │     → SILVA POST incident
+        │     → PagerDuty trigger
+        └─ S2 CLOSE (Closed)
+              → SILVA PATCH Resolved
+              → PagerDuty resolve
+  → Optional: Dynatrace AI → Slack/Teams (WF-A)
+  → Optional: PagerDuty AI in Slack/Teams (Advance)
+{code}
+
+----
+
+h2. Suggested Confluence page tree
+
+{code}
+Dynatrace SILVA PagerDuty Operations Umbrella   ← this page
+  ├─ S0 Preview Then Post (OPEN) — task + API detail
+  ├─ S2 CLOSE direct — task + API detail
+  ├─ (Optional) Dynatrace AI Assistant replace PD AI
+  ├─ (Optional) PagerDuty AI on Slack or Teams
+  └─ (Optional) WF-A/WF-B input & explain pages
+{code}
+
+----
+
+h2. Document control
+
+||Field||Value||
+|Source|S0/S2 screenshots + standard OPEN/CLOSE Daily Files + AI/PD AI runbooks|
+|Confluence format|Wiki markup (Insert → Markup → Confluence Wiki)|
+|Owner|SRE / platform|
+|Secrets in this page|None|
+|Child pages|Publish seq 4 (S0) and seq 5 (S2) wikis alongside this umbrella|

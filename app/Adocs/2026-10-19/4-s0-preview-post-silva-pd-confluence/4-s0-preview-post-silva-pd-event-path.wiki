@@ -1,0 +1,303 @@
+h1. Dynatrace S0 Preview Then Post SILVA and PagerDuty
+
+{info:title=Audience}
+SRE / platform engineers who need to understand the Dynatrace Automations workflow that opens a SILVA (ServiceNow) incident and pages PagerDuty when a Davis problem becomes Active.
+{info}
+
+{warning:title=Safety}
+This workflow *sends* for real when active (creates SILVA incidents and PagerDuty pages). Keep it *Draft* or set {{DRY_RUN = true}} until preview checks pass. Never put SILVA passwords or PagerDuty routing keys in Confluence. Allowlist {{silvastg.service-now.com}} and {{events.pagerduty.com}} before go-live. Disable other PREVIEW / TEST / OPEN workflows so one problem is not handled twice.
+{warning}
+
+----
+
+h2. Decision tree
+
+{code}
+Davis problem Active (availability / custom / error / resource / slowdown)?
+  → extract-event-tags (parse tags + alert fields)
+  → resolve-snow-values (SILVA GET lookups)
+  → build-payload (SNOW body + PD body + create/skip decision)
+      ├─► preview-silva-incident (checks + duplicate GET)
+      │     → ready? → post-silva-incident (POST incident)
+      │     → not ready / already open / DRY_RUN? → skip
+      └─► preview-pagerduty (checks; routing key hidden)
+            → ready? → trigger-pagerduty (POST Events API)
+            → not ready / DRY_RUN? → skip
+ Draft status?
+  → Drafts are not triggered — Save / Deploy first
+{code}
+
+----
+
+h2. Short takeaway
+
+||Question||Answer||
+|What is this workflow?|Dynatrace Automations graph: problem → prepare → preview → post SILVA *and* page PagerDuty|
+|UI title (screenshot)|*S0 - PREVIEW then POST to SILVA and PagerDuty v7.1*|
+|Safety pattern|Each send task reads *its own* preview and skips if not ready|
+|Left branch|preview-silva-incident → post-silva-incident|
+|Right branch|preview-pagerduty → trigger-pagerduty|
+|Shared prep|extract-event-tags → resolve-snow-values → build-payload|
+
+----
+
+h2. Summary
+
+When a Davis problem opens, this workflow collects tickets and paging data, looks up SILVA (ServiceNow) assignment values with *read-only* GETs, builds both payloads, then runs two parallel branches. Each branch *previews* first (checks fields / duplicates), then *posts* only if that preview says ready. SILVA gets an incident. PagerDuty gets one Events API trigger with dedup key {{dt-problem-<problem_id>}}.
+
+----
+
+h2. Words you need first
+
+||Word||What it means||Why you care||
+|Davis problem|Dynatrace “something is wrong” object|Starts the workflow|
+|SILVA|AXA ServiceNow instance used for ITSM incidents|Where the ticket is created|
+|SNOW|ServiceNow (same world as SILVA)|Field names like {{assignment_group}}|
+|Preview task|Build/check payload; usually GET only|Gate before send|
+|Post / trigger task|Actually creates ticket or page|Only after preview ready|
+|DRY_RUN|Flag in send scripts|{{true}} = log only, no POST|
+|dedup_key|PagerDuty unique key for one problem|Stops many pages for same problem|
+|correlation_id|Usually Dynatrace problem id on the SILVA ticket|Links ticket ↔ problem|
+
+----
+
+h2. End-to-end picture
+
+{code}
+Problem trigger (Davis Active)
+        │
+        ▼
+extract-event-tags          (Dynatrace event + optional Problems API)
+        │
+        ▼
+resolve-snow-values         (SILVA Table API GET lookups)
+        │
+        ▼
+build-payload               (no network — builds JSON + decision)
+        │
+        ├──────────────────────────────┐
+        ▼                              ▼
+preview-silva-incident          preview-pagerduty
+  (field checks +               (field checks;
+   duplicate GET)                routing key redacted)
+        │                              │
+        ▼                              ▼
+post-silva-incident             trigger-pagerduty
+  POST /api/now/v2/table/incident   POST /v2/enqueue
+        │                              │
+        ▼                              ▼
+   SILVA incident                 PagerDuty incident
+{code}
+
+----
+
+h2. Task catalog (all steps)
+
+||#||Task||Position||Runs after||Network?||What it does||
+|0|Problem trigger|top|—|Dynatrace events|Starts on Active problem (availability, custom, error, resource, slowdown). Drafts do not fire.|
+|1|extract-event-tags|(0,1)|trigger|Optional Dynatrace Problems API|Parses tags and alert fields; builds SNOW inputs (group tags, environment, app code, host, problem URL).|
+|2|resolve-snow-values|(0,2)|extract-event-tags|SILVA *GET*|Read-only lookups for business service, offering, assignment group (and related CI logic).|
+|3|build-payload|(0,3)|resolve-snow-values|*None*|Builds SILVA incident body, PagerDuty trigger body, and {{create_incident}} / skip decision.|
+|4a|preview-silva-incident|(0,4)|build-payload|SILVA *GET* (duplicate check)|Shows body, per-field readiness, duplicate open-incident check.|
+|5a|post-silva-incident|(0,5)|preview-silva-incident|SILVA *GET* + *POST*|Skips if preview not ready / already open / DRY_RUN; else creates incident.|
+|4b|preview-pagerduty|(1,4)|build-payload|*None* (local checks)|Shows PD body with routing key hidden; readiness flags.|
+|5b|trigger-pagerduty|(1,5)|preview-pagerduty|PagerDuty *POST*|Skips if not ready / DRY_RUN; else Events API v2 trigger.|
+
+----
+
+h2. Step-by-step detail and API calls
+
+h3. 0 — Problem trigger
+
+* *Type:* Dynatrace Workflows *davis-problem* event trigger.
+* *When:* Problem becomes Active; categories include availability, custom, error, resource, slowdown (as configured).
+* *API:* Internal Dynatrace event bus (not a REST call you configure).
+* *UI note:* Toggle On in the editor still does nothing while status is *Draft* (“Drafts are not triggered”).
+
+----
+
+h3. 1 — extract-event-tags
+
+* *Type:* JavaScript task ({{dynatrace.automations:run-javascript}}).
+* *Inputs:* Trigger {{event}} (problem id, title, tags, entity, URL).
+* *Optional API:* Dynatrace Problems / environment URL helpers ({{getEnvironmentUrl}}, optional problem fetch when enabled) to enrich description and problem URL.
+* *Outputs (examples):*
+** {{problem_id}}, {{problem_url}}, title / description
+** {{snow_inputs}} (group tags, environment, app code, host, owner-style fields)
+* *No SILVA / PagerDuty calls here.*
+
+----
+
+h3. 2 — resolve-snow-values
+
+* *Type:* JavaScript + HTTP.
+* *Purpose:* Map Dynatrace tags / host into SILVA CMDB / group records.
+* *Base URL (staging example):* {{https://silvastg.service-now.com}}
+* *API pattern:* ServiceNow Table API v2
+
+{code}
+GET {SILVA_BASE}/api/now/v2/table/{table}?sysparm_query=...&sysparm_fields=...
+Authorization: Basic (stored secret — not in Confluence)
+{code}
+
+* *Typical tables looked up (names may vary by mapping logic):*
+** Assignment group
+** Business service
+** Service offering / CI ({{cmdb_ci}})
+** Optional: recent {{incident}} history to infer offering for a host CI
+* *Method:* *GET only* (read-only).
+* *Outputs:* Resolved sys_ids / display names, {{snow_required}} checklist, match method notes.
+
+----
+
+h3. 3 — build-payload
+
+* *Type:* JavaScript.
+* *Network:* *None* (pure transform).
+* *Builds:*
+** {{snow_incident_payload}} — fields such as {{short_description}}, {{assignment_group}}, {{u_business_service}}, {{cmdb_ci}}, {{u_environment}}, {{correlation_id}}, {{u_external_url}}, description, …
+** {{pagerduty_payload}} — Events API v2 shape: {{routing_key}} (placeholder/secret), {{event_action: trigger}}, {{dedup_key: dt-problem-<id>}}, {{payload.summary}}, {{severity}}, {{source}}, {{custom_details}}, {{client_url}}
+** {{decision.create_incident}} — {{true}} only if required fields present and not in maintenance skip path
+* *Missing required fields* → decision skip (both branches will not send).
+
+----
+
+h3. 4a — preview-silva-incident
+
+* *Type:* JavaScript + HTTP GET.
+* *Reads:* {{build-payload}} result.
+* *Checks:* Required fields present; decision says create; formatting.
+* *Duplicate API:*
+
+{code}
+GET {SILVA_BASE}/api/now/v2/table/incident?sysparm_query=<open incident for this correlation / problem>
+{code}
+
+* *Outputs:* {{ready}}, {{problems[]}}, {{wouldDo}} (CREATE / SKIP …), payload preview.
+* *Does not create* the incident.
+
+----
+
+h3. 5a — post-silva-incident
+
+* *Type:* JavaScript + HTTP.
+* *Gate:* Runs only if predecessor {{preview-silva-incident}} is OK *and* script sees {{ready}} / create decision.
+* *Duplicate GET again* (safety): same open-incident query; if already open → skip and return existing number/URL.
+* *DRY_RUN:* if {{true}} → return would-POST body, no create.
+* *Create API:*
+
+{code}
+POST {SILVA_BASE}/api/now/v2/table/incident?sysparm_display_value=all&sysparm_exclude_reference_link=true
+Content-Type: application/json
+Body: snow_incident_payload
+{code}
+
+* *Success:* Returns incident number / {{sys_id}} and deep link ({{nav_to.do?uri=incident.do?sys_id=…}}).
+
+----
+
+h3. 4b — preview-pagerduty
+
+* *Type:* JavaScript (local validation).
+* *Checks examples:* {{dedup_key}} matches {{dt-problem-P-…}} pattern; summary present; decision create; routing key present (value shown as redacted).
+* *Outputs:* {{ready}}, {{problems[]}}, preview event JSON with {{routing_key}} hidden.
+* *No HTTP* to PagerDuty in this task.
+
+----
+
+h3. 5b — trigger-pagerduty
+
+* *Type:* JavaScript + HTTP.
+* *Gate:* Own preview must be ready; decision create; not DRY_RUN.
+* *API:*
+
+{code}
+POST https://events.pagerduty.com/v2/enqueue
+Content-Type: application/json
+Body: {
+  "routing_key": "<secret>",
+  "event_action": "trigger",
+  "dedup_key": "dt-problem-<problem_id>",
+  "payload": { "summary", "severity", "source", "custom_details": { ... } },
+  "client_url": "<Dynatrace problem URL>",
+  "links": [ ... ]
+}
+{code}
+
+* *Note:* Runs *in parallel* with SILVA post, so the SILVA ticket number is usually *not* known yet. Linkage is via {{correlation_id}} / problem id in custom details. Repeating the same {{dedup_key}} while the PD alert is open does not open a second incident.
+
+----
+
+h2. API call summary table
+
+||Task||Direction||Endpoint (pattern)||Purpose||
+|extract-event-tags|Dynatrace (optional)|Problems / env URL helpers|Enrich problem fields|
+|resolve-snow-values|SILVA GET|{{/api/now/v2/table/{table}}}|Resolve group / service / offering / CI|
+|build-payload|—|—|Build JSON only|
+|preview-silva-incident|SILVA GET|{{/api/now/v2/table/incident?...}}|Duplicate / readiness|
+|post-silva-incident|SILVA GET + POST|incident table|Confirm not open; create incident|
+|preview-pagerduty|—|—|Validate PD body|
+|trigger-pagerduty|PagerDuty POST|{{https://events.pagerduty.com/v2/enqueue}}|Page on-call|
+
+----
+
+h2. Create vs skip (decision)
+
+||Situation||Result||
+|Required SILVA fields missing|{{create_incident = false}} → both sends skip|
+|Maintenance / skip rule matched|Skip with reason|
+|Preview lists {{problems[]}}|Send task skips|
+|Open SILVA incident already exists for problem|post-silva skips (no duplicate)|
+|{{DRY_RUN = true}}|Send tasks skip real POST|
+|Preview ready + create true + DRY_RUN false|SILVA POST and/or PD enqueue run|
+
+----
+
+h2. Parallel branches (why two previews)
+
+* Both branches start after the *same* {{build-payload}}.
+* SILVA and PagerDuty do not wait for each other.
+* A failure or skip on one side does not automatically cancel the other (each has its own preview gate).
+* Operators debug by opening the *preview* task result first ({{ready}}, {{problems}}, {{wouldDo}}).
+
+----
+
+h2. Operator checklist
+
+||Step||Action||
+|1|Confirm workflow is not stuck as Draft if you expect live runs|
+|2|Allowlist SILVA host + {{events.pagerduty.com}}|
+|3|Secrets only in workflow / Connection store (not Confluence, not git)|
+|4|Run with {{DRY_RUN true}} or preview-only until {{ready: true}} on both previews|
+|5|Disable competing TEST/OPEN workflows|
+|6|First live test: low-impact problem; confirm one SILVA ticket + one PD incident|
+|7|Confirm {{dedup_key}} / correlation reuse on a second fire|
+
+----
+
+h2. Health check
+
+||Check||Pass||
+|Trigger|Active problem starts a run (after Deploy)|
+|extract / resolve / build|OK; snow inputs and payloads present|
+|preview-silva|{{ready: true}}, {{wouldDo: CREATE}} (or expected SKIP)|
+|preview-pagerduty|{{ready: true}}, dedup_key looks like {{dt-problem-P-…}}|
+|post-silva|Incident number returned (or skip reason clear)|
+|trigger-pagerduty|HTTP 202 / success from Events API (or DRY_RUN skip)|
+
+----
+
+h2. Related internal artifacts
+
+* Standard workflow YAML: Daily Files {{2026-10-01/36-standard-flow-preview-then-post}} (local; may contain secrets — never commit).
+* Dynatrace standard layout rule: Problem → extract → resolve → build → preview/post SILVA ∥ preview/trigger PagerDuty.
+
+----
+
+h2. Document control
+
+||Field||Value||
+|Source|Screenshot S0 PREVIEW then POST v7.1 + standard flow seq 36|
+|Confluence format|Wiki markup (Insert → Markup → Confluence Wiki)|
+|Owner|SRE / platform|
+|Secrets in this page|None|

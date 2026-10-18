@@ -1,0 +1,290 @@
+h1. Dynatrace S2 CLOSE Problem SILVA and PagerDuty
+
+{info:title=Audience}
+SRE / platform engineers who need to understand the Dynatrace Automations workflow that *resolves* SILVA (ServiceNow) incidents and *resolves* PagerDuty alerts when a Davis problem closes.
+{info}
+
+{warning:title=Safety}
+This workflow *sends* when active (PATCH SILVA + PagerDuty resolve). Keep it *Draft* or set {{DRY_RUN = true}} until values are confirmed. Never put SILVA passwords or PagerDuty routing keys in Confluence. Pair with the OPEN workflow (S0 preview-then-post): same {{correlation_id}} and {{dedup_key}}. Do not run two different CLOSE workflows for the same problem. Drafts are not triggered.
+{warning}
+
+----
+
+h2. Decision tree
+
+{code}
+Dynatrace problem CLOSED?
+  → prepare-close (problem id, correlation_id, dedup_key, times, cause)
+      ├─► close-silva-incident
+      │     open SILVA incidents with correlation_id?
+      │       NO  → skip (already resolved or OPEN never created)
+      │       YES → state / close_code valid?
+      │              NO  → fail (lists allowed values)
+      │              YES → PATCH each → Resolved (+ notes)
+      └─► close-pagerduty (parallel)
+            POST Events API event_action=resolve
+            same dedup_key OPEN used (dt-problem-<id>)
+ Draft status?
+  → Drafts are not triggered — Save / Deploy first
+{code}
+
+----
+
+h2. Short takeaway
+
+||Question||Answer||
+|What is this workflow?|On problem *close*: resolve matching SILVA tickets and resolve the PagerDuty alert|
+|UI title (screenshot)|*S2 - CLOSE Problem direct to SILVA and PagerDuty v5*|
+|How many tasks?|3 after trigger: prepare-close → close-silva ∥ close-pagerduty|
+|Preview gates?|*No* (direct close). OPEN partner S0 still uses preview-then-post|
+|Link to OPEN|{{correlation_id}} = problem display id; {{dedup_key}} = {{dt-problem-<id>}}|
+
+----
+
+h2. Summary
+
+When a Davis problem *closes*, this workflow builds the close keys, then in *parallel* finds open SILVA incidents with the same correlation id and PATCHes them to Resolved, and sends a PagerDuty *resolve* with the same dedup key the OPEN flow used. It is the short “direct” CLOSE design (no preview tasks). Use it once {{close_code}} / state values are trusted. Do not also run a second CLOSE graph for the same problems.
+
+----
+
+h2. Words you need first
+
+||Word||What it means||Why you care||
+|CLOSED problem|Davis problem recovered / closed|Starts this workflow|
+|correlation_id|SILVA field = Dynatrace problem display id (e.g. {{P-261090}})|How CLOSE finds the ticket OPEN created|
+|dedup_key|PagerDuty key {{dt-problem-<display_id>}}|Same key OPEN used to trigger; resolve must match|
+|PATCH|HTTP update of an existing SILVA incident|Sets state Resolved + close code + notes|
+|resolve (PD)|Events API {{event_action: resolve}}|Closes the PD alert for that dedup_key|
+|DRY_RUN|Script flag|{{true}} = no real PATCH / POST|
+|Direct CLOSE|No preview tasks|Faster; wrong close_code fails the task instead of skipping quietly|
+
+----
+
+h2. How S2 fits with S0 (OPEN)
+
+{code}
+S0 OPEN (preview then post)
+  problem Active → create SILVA incident (correlation_id = P-…)
+                 → PagerDuty trigger (dedup_key = dt-problem-P-…)
+
+S2 CLOSE (this page)
+  problem Closed → PATCH SILVA (find by correlation_id)
+                 → PagerDuty resolve (same dedup_key)
+{code}
+
+||Topic||S0 OPEN||S2 CLOSE||
+|Trigger|Problem Active|Problem Closed|
+|SILVA|POST new incident|PATCH existing to Resolved|
+|PagerDuty|{{event_action: trigger}}|{{event_action: resolve}}|
+|Preview tasks|Yes (preview then send)|No (direct)|
+|Shared keys|Sets correlation_id + dedup_key|Reuses the same keys|
+
+----
+
+h2. End-to-end picture
+
+{code}
+Problem trigger (On: closed problem)
+        │
+        ▼
+prepare-close
+  problem_id / display_id
+  correlation_id = display_id
+  dedup_key = dt-problem-<display_id>
+  start / end / duration / cause  (for close notes)
+        │
+        ├────────────────────────────┐
+        ▼                            ▼
+close-silva-incident          close-pagerduty
+  GET open incidents            POST /v2/enqueue
+  GET sys_choice (state,        event_action: resolve
+       close_code)              dedup_key: same as OPEN
+  PATCH each → Resolved
+        │                            │
+        ▼                            ▼
+   SILVA Resolved               PagerDuty alert resolved
+{code}
+
+----
+
+h2. Task catalog
+
+||#||Task||Runs after||Network?||What it does||
+|0|Problem trigger|—|Dynatrace events|Starts when problem is *closed*; categories availability / custom / error / resource / slowdown (as configured)|
+|1|prepare-close|trigger|Optional Dynatrace Problems API|Builds ids, times, duration, cause for notes|
+|2a|close-silva-incident|prepare-close|SILVA GET + PATCH|Find open incidents by correlation_id; validate choices; PATCH Resolved|
+|2b|close-pagerduty|prepare-close|PagerDuty POST|Resolve with same dedup_key (parallel with SILVA)|
+
+----
+
+h2. Step-by-step detail and API calls
+
+h3. 0 — Problem trigger
+
+* *Type:* Dynatrace Workflows davis-problem trigger.
+* *Event state:* *closed* (sidebar: Event state = closed).
+* *Categories:* availability, custom, error, resource, slowdown (match your OPEN scope where possible).
+* *API:* Internal Dynatrace event bus.
+* *UI note:* Toggle On does nothing while status is *Draft* (“Drafts are not triggered”).
+
+----
+
+h3. 1 — prepare-close
+
+* *Type:* JavaScript task.
+* *Purpose:* One shared prep for both close branches.
+* *Optional API:* Dynatrace Problems API v2 (enrich start/end/cause when event alone is thin).
+* *Outputs (examples):*
+
+||Field||Example||Used by||
+|display_id / problem_id|{{P-261090}}|Both|
+|correlation_id|{{P-261090}}|SILVA GET query|
+|dedup_key|{{dt-problem-P-261090}}|PagerDuty resolve|
+|start / end / duration|timestamps + length|close_notes|
+|cause|short root-cause text|close_notes|
+
+* *No SILVA / PagerDuty HTTP here.*
+
+----
+
+h3. 2a — close-silva-incident
+
+* *Type:* JavaScript + HTTP.
+* *Base URL (staging example):* {{https://silvastg.service-now.com}}
+* *Gate / skip cases:*
+** No open incident for correlation_id → skip (already resolved or OPEN never created)
+** Sample/manual guard ({{ALLOW_SAMPLE_POST}}) → skip unless enabled
+** {{DRY_RUN}} → build body only, no PATCH
+
+h4. APIs
+
+{code}
+1) Find open tickets
+GET {SILVA_BASE}/api/now/v2/table/incident
+  ?sysparm_query=correlation_id=<id>^active=true^ORDERBYDESCsys_created_on
+  &sysparm_fields=...
+
+2) Validate choice lists (so wrong labels fail loudly)
+GET {SILVA_BASE}/api/now/v2/table/sys_choice
+  (state / close_code for incident table)
+
+3) Resolve each open incident (up to a small limit, e.g. 5)
+PATCH {SILVA_BASE}/api/now/v2/table/incident/{sys_id}
+  ?sysparm_display_value=all&sysparm_exclude_reference_link=true
+Body (typical):
+  state: <Resolved value>
+  close_code: <configured code>
+  close_notes: problem id, close time, duration, cause
+  work_notes (or comments): DT link, PD key, service context
+{code}
+
+* *Auth:* Basic (or Connection secret) — not documented in Confluence.
+* *Failure mode:* If {{CLOSE_CODE}} / state label is wrong, task fails and error lists *allowed* values → fix settings and re-run.
+
+----
+
+h3. 2b — close-pagerduty
+
+* *Type:* JavaScript + HTTP.
+* *Runs in parallel* with SILVA close (does not wait for PATCH success).
+* *Skip cases:* bad/missing dedup_key; sample guard; {{DRY_RUN}}.
+* *API:*
+
+{code}
+POST https://events.pagerduty.com/v2/enqueue
+Content-Type: application/json
+Body: {
+  "routing_key": "<secret>",
+  "event_action": "resolve",
+  "dedup_key": "dt-problem-<display_id>"
+}
+{code}
+
+* *Note:* PagerDuty ignores resolve when no open alert has that dedup_key (safe to always send after a real OPEN). Same key as S0 trigger is mandatory.
+
+----
+
+h2. API call summary
+
+||Task||Direction||Endpoint pattern||Purpose||
+|prepare-close|Dynatrace (optional)|Problems API v2|Enrich times / cause|
+|close-silva-incident|SILVA GET|{{/api/now/v2/table/incident}}|Find open by correlation_id|
+|close-silva-incident|SILVA GET|{{/api/now/v2/table/sys_choice}}|Validate state / close_code|
+|close-silva-incident|SILVA PATCH|{{/api/now/v2/table/incident/{sys_id}}}|Set Resolved|
+|close-pagerduty|PagerDuty POST|{{https://events.pagerduty.com/v2/enqueue}}|{{event_action: resolve}}|
+
+----
+
+h2. Typical SILVA resolve body fields
+
+||Field||What it means||
+|state|Resolved (SILVA choice value / label)|
+|close_code|e.g. Solved (Permanently) — must match SILVA list|
+|close_notes|Problem id, close time, duration, cause|
+|work_notes or comments|Dynatrace link, PagerDuty dedup_key, optional service context|
+
+----
+
+h2. Settings operators care about
+
+||Setting||Task||What it means||
+|RESOLVED_STATE|close-silva|Target state label/value|
+|CLOSE_CODE|close-silva|Resolution code — must exist in SILVA|
+|NOTES_FIELD|close-silva|{{work_notes}} (internal) or {{comments}} (caller-visible)|
+|EXTRA_FIELDS|close-silva|Extra mandatory fields SILVA needs before Resolved|
+|DRY_RUN|both close tasks|{{true}} = no send|
+|ALLOW_SAMPLE_POST|both close tasks|Allow manual Run on sample problem id|
+|SAMPLE_EVENT.display_id|prepare-close|Problem id for manual test Run|
+
+----
+
+h2. Direct CLOSE vs preview CLOSE
+
+||Topic||S2 direct (this page)||Preview-then-resolve (older design)||
+|Tasks|3|More (find → build → preview → send)|
+|Wrong close_code|Task fails with allowed values|Preview shows WRONG; send skips|
+|Multiple open incidents|Resolves all open (small cap)|Often newest only|
+|PagerDuty if SILVA fails|Still resolves|Still resolves|
+|Best for|Day-to-day after values confirmed|First tests / auditing|
+
+----
+
+h2. Operator checklist
+
+||Step||Action||
+|1|Confirm OPEN (S0) uses same correlation_id and {{dt-problem-}} dedup_key|
+|2|Confirm CLOSE_CODE against SILVA sys_choice before go-live|
+|3|Allowlist SILVA host + {{events.pagerduty.com}}|
+|4|Test with {{DRY_RUN true}} or sample guards first|
+|5|Deploy (leave Draft only if you do not want live closes)|
+|6|Deactivate any other CLOSE workflow for the same scope|
+|7|Close a test problem → SILVA Resolved + PD resolved|
+
+----
+
+h2. Health check
+
+||Check||Pass||
+|Trigger|Closed problem starts a run (after Deploy)|
+|prepare-close|correlation_id + dedup_key look correct|
+|close-silva|{{action: resolved}} or clear skip reason|
+|close-pagerduty|HTTP success / {{action: resolved}} or DRY_RUN skip|
+|SILVA UI|Incident state Resolved, active false|
+|PagerDuty UI|Alert/incident resolved for that dedup_key|
+
+----
+
+h2. Related internal artifacts
+
+* Direct CLOSE standard: Daily Files {{2026-10-01/39-close-direct-silva-pagerduty}} (YAML may contain secrets — never commit).
+* OPEN partner Confluence: S0 Preview Then Post SILVA and PagerDuty (seq 4 today / standard flow 36).
+
+----
+
+h2. Document control
+
+||Field||Value||
+|Source|Screenshot S2 CLOSE v5 + close-direct seq 39|
+|Confluence format|Wiki markup (Insert → Markup → Confluence Wiki)|
+|Owner|SRE / platform|
+|Secrets in this page|None|
