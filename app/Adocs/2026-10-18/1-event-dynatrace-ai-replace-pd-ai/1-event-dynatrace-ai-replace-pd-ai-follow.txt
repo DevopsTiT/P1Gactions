@@ -1,0 +1,41 @@
+SOLUTION: When the event (Davis problem) happens — Dynatrace AI replaces PagerDuty AI triage
+
+TIMELINE
+T+0   Problem Active
+      → WF-A: generative AI summary + next steps
+      → Post to Slack and/or Teams (Dynatrace connectors)
+      → Optional: ask AI Assistant on the problem in Dynatrace UI
+
+T+0…  Humans fact-check AI, investigate
+
+T+30m Still Active?
+      → WF-B: ONE PagerDuty Events API trigger (page on-call)
+      → Optional Slack/Teams “escalated” note
+
+REPLACE (PD AI → Dynatrace AI)
+- Paige catch-me-up / RCA tips     → WF-A + Assistant
+- Proactive chat summary          → Dynatrace Slack/Teams send
+- Status draft                    → AI prompt on problem
+- Escalate if ignored             → WF-B 30m (PD = pager only)
+
+KEEP IN PAGERDUTY
+- On-call schedules / escalation
+- Scribe (meeting transcript)
+- Shift (coverage / OOO)
+
+DOES NOT NEED
+- PagerDuty AI Settings Slack/Teams = Connected
+
+BUILD ORDER
+1) Dynatrace AI + Workflows licensed
+2) Dynatrace Slack/Teams connections + test channels
+3) Import WF-A + WF-B from Daily Files 2026-10-17/12-...
+4) Test DRY_RUN / test PD key → then activate
+
+TEMPLATES
+12-wfa-ai-notify-slack-teams.workflow.yaml
+12-wfb-30m-escalate-pagerduty.workflow.yaml
+12-ai-prompts.txt
+
+SAFETY
+Test channels; fact-check AI; one PD path; humans own remediations

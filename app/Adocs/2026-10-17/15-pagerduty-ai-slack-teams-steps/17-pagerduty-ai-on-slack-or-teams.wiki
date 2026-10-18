@@ -1,0 +1,284 @@
+h1. PagerDuty AI on Slack or Teams
+
+{info:title=Audience}
+SRE / on-call engineers and PagerDuty admins who need PagerDuty AI (Advance) working inside Slack, Microsoft Teams, or both.
+{info}
+
+{warning:title=Safety}
+Use a *test* PagerDuty Service first (escalation pages only you). Fact-check every AI answer before production actions. Do not auto-run remediations. If both Slack and Teams are connected, pick *one* primary channel for live talk to avoid confusion and double-page noise.
+{warning}
+
+----
+
+h2. Decision tree
+
+{code}
+Want PagerDuty AI in chat?
+ Have Advance / Reliability Platform AI?
+   NO  → ask admin / Sales first
+   YES → pick Slack and/or Teams
+        → Admin connects chat app(s)
+        → AI Settings: chat = Connected, toggle On
+        → Enable agents (Paige, Scribe, Shift, Insights)
+        → You: Link Account in that chat
+        → /pd connect (Slack) or connect service (Teams)
+        → Test service only → @PagerDuty / agent commands
+ Both Slack and Teams?
+   YES → OK; pick one primary incident channel; avoid double-page
+ Slack/Teams shows Not Connected?
+   → Admin must install/map the app (you cannot finish alone)
+{code}
+
+----
+
+h2. Short takeaway
+
+||Step group||What you do||
+|0|Confirm PagerDuty AI (Advance) is licensed|
+|1|Admin connects Slack and/or Teams|
+|2|AI Settings → chat On → enable agents|
+|3|Link your user in Slack and/or Teams|
+|4|Connect a *test* service to a channel|
+|5|Open a test incident → use {{@PagerDuty}} / Scribe / Triage|
+|6|Fact-check AI; never auto-run prod remediations|
+
+----
+
+h2. Summary
+
+PagerDuty AI runs inside the normal PagerDuty Slack or Teams app. Admin connects the chat, you link your account, connect a test service to a channel, then talk to the bot. Same agents work in both chats; command wording differs slightly.
+
+----
+
+h2. Words you need first
+
+||Word||What it means||Why you care||
+|Advance / PagerDuty AI|Paid AI features (Paige, Scribe, Shift, Insights, Assistant)|Without it, agent toggles stay dark|
+|Connected|Chat integration ready on *AI → AI Settings*|Not Connected means install/map first|
+|Link Account|Your Slack/Teams identity = your PagerDuty user|Needed for DMs, Shift, full agent use|
+|Paige|SRE Agent (triage / RCA help)|Main live triage helper|
+|Scribe|Meeting transcript / summary agent|Bridge notes|
+
+----
+
+h2. Roles needed
+
+||Place||Role||
+|PagerDuty|Admin, Global Admin, or Account Owner for AI Settings + chat mapping|
+|Slack|Workspace admin to install / reauthorize the PagerDuty app|
+|Microsoft 365 / Teams|Admin to allow the PagerDuty Teams app + permissions|
+|You|Linked PD ↔ chat user in each app you use|
+
+----
+
+h2. Step 0 — License check
+
+# Open {{https://<your-subdomain>.pagerduty.com/ai}} (example: {{axa-life-japan.pagerduty.com/ai}}).
+# If you have no AI Settings / agents stay dark → ask admin for *Advance* or Reliability Platform AI.
+
+Official overview: [PagerDuty AI|https://support.pagerduty.com/main/docs/pagerduty-advance]
+
+----
+
+h2. Step 1 — Admin: connect chat app(s)
+
+h3. Slack
+
+# PagerDuty → *Integrations → Extensions → Slack*.
+# *Add Workspace* → *Allow*.
+# Confirm {{/pd}} works in Slack.
+
+Guide: [Slack integration|https://docs.pagerduty.com/integrations/slack-integration-guide]
+
+h3. Microsoft Teams
+
+# Microsoft admin allows the PagerDuty Teams app + required permissions.
+# Install *Microsoft Teams | PagerDuty*.
+# Accept optional permissions for PagerDuty AI if asked.
+
+You may connect *both* Slack and Teams.
+
+----
+
+h2. Step 2 — Admin: turn AI on for that chat
+
+# PagerDuty → *AI → AI Settings*.
+# Tab *Assistant and AI Agents Configuration*.
+# Under *Chat Integrations*:
+
+||Status||Action||
+|Not Connected|Finish Step 1 (install/map the chat app)|
+|Update required / optional permissions|Approve scopes (Slack channel history; Teams optional perms)|
+|Connected|Good|
+
+# Toggle *Slack* and/or *Microsoft Teams* to *On*.
+# Optional: *Configure* proactive insights / summarization.
+# Under *AI Agents*, enable what you need:
+
+||Agent||Purpose||
+|Paige (SRE)|Triage, root cause ideas, next steps|
+|Scribe|Bridge notes / transcript|
+|Shift|On-call coverage help|
+|Insights|Analytics questions|
+
+No permission? *Request to Admin*.
+
+----
+
+h2. Step 3 — You: link your account
+
+*Slack:* open PagerDuty app / banner → *Link Account*, or complete {{/pd}} link flow.
+
+*Teams:* in a channel with the bot, run the link-user flow (often {{@PagerDuty linkUser}} — follow the prompt in your tenant).
+
+Do this once per chat app you use.
+
+----
+
+h2. Step 4 — Connect a test channel to a service
+
+h3. Slack
+
+{code}
+/pd connect
+{code}
+
+# Pick account → *test* service or team → *Responder* (for demos).
+# Private channels: invite the PagerDuty bot first.
+
+h3. Teams
+
+Connect the PagerDuty service/team to the Teams channel using your tenant’s connect command or PD Teams UI (same idea: channel ↔ service).
+
+Use a *test* service that pages *only you*.
+
+----
+
+h2. Step 5 — Create a test incident
+
+# PagerDuty → create incident on the *test* service
+*or* Dynatrace / Events API to that test routing key.
+# Confirm the incident card appears in the Slack or Teams channel.
+
+----
+
+h2. Step 6 — Use PagerDuty AI in the channel
+
+h3. Slack
+
+{code}
+@PagerDuty Catch me up
+@PagerDuty What are some likely root causes?
+@PagerDuty Analyze past incidents
+/pd scribe
+{code}
+
+* *Paige:* click *SRE Agent Triage* if shown, or ask with {{@PagerDuty}}.
+* *Side panel (optional, paid Slack):* Preferences → Navigation → App agents → PagerDuty.
+
+h3. Teams
+
+{code}
+@PagerDuty Catch me up
+@PagerDuty What are some likely root causes?
+{code}
+
+* Scribe often: {{@PagerDuty advance scribe}} (confirm exact command in your tenant).
+* Link/connect commands may use {{@PagerDuty …}} rather than {{/pd}}.
+
+----
+
+h2. Step 7 — Safety checks
+
+||Rule||Why||
+|Test service first|Avoids waking prod on-call|
+|Fact-check AI|Output can be wrong|
+|Confirm remediations|Humans own blast radius|
+|One primary chat for live talk|If both Slack and Teams are on, pick one home thread|
+
+----
+
+h2. Step 8 — Health check
+
+||Check||Pass||
+|{{/ai}} chat card|Connected + On|
+|Agents|Enabled|
+|User linked|Your chat user = PD user|
+|Channel connected|Test service mapped|
+|Bot answers|{{@PagerDuty Catch me up}} gets a reply|
+
+----
+
+h2. Slack vs Teams cheat sheet
+
+||Action||Slack||Teams||
+|Connect channel|{{/pd connect}}|{{@PagerDuty}} connect / Teams PD UI|
+|Ask AI|{{@PagerDuty …}}|{{@PagerDuty …}} (sometimes {{@PagerDuty advance …}})|
+|Scribe|{{/pd scribe}}|{{@PagerDuty advance scribe}} (verify locally)|
+|Side panel|Paid Slack option|Not the same feature|
+|Shift DMs|Stronger Slack docs|Weaker / limited|
+
+----
+
+h2. Result checklist
+
+||Phase||Done when||
+|Admin|Slack and/or Teams Connected + On; agents Enabled|
+|You|Account linked; test channel connected|
+|Demo|Test incident → AI reply in chat|
+|Prod later|Same steps with real service only after test OK|
+
+----
+
+h2. Data flow
+
+{code}
+Incident on PD service
+  → Slack and/or Teams channel (connected)
+  → You: @PagerDuty / Scribe / Triage
+  → PagerDuty AI (Advance)
+  → Answer in chat
+  → You fact-check → ack / resolve / act
+{code}
+
+----
+
+h2. Commands cheat sheet
+
+h3. Slack
+
+{code}
+/pd connect
+/pd scribe
+@PagerDuty Catch me up
+@PagerDuty What are some likely root causes?
+@PagerDuty Analyze past incidents
+{code}
+
+h3. Teams
+
+{code}
+@PagerDuty Catch me up
+@PagerDuty What are some likely root causes?
+@PagerDuty advance scribe
+{code}
+
+Confirm exact Scribe wording in your tenant.
+
+----
+
+h2. Official docs
+
+* [Slack integration|https://docs.pagerduty.com/integrations/slack-integration-guide]
+* [PagerDuty AI|https://support.pagerduty.com/main/docs/pagerduty-advance]
+* [Scribe Agent|https://docs.pagerduty.com/ai-automation/advance/scribe-agent]
+
+----
+
+h2. Document control
+
+||Field||Value||
+|Source|CursorFiles Daily Files 2026-10-17 seq 15|
+|Confluence format|Wiki markup (paste via Insert → Markup → Confluence Wiki)|
+|Owner|SRE / platform (update as needed)|
+|Also covers|Slack *or* Teams *or* both|

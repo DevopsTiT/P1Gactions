@@ -1,0 +1,209 @@
+# WF-B: Davis problem still Active after 30m → preview PD → trigger PD (optional chat note)
+# TEMPLATE — no secrets.
+# After import:
+#   1) In trigger UI set Minimum duration = 30 minutes (required)
+#   2) Set PD_ROUTING_KEY via workflow secret / connection — never hardcode
+#   3) Set DRY_RUN = true until a test problem proves the payload
+#   4) Allowlist events.pagerduty.com if required by your tenant
+#   5) Optional: add Slack+Teams notify tasks after trigger-pagerduty
+# Never commit real routing keys.
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: WF-B 30m still Active escalate PagerDuty (template)
+  description: >-
+    After the problem has been Active long enough (set Minimum duration 30m in UI),
+    preview a PagerDuty Events API v2 trigger, then post once using dedup_key dynatrace-<problem_id>.
+    DRY_RUN skips the HTTP POST.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      # Keep false until Minimum duration = 30m is set in the UI and DRY_RUN tested.
+      isActive: false
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE"
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+            custom: false
+          entityTags: {}
+          onProblemClose: false
+          # UI: set Minimum duration to 30 minutes after import if not shown here.
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 200
+  tasks:
+    extract-problem:
+      name: extract-problem
+      description: Read problem fields for PD payload.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          export default async function () {
+            const ex = execution();
+            const event = ex.params?.event || {};
+            const envUrl = (getEnvironmentUrl() || "").replace(/\/$/, "");
+            const problemId =
+              event.display_id ||
+              event["display_id"] ||
+              "UNKNOWN";
+            const title =
+              event["event.name"] ||
+              "Dynatrace problem still open";
+            const description =
+              event["event.description"] ||
+              "";
+            const problemUrl = envUrl
+              ? `${envUrl}/ui/problems/${encodeURIComponent(problemId)}`
+              : "";
+            return {
+              problem_id: String(problemId),
+              title: String(title).slice(0, 200),
+              description: String(description).slice(0, 2000),
+              problem_url: problemUrl,
+              still_active: String(event["event.status"] || "").toUpperCase() === "ACTIVE"
+            };
+          }
+    preview-pagerduty:
+      name: preview-pagerduty
+      description: Build Events API v2 body; hide routing key; decide ready.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - extract-problem
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ----- settings (edit) -----
+          const DRY_RUN = true;
+          // Prefer a workflow secret named PD_ROUTING_KEY. Do not paste prod keys here.
+          const PD_ROUTING_KEY = "";
+
+          export default async function () {
+            const ex = execution();
+            const p = await ex.result("extract-problem");
+            const problems = [];
+            if (!p.still_active) problems.push("problem_not_active");
+            if (!p.problem_id || p.problem_id === "UNKNOWN") problems.push("missing_problem_id");
+            if (!PD_ROUTING_KEY) problems.push("missing_PD_ROUTING_KEY_set_in_script_or_secret");
+
+            const dedupKey = `dynatrace-${p.problem_id}`;
+            const payload = {
+              routing_key: PD_ROUTING_KEY ? "***REDACTED***" : "",
+              event_action: "trigger",
+              dedup_key: dedupKey,
+              payload: {
+                summary: `[DT 30m] ${p.title}`.slice(0, 1024),
+                severity: "error",
+                source: "dynatrace",
+                custom_details: {
+                  problem_id: p.problem_id,
+                  problem_url: p.problem_url,
+                  description: p.description,
+                  reason: "Still Active after configured minimum duration (set 30m on trigger)"
+                }
+              }
+            };
+
+            return {
+              ready: problems.length === 0,
+              dry_run: DRY_RUN,
+              problems,
+              dedup_key: dedupKey,
+              preview: payload,
+              // Real key only inside post task via secret — not returned here when empty.
+              has_routing_key: Boolean(PD_ROUTING_KEY)
+            };
+          }
+    trigger-pagerduty:
+      name: trigger-pagerduty
+      description: POST to events.pagerduty.com/v2/enqueue when preview ready and DRY_RUN is false.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - preview-pagerduty
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { httpClient } from '@dynatrace-sdk/http-client';
+
+          // ----- settings (edit) -----
+          const DRY_RUN = true;
+          const PD_ROUTING_KEY = "";
+          const PD_URL = "https://events.pagerduty.com/v2/enqueue";
+
+          export default async function () {
+            const ex = execution();
+            const prev = await ex.result("preview-pagerduty");
+            const p = await ex.result("extract-problem");
+
+            if (!prev.ready) {
+              return { skipped: true, reason: "preview_not_ready", problems: prev.problems };
+            }
+            if (DRY_RUN) {
+              return {
+                skipped: true,
+                reason: "DRY_RUN_true",
+                would_post_dedup_key: prev.dedup_key,
+                preview: prev.preview
+              };
+            }
+            if (!PD_ROUTING_KEY) {
+              return { skipped: true, reason: "missing_PD_ROUTING_KEY" };
+            }
+
+            const body = {
+              routing_key: PD_ROUTING_KEY,
+              event_action: "trigger",
+              dedup_key: prev.dedup_key,
+              payload: {
+                summary: `[DT 30m] ${p.title}`.slice(0, 1024),
+                severity: "error",
+                source: "dynatrace",
+                custom_details: {
+                  problem_id: p.problem_id,
+                  problem_url: p.problem_url,
+                  description: p.description,
+                  reason: "Still Active after 30m minimum duration"
+                }
+              }
+            };
+
+            const res = await httpClient.fetch(PD_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            return {
+              skipped: false,
+              status: res.status,
+              dedup_key: prev.dedup_key,
+              response: text.slice(0, 2000)
+            };
+          }
