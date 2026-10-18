@@ -1,0 +1,17 @@
+Confluence-ready: PagerDuty AI on Slack or Teams
+
+HOW TO PUBLISH
+1. Confluence → Create/Edit page
+2. Insert → Markup → Confluence Wiki
+3. Paste FULL contents of: 8-pagerduty-ai-on-slack-or-teams.wiki
+4. Title: PagerDuty AI on Slack or Teams
+5. Labels: pagerduty, slack, teams, ai, on-call
+6. Publish
+
+Alternate: paste 8-pagerduty-ai-on-slack-or-teams.md if Markup unavailable.
+
+FOLDER
+/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-18/8-pagerduty-ai-slack-teams-confluence/
+
+SOURCE
+seq 7 pagerduty-ai-slack-teams-instructions
