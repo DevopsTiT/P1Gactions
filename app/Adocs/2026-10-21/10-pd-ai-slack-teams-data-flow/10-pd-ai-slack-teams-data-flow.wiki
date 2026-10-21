@@ -1,0 +1,57 @@
+h2. Data flow
+
+h3. What this is (one sentence)
+
+*PagerDuty holds the incident. Slack/Teams is the window. PagerDuty AI is the helper that answers inside that window.*
+
+h3. Setup (wire once)
+
+{code}
+PagerDuty (license OK — /ai works)
+  → Step 1: Connect Slack workspace and/or Teams app
+  → Step 2: AI Settings → Chat Integrations = Connected + On
+  → Enable agents (Scribe / Triage / …)
+  → Each SRE: Link Account (PD user ↔ chat user)
+  → Test channel: /pd connect (or Teams equivalent)
+{code}
+
+||Step||Who||Done when||
+|0 License|PD admin|/ai and AI Settings usable|
+|1 Chat app|PD + Slack/M365 admin|/pd works (Slack) or PD bot works (Teams)|
+|2 AI On|PD admin|Chat Integrations Connected + On; agents Enabled|
+|3 Link user|Each SRE|You can run AI commands as yourself|
+|4 Channel|SRE|/pd connect (or Teams) on a test channel|
+
+h3. Runtime (every incident)
+
+{code}
+Something breaks
+  → Incident created/updated in PagerDuty
+  → PD posts into connected Slack and/or Teams channel
+  → You ask in chat: @PagerDuty Catch me up  |  /pd scribe  |  root-cause questions
+  → PagerDuty AI reads incident (+ allowed chat context)
+  → Answer appears in the same channel
+  → You fact-check → ack / escalate / resolve in PagerDuty
+{code}
+
+h3. Who talks to whom
+
+{code}
+Dynatrace / other tools  --create/update-->  PagerDuty incident
+PagerDuty                --notify-------->  Slack  and/or  Teams
+Human in chat            --ask----------->  @PagerDuty / /pd …
+PagerDuty AI             --answer-------->  same chat
+Human                    --act----------->  PagerDuty (ack, assign, resolve)
+{code}
+
+{info}
+This is *not* the Dynatrace Hub Slack Connection or an Incoming Webhook used by Dynatrace workflows. Those are a different path.
+{info}
+
+h3. Chat Integrations status
+
+||Status||Meaning||Next action||
+|Not Connected|Chat app not finished|Finish Step 1 (Slack Allow / Teams install)|
+|Update required / optional permissions|Need AI scopes|Approve scopes|
+|Connected + Off|App linked, AI off|Turn chat On in AI Settings|
+|Connected + On|Ready|Link users + connect test channel|
