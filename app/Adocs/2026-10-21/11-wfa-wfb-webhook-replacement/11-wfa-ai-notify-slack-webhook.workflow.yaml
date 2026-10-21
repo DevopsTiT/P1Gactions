@@ -1,0 +1,246 @@
+# WF-A (webhook replacement): Davis problem Active → extract → chat message → Slack Incoming Webhook
+# TEMPLATE — no secrets in this file.
+# After import in Dynatrace Workflows:
+#   1) Open task preview-slack-webhook AND post-slack-webhook
+#   2) Set SLACK_WEBHOOK_URL in BOTH scripts to your Incoming Webhook URL
+#      (paste only in Dynatrace UI — never commit the URL)
+#   3) Keep DRY_RUN = true → Run once → confirm #test-channel → set DRY_RUN = false
+#   4) Narrow filterQuery / categories before production
+#   5) Optional: insert Hub "Prompt generative AI" between extract and build-chat-message
+#   6) Optional Teams: set TEAMS_WEBHOOK_URL the same way (or leave empty to skip)
+# Never commit real webhook URLs.
+metadata:
+  version: "1"
+  dependencies:
+    apps:
+      - id: dynatrace.automations
+        version: ^1.3301.5
+  inputs: []
+workflow:
+  title: WF-A AI notify Slack via Incoming Webhook (replacement)
+  description: >-
+    On Davis problem CREATED/ACTIVE, extract fields, build chat_message, preview Slack
+    payload, then POST {"text": chat_message} to Slack Incoming Webhook. Replaces Hub
+    Slack Connection / bot-token notify-slack. Trigger starts inactive.
+  schemaVersion: 3
+  trigger:
+    eventTrigger:
+      isActive: false
+      filterQuery: >-
+        event.kind == "DAVIS_PROBLEM" AND event.status == "ACTIVE" AND
+        event.status_transition == "CREATED"
+      triggerConfiguration:
+        type: davis-problem
+        value:
+          categories:
+            error: true
+            resource: true
+            slowdown: true
+            availability: true
+            custom: false
+          entityTags: {}
+          onProblemClose: false
+  type: STANDARD
+  input: {}
+  hourlyExecutionLimit: 200
+  tasks:
+    extract-problem:
+      name: extract-problem
+      description: Read problem id, title, description, url from the trigger event.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 1
+      predecessors: []
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { getEnvironmentUrl } from '@dynatrace-sdk/app-environment';
+
+          export default async function () {
+            const ex = execution();
+            const event = ex.params?.event || {};
+            const envUrl = (getEnvironmentUrl() || "").replace(/\/$/, "");
+            const problemId =
+              event.display_id ||
+              event["display_id"] ||
+              event.event?.id ||
+              "UNKNOWN";
+            const title =
+              event["event.name"] ||
+              event.event?.name ||
+              "Dynatrace problem";
+            const description =
+              event["event.description"] ||
+              event.event?.description ||
+              "";
+            const severity =
+              event["event.category"] ||
+              event.event?.category ||
+              "";
+            const problemUrl = envUrl
+              ? `${envUrl}/ui/problems/${encodeURIComponent(problemId)}`
+              : `(open problem ${problemId} in Dynatrace)`;
+
+            return {
+              problem_id: String(problemId),
+              title: String(title),
+              description: String(description).slice(0, 4000),
+              severity: String(severity),
+              problem_url: problemUrl,
+              ai_summary: ""
+            };
+          }
+    build-chat-message:
+      name: build-chat-message
+      description: Build plain-text Slack body. Uses Copilot text when present; else template.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 2
+      predecessors:
+        - extract-problem
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          export default async function () {
+            const ex = execution();
+            const p = await ex.result("extract-problem");
+            const ai = (p.ai_summary || "").trim();
+            const body = ai
+              ? `[Dynatrace AI] ${p.problem_id}\n${p.title}\n${p.problem_url}\n\n${ai}`
+              : `[Dynatrace] New problem ${p.problem_id}\n` +
+                `Title: ${p.title}\n` +
+                `Severity: ${p.severity}\n` +
+                `URL: ${p.problem_url}\n\n` +
+                `Context:\n${p.description}\n\n` +
+                `(Insert Prompt generative AI task before this step for AI summary.)`;
+            return {
+              ...p,
+              chat_message: body.slice(0, 3500)
+            };
+          }
+    preview-slack-webhook:
+      name: preview-slack-webhook
+      description: Build Slack Incoming Webhook JSON; check URL set; DRY_RUN gate.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 3
+      predecessors:
+        - build-chat-message
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+
+          // ----- settings (edit in Dynatrace UI only — never commit real URLs) -----
+          const DRY_RUN = true;
+          const SLACK_WEBHOOK_URL = "";
+          // Optional Teams Incoming Webhook / Power Automate URL — leave empty to skip Teams
+          const TEAMS_WEBHOOK_URL = "";
+
+          export default async function () {
+            const ex = execution();
+            const m = await ex.result("build-chat-message");
+            const problems = [];
+            if (!m.chat_message) problems.push("missing_chat_message");
+            if (!SLACK_WEBHOOK_URL) problems.push("missing_SLACK_WEBHOOK_URL_set_in_Dynatrace_UI");
+            if (SLACK_WEBHOOK_URL && !SLACK_WEBHOOK_URL.startsWith("https://hooks.slack.com/")) {
+              problems.push("SLACK_WEBHOOK_URL_should_start_with_https://hooks.slack.com/");
+            }
+
+            const slackBody = { text: m.chat_message };
+            const teamsBody = TEAMS_WEBHOOK_URL
+              ? { text: m.chat_message }
+              : null;
+
+            return {
+              ready: problems.length === 0,
+              dry_run: DRY_RUN,
+              problems,
+              has_slack_url: Boolean(SLACK_WEBHOOK_URL),
+              has_teams_url: Boolean(TEAMS_WEBHOOK_URL),
+              channel_hint: "#test-channel",
+              preview_slack: slackBody,
+              preview_teams: teamsBody,
+              problem_id: m.problem_id,
+              problem_url: m.problem_url
+            };
+          }
+    post-slack-webhook:
+      name: post-slack-webhook
+      description: POST chat_message to Slack Incoming Webhook when preview ready and DRY_RUN false.
+      action: dynatrace.automations:run-javascript
+      active: true
+      position:
+        x: 0
+        y: 4
+      predecessors:
+        - preview-slack-webhook
+      input:
+        script: |
+          import { execution } from '@dynatrace-sdk/automation-utils';
+          import { httpClient } from '@dynatrace-sdk/http-client';
+
+          // ----- settings (must match preview-slack-webhook) -----
+          const DRY_RUN = true;
+          const SLACK_WEBHOOK_URL = "";
+          const TEAMS_WEBHOOK_URL = "";
+
+          export default async function () {
+            const ex = execution();
+            const prev = await ex.result("preview-slack-webhook");
+            const m = await ex.result("build-chat-message");
+
+            if (!prev.ready) {
+              return { skipped: true, reason: "preview_not_ready", problems: prev.problems };
+            }
+            if (DRY_RUN) {
+              return {
+                skipped: true,
+                reason: "DRY_RUN_true",
+                would_post_slack: true,
+                would_post_teams: Boolean(TEAMS_WEBHOOK_URL),
+                preview_slack: prev.preview_slack
+              };
+            }
+            if (!SLACK_WEBHOOK_URL) {
+              return { skipped: true, reason: "missing_SLACK_WEBHOOK_URL" };
+            }
+
+            const slackRes = await httpClient.fetch(SLACK_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: m.chat_message })
+            });
+            const slackText = await slackRes.text();
+
+            let teams = { skipped: true, reason: "TEAMS_WEBHOOK_URL_empty" };
+            if (TEAMS_WEBHOOK_URL) {
+              const teamsRes = await httpClient.fetch(TEAMS_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: m.chat_message })
+              });
+              teams = {
+                skipped: false,
+                status: teamsRes.status,
+                response: (await teamsRes.text()).slice(0, 500)
+              };
+            }
+
+            return {
+              skipped: false,
+              slack: {
+                status: slackRes.status,
+                ok: slackRes.ok || slackText.trim() === "ok",
+                response: slackText.slice(0, 500)
+              },
+              teams,
+              problem_id: m.problem_id
+            };
+          }
