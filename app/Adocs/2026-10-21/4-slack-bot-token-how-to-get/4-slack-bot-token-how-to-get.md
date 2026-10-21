@@ -20,7 +20,7 @@ Need Slack bot token for Dynatrace connector?
 |---|---|
 | Can anyone give you a working sample bot token? | **No** — it only works for the workspace that created it |
 | What does one look like? | Starts with `xoxb-` (Bot User OAuth Token) |
-| Placeholder for docs / forms | `xoxb-YOUR-WORKSPACE-BOT-TOKEN` or `xoxb-************` |
+| Placeholder for docs / forms | Describe as “Bot User OAuth Token” — do not paste a full sample string |
 | Preferred for Dynatrace | Hub **Add connection** (OAuth) so you never paste the token into YAML |
 | Where to copy a real one | Slack app → **OAuth & Permissions** → **Bot User OAuth Token** |
 
@@ -108,7 +108,7 @@ That URL is also a secret — treat like a password.
 
 | Goal | Done when |
 |---|---|
-| Placeholder understood | You use `xoxb-YOUR-…` only as documentation |
+| Placeholder understood | Docs mention the prefix only; no fake full token strings |
 | Real token obtained | Copied from your Slack app OAuth page into Dynatrace Connection |
 | WF-A posts | Message appears in `#test-channel` |
 
