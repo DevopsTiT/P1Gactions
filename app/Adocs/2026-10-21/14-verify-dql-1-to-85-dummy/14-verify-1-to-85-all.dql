@@ -1,0 +1,1765 @@
+// ============================================================
+// Verify #1 — Envelope Exceptions With Keyword Tags
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "biloss-envelope-list-prod",
+    log.source: "/ecs/biloss-envelope-list-prod/app",
+    content: "2026-10-15 09:12:34.567 ERROR [main] EnvelopeListService - Failed to list envelopes: com.example.cmx.CmxApiException: HTTP 503 from CMX"
+  )
+| filter in(host.name, array("biloss-envelope-list-prod", "start-envelope-executions-prod"))
+| filter contains(content, "Exception", caseSensitive:false)
+    or contains(content, "ERROR", caseSensitive:false)
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "RuntimeException"), "RuntimeException"),
+    if(contains(content, "CmxApiException"), "CmxApiException"),
+    if(contains(content, "NetworkException"), "NetworkException"),
+    if(contains(content, "PSQLException"), "PSQLException"),
+    if(contains(content, "NullPointerException"), "NullPointerException"),
+    if(contains(content, "IllegalArgumentException"), "IllegalArgumentException"),
+    if(contains(content, "Exception"), "Exception"),
+    if(contains(content, "ERROR"), "ERROR")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, matched_keywords, content
+
+// ============================================================
+// Verify #2 — PC2 Batch AfterBind Exception
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-3-15.ap-northeast-1.compute.internal",
+    k8s.pod.name: "pc2-batch-inssuite-prod-7f9c4d6b8-x2k8p",
+    log.source: "/var/log/containers/pc2-batch-inssuite-prod-7f9c4d6b8-x2k8p_pc2-batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [BatchWorker-3] PolicyBatchRunner - Exception occured for job RenewalBatch-20261015 during afterBind_Adj process: java.lang.NullPointerException"
+  )
+| filter startsWith(host.name, "pc2-batch-inssuite-prod-")
+    or startsWith(k8s.pod.name, "pc2-batch-inssuite-prod-")
+| filter contains(content, "Exception occured for job", caseSensitive:false)
+    and contains(content, "during afterBind_Adj process", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+// ============================================================
+// Verify #3 — BC2 GMO Duplicate Order IDs
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "bc2-payment-prod-6d8f7b9c5-abcde",
+    k8s.pod.name: "bc2-payment-prod-6d8f7b9c5-abcde",
+    log.source: "/var/log/bc2/payment.log",
+    content: "2026-10-15 09:12:34,567 INFO [http-nio-8080-exec-5] Integration.GMO - Map returned by method call: [acs=0&paytimes=&tranid=2610150912345678&clientfield3=&clientfield2=&method=1&clientfield1=&orderid=ORD-20261015-PA001091234-01&trandate=20261015091234&forward=2a99662]"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "bc2-payment-prod-6d8f7b9c5-abcde",
+    k8s.pod.name: "bc2-payment-prod-6d8f7b9c5-abcde",
+    log.source: "/var/log/bc2/payment.log",
+    content: "2026-10-15 09:13:01,204 INFO [http-nio-8080-exec-7] Integration.GMO - Map returned by method call: [acs=0&paytimes=&tranid=2610150913017788&clientfield3=&clientfield2=&method=1&clientfield1=&orderid=ORD-20261015-PA001091301-01&trandate=20261015091301&forward=2a99662]"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "bc2-payment-prod-6d8f7b9c5-fghij",
+    k8s.pod.name: "bc2-payment-prod-6d8f7b9c5-fghij",
+    log.source: "/var/log/bc2/payment.log",
+    content: "2026-10-15 09:20:45,880 INFO [http-nio-8080-exec-2] Integration.GMO - Map returned by method call: [acs=0&paytimes=&tranid=2610150920451234&clientfield3=&clientfield2=&method=1&clientfield1=&orderid=ORD-20261015-PB777092045-01&trandate=20261015092045&forward=2a99662]"
+  )
+| filter startsWith(host.name, "bc2-") or startsWith(k8s.pod.name, "bc2-")
+| filter contains(content, "Integration.GMO")
+    and contains(content, "Map returned by method call", caseSensitive:false)
+    and contains(content, "[acs=0&paytimes=&tranid=")
+    and contains(content, "&clientfield3=&clientfield2=&method=1&clientfield1=")
+    and contains(content, "&orderid=")
+    and contains(content, "&trandate=")
+| fieldsAdd after_orderid = substring(content, from: indexOf(content, "&orderid=") + 9)
+| fieldsAdd orderid = substring(after_orderid, from:0, to: indexOf(after_orderid, "&"))
+| dedup orderid
+| filter stringLength(orderid) >= 24
+| fieldsAdd OrderID_noTime = substring(orderid, from:0, to:18),
+            Time = substring(orderid, from:18, to:24),
+            Rest = substring(orderid, from:24)
+| fieldsAdd OrderIDPattern = concat(OrderID_noTime, "*", Rest)
+| summarize count = count(), orderids = collectDistinct(orderid), by:{ OrderIDPattern }
+| filter count > 1
+| sort count desc
+
+// ============================================================
+// Verify #4 — Camunda Error And Fatal
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-30-1-22.ap-northeast-1.compute.internal",
+    k8s.pod.name: "camunda8-prod-zeebe-gateway-5c7d9b8f6-qwert",
+    log.source: "/var/log/containers/camunda8-prod-zeebe-gateway-5c7d9b8f6-qwert_zeebe-gateway.log",
+    content: "2026-10-15 09:12:34.567 [grpc-executor-2] ERROR io.camunda.zeebe.gateway - Failed to activate jobs for worker payment-worker: DEADLINE_EXCEEDED"
+  )
+| filter startsWith(host.name, "camunda8-prod-identity-")
+    or startsWith(host.name, "camunda8-prod-zeebe-")
+    or startsWith(host.name, "camunda8-prod-keycloak-")
+    or startsWith(k8s.pod.name, "camunda8-prod-identity-")
+    or startsWith(k8s.pod.name, "camunda8-prod-zeebe-")
+    or startsWith(k8s.pod.name, "camunda8-prod-keycloak-")
+| filter contains(content, "ERROR") or contains(content, "FATAL")
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "ERROR"), "ERROR"),
+    if(contains(content, "FATAL"), "FATAL")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, k8s.pod.name, matched_keywords, content
+
+// ============================================================
+// Verify #5 — Camunda Operate Error
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-30-2-41.ap-northeast-1.compute.internal",
+    k8s.pod.name: "camunda8-prod-operate-7b9f6c5d4-zx12k",
+    log.source: "/var/log/containers/camunda8-prod-operate-7b9f6c5d4-zx12k_operate.log",
+    content: "2026-10-15 09:12:34.567 ERROR 1 --- [import_1] i.c.o.zeebeimport.ImportJob : Error while importing Zeebe records into Elasticsearch"
+  )
+| filter startsWith(host.name, "camunda8-prod-operate-")
+    or startsWith(k8s.pod.name, "camunda8-prod-operate-")
+| filter contains(content, "ERROR")
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, k8s.pod.name, content
+
+// ============================================================
+// Verify #6 — BILoss Retrieve Files CMX Seven Phrases
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "BILoss-retrieve-files-cmx-prod",
+    log.source: "/ecs/BILoss-retrieve-files-cmx-prod/app",
+    content: "2026-10-15 09:12:34.567 ERROR RetrieveFilesJob - Failed getCCInformations for batch 20261015-07: com.example.cmx.CmxApiException: timeout after 30000 ms"
+  )
+| filter lower(host.name) == "biloss-retrieve-files-cmx-prod"
+| filter contains(content, "CC Error", caseSensitive:false)
+    or contains(content, "CmxApiException", caseSensitive:false)
+    or contains(content, "NetworkException", caseSensitive:false)
+    or contains(content, "RuntimeException", caseSensitive:false)
+    or contains(content, "Failed to initialize clients", caseSensitive:false)
+    or contains(content, "Failed getCCInformations", caseSensitive:false)
+    or contains(content, "NullPointerException", caseSensitive:false)
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "CC Error"), "CC Error"),
+    if(contains(content, "CmxApiException"), "CmxApiException"),
+    if(contains(content, "NetworkException"), "NetworkException"),
+    if(contains(content, "RuntimeException"), "RuntimeException"),
+    if(contains(content, "Failed to initialize clients"), "Failed to initialize clients"),
+    if(contains(content, "Failed getCCInformations"), "Failed getCCInformations"),
+    if(contains(content, "NullPointerException"), "NullPointerException")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, matched_keywords, content
+
+// ============================================================
+// Verify #7 — BILoss Retrieve Files CMX Error
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "BILoss-retrieve-files-cmx-prod",
+    log.source: "/ecs/BILoss-retrieve-files-cmx-prod/app",
+    content: "2026-10-15 09:12:34.567 ERROR CmxFileFetcher - CMX Error: response code 500 while retrieving file list for batch 20261015-07"
+  )
+| filter lower(host.name) == "biloss-retrieve-files-cmx-prod"
+| filter contains(content, "CMX Error")
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, content
+
+// ============================================================
+// Verify #8 — BILoss Processing Three Hosts
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "BILoss-pre-processing-prod",
+    log.source: "/ecs/BILoss-pre-processing-prod/app",
+    content: "2026-10-15 09:12:34.567 ERROR PreProcessingService - callCamundaProcess error: org.postgresql.util.PSQLException: Connection to db-host:5432 refused"
+  )
+| filter in(lower(host.name), array("biloss-processing-prod", "biloss-pre-processing-prod", "biloss-link-data-to-cc-prod"))
+| filter contains(content, "CC Error", caseSensitive:false)
+    or contains(content, "Camunda Error", caseSensitive:false)
+    or contains(content, "callCamundaProcess error", caseSensitive:false)
+    or contains(content, "RuntimeException", caseSensitive:false)
+    or contains(content, "Failed to initialize clients", caseSensitive:false)
+    or contains(content, "PSQLException", caseSensitive:false)
+    or contains(content, "IllegalArgumentException", caseSensitive:false)
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "CC Error"), "CC Error"),
+    if(contains(content, "Camunda Error"), "Camunda Error"),
+    if(contains(content, "callCamundaProcess error"), "callCamundaProcess error"),
+    if(contains(content, "RuntimeException"), "RuntimeException"),
+    if(contains(content, "Failed to initialize clients"), "Failed to initialize clients"),
+    if(contains(content, "PSQLException"), "PSQLException"),
+    if(contains(content, "IllegalArgumentException"), "IllegalArgumentException")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, matched_keywords, content
+
+// ============================================================
+// Verify #9 — BILoss Upload To CMX
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "BILoss-upload-to-cmx-prod",
+    log.source: "/ecs/BILoss-upload-to-cmx-prod/app",
+    content: "2026-10-15 09:12:34.567 ERROR UploadToCmxJob - java.lang.RuntimeException: Failed to initialize clients (S3 client config not found)"
+  )
+| filter lower(host.name) == "biloss-upload-to-cmx-prod"
+| filter contains(content, "CMX Error", caseSensitive:false)
+    or contains(content, "RuntimeException", caseSensitive:false)
+    or contains(content, "Failed to initialize clients", caseSensitive:false)
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(contains(content, "CMX Error"), "CMX Error"),
+    if(contains(content, "RuntimeException"), "RuntimeException"),
+    if(contains(content, "Failed to initialize clients"), "Failed to initialize clients")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss z", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, matched_keywords, content
+
+// ============================================================
+// Verify #10 — Not Shown
+// SKIP: no Splunk/DQL was shown for this number
+// ============================================================
+// (no dummy verify)
+
+// ============================================================
+// Verify #11 — Error Words Or Access Log Failures
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [worker-4] Request failed: upstream returned error code 502"
+  )
+| filter matchesPhrase(content, "error")
+    or matchesPhrase(content, "failed")
+    or matchesPhrase(content, "severe")
+    or (
+         startsWith(log.source, "access_")
+         and (matchesPhrase(content, "404") or matchesPhrase(content, "500") or matchesPhrase(content, "503"))
+       )
+| sort timestamp desc
+| fields timestamp, host.name, log.source, loglevel, content
+
+// ============================================================
+// Verify #12 — Error Words Or Access Log Failures (Repeat)
+// sample from match-examples (same DQL as #11)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [worker-4] Request failed: upstream returned error code 502"
+  )
+| filter matchesPhrase(content, "error")
+    or matchesPhrase(content, "failed")
+    or matchesPhrase(content, "severe")
+    or (
+         startsWith(log.source, "access_")
+         and (matchesPhrase(content, "404") or matchesPhrase(content, "500") or matchesPhrase(content, "503"))
+       )
+| sort timestamp desc
+| fields timestamp, host.name, log.source, loglevel, content
+
+// ============================================================
+// Verify #13 — PC2 UI Legacy Claims FAIL
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-40-1-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "pc2-ui-6c8d9f7b5-mn4pq",
+    k8s.container.name: "pc2-ui",
+    log.source: "/var/log/containers/pc2-ui-6c8d9f7b5-mn4pq_pc2-ui.log",
+    content: "2026-10-15 09:12:34,567 ERROR [ClaimsClient] POST https://esbv4-inssuite-prod.example.internal/esb/legacyclaims/services/legacydata/claims - FAIL (HTTP 500)"
+  )
+| filter contains(log.source, "pc2-ui", caseSensitive:false)
+    or contains(k8s.container.name, "pc2-ui", caseSensitive:false)
+    or startsWith(k8s.pod.name, "pc2-ui")
+| filter contains(content, "esbv4-inssuite-prod", caseSensitive:false)
+    and contains(content, "/esb/legacyclaims/services/legacydata/claims", caseSensitive:false)
+| filter matchesPhrase(content, "FAIL")
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, log.source, content
+
+// ============================================================
+// Verify #14 — Splunk License Usage Per Day
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "INFO Health check OK"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "WARN Slow response 2300 ms"
+  )
+| fieldsAdd b = stringLength(content)
+| fieldsAdd s   = coalesce(log.source, "(SQUASHED)"),
+            st  = coalesce(dt.openpipeline.source, "(SQUASHED)"),
+            h   = coalesce(host.name, "(SQUASHED)"),
+            idx = coalesce(dt.system.bucket, "(UNKNOWN)")
+| summarize b = sum(b), by:{ day = bin(timestamp, 1d), s, st, h, idx }
+| fieldsAdd gb = round(toDouble(b) / 1073741824, decimals:3)
+| sort day desc, b desc
+
+// ============================================================
+// Verify #15 — Mailservice Authentication Failure
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "mailservice-prod-01",
+    log.source: "/opt/tomcat/logs/catalina.out",
+    content: "2026-10-15 09:12:34,567 ERROR [MailSender-2] javax.mail.AuthenticationFailedException: 535 5.7.8 Authentication credentials invalid"
+  )
+| filter contains(host.name, "mailservice", caseSensitive:false)
+    or contains(k8s.namespace.name, "mailservice", caseSensitive:false)
+    or contains(dt.system.bucket, "mailservice", caseSensitive:false)
+| filter contains(content, "AuthenticationFailedException", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, log.source, content
+
+// ============================================================
+// Verify #16 — Mailservice Tomcat Startup
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "mailservice-prod-01",
+    log.source: "/opt/tomcat/logs/catalina.out",
+    content: "15-Oct-2026 09:12:34.567 INFO [main] org.apache.catalina.startup.Catalina.start Server startup in [12345] milliseconds"
+  )
+| filter contains(host.name, "mailservice", caseSensitive:false)
+    or contains(k8s.namespace.name, "mailservice", caseSensitive:false)
+    or contains(dt.system.bucket, "mailservice", caseSensitive:false)
+| filter matchesPhrase(content, "Catalina.start Server startup")
+| sort timestamp desc
+| fields timestamp, host.name, log.source, content
+
+// ============================================================
+// Verify #17 — Throughput Top Five Sources
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "2026-10-15 09:12:05,100 INFO [worker-1] Order 20261015-000123 accepted"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "2026-10-15 09:12:34,567 INFO [worker-2] Order 20261015-000124 accepted"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "payment-api-prod-01",
+    log.source: "/var/log/payment-api/app.log",
+    content: "2026-10-15 09:13:10,900 INFO [worker-1] Order 20261015-000125 accepted"
+  )
+| makeTimeseries events = count(), by:{ log.source }, interval:1m
+| fieldsAdd total = arraySum(events)
+| sort total desc
+| limit 5
+
+// ============================================================
+// Verify #18 — Silent Production Hosts
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "order-api-prod-01",
+    log.source: "/var/log/order-api/app.log",
+    content: "2026-10-14 22:30:00,000 INFO [main] Nightly reconciliation started"
+  )
+| filter contains(host.name, "-prod-") and not contains(host.name, "amazonaws")
+| summarize count = count(), first_event = min(timestamp), last_event = max(timestamp), by:{ host.name }
+| fieldsAdd last_seen_sec = (toLong(now()) - toLong(last_event)) / 1000000000
+| filter last_seen_sec > 3600
+| fieldsAdd minutes_behind = round(toDouble(last_seen_sec) / 60, decimals:0),
+            hours_behind   = round(toDouble(last_seen_sec) / 3600, decimals:1),
+            days_behind    = round(toDouble(last_seen_sec) / 86400, decimals:1),
+            last_event_jst = formatTimestamp(last_event, format:"EEE MMM dd HH:mm:ss yyyy", timezone:"Asia/Tokyo")
+| sort last_seen_sec desc
+| fields host.name, last_event_jst, minutes_behind, hours_behind, days_behind
+
+// ============================================================
+// Verify #19 — ESBv4 NetSuite HTTP Error
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-50-2-33.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-inssuite-prod-5f6d7c8b9-p9q8r",
+    log.source: "/var/log/containers/esbv4-inssuite-prod-5f6d7c8b9-p9q8r_esbv4.log",
+    content: "2026-10-15 09:12:34,567 ERROR [http-outbound-3] HttpRequester - Error sending HTTP request to https://3903926.restlets.api.netsuite.com:443/app/site/hosting/restlet.nl. Message: Connection timed out"
+  )
+| filter contains(host.name, "esbv4", caseSensitive:false)
+    or contains(k8s.namespace.name, "esbv4", caseSensitive:false)
+    or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+    or contains(dt.system.bucket, "esbv4", caseSensitive:false)
+| filter contains(content, "Error sending HTTP request to https://3903926.restlets.api.netsuite.com:443", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, log.source, content
+
+// ============================================================
+// Verify #20 — Portals AMP Distinct Accounts Per Day
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-1-12.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-frontend-7d9c6b5f4-xk2lp",
+    k8s.container.name: "portals-amp-frontend",
+    log.source: "/var/log/containers/portals-amp-frontend-7d9c6b5f4-xk2lp_portals-amp-frontend.log",
+    content: "{\"level\":\"info\",\"message\":{\"account_number\":\"A12345678 PREMIUM\",\"url\":\"https://portals-amp-frontend.example.internal/policy/list\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-frontend") or contains(k8s.pod.name, "portals-amp-frontend") or contains(log.source, "portals-amp-frontend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd acct = toString(j[message][account_number])
+| filter isNotNull(acct) and contains(acct, " ")
+| fieldsAdd accountNo = substring(acct, from:0, to:indexOf(acct, " "))
+| summarize count = countDistinctExact(accountNo), by:{ day = bin(timestamp, 1d) }
+| fieldsAdd date = formatTimestamp(day, format:"yyyy-MM-dd", timezone:"Asia/Tokyo")
+| sort day asc
+| fields date, count
+
+// ============================================================
+// ============================================================
+// Verify #21 — PC UI CPU Percent Of Limit
+// Dummy metrics (timeseries cannot use fetch logs). Pass: percent == 23
+// ============================================================
+data record(
+    k8s.pod.name: "pc-ui-5b7c9d8f6-abcde",
+    k8s.workload.name: "pc-ui",
+    usage: array(210.0, 250.0, 230.0),
+    cpu_limit: array(1000.0, 1000.0, 1000.0)
+  )
+| filter k8s.workload.name == "pc-ui"
+| fieldsAdd percent = round(arrayAvg(usage) / arrayAvg(cpu_limit) * 100, decimals:2)
+| sort percent desc
+| fields k8s.pod.name, percent
+
+// ============================================================
+// Verify #22 — ESBv4 License Expiring Soon
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-50-2-33.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-inssuite-prod-5f6d7c8b9-p9q8r",
+    log.source: "/var/log/containers/esbv4-inssuite-prod-5f6d7c8b9-p9q8r_esbv4.log",
+    content: "2026-10-15 09:12:34,567 INFO [LicenseCheck] Valid license key --> Evaluation = false, Expiration Date = Mon Dec 14 23:59:59 JST 2026"
+  )
+| filter contains(host.name, "esbv4", caseSensitive:false) or contains(k8s.namespace.name, "esbv4", caseSensitive:false) or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+| filter contains(content, "Valid license key --> Evaluation = false, Expiration Date = ")
+| fieldsAdd expiration_date = trim(substring(content, from:indexOf(content, "Expiration Date = ") + 18))
+| fieldsAdd exp_clean = replaceString(expiration_date, " JST ", " ")
+| parse exp_clean, "TIMESTAMP('EEE MMM dd HH:mm:ss yyyy'):exp_as_utc"
+| fieldsAdd expiration_epoch = exp_as_utc - 9h
+| filter expiration_epoch < now() + 100d
+| sort expiration_epoch asc
+| fields timestamp, host.name, expiration_date, expiration_epoch, content
+
+// ============================================================
+// Verify #23 — AMP Backend doCancel Backend Exception
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-2-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6b8d7c9f5-lm3no",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6b8d7c9f5-lm3no_portals-amp-backend.log",
+    content: "{\"level\":\"error\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/doCancel\",\"type\":\"CAUGHT_EXCEPTION_ON_BACKEND\",\"request_id\":\"3f2b9c1e-7a4d-4e8b-9c21-5d6e7f8a9b0c\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "doCancel") and msg_type == "CAUGHT_EXCEPTION_ON_BACKEND"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #24 — AMP Backend doCancel Completed
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-2-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6b8d7c9f5-lm3no",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6b8d7c9f5-lm3no_portals-amp-backend.log",
+    content: "{\"level\":\"info\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/doCancel\",\"type\":\"EXECUTION_COMPLETED\",\"request_id\":\"8c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "doCancel") and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #25 — AMP Backend doesRefundExist Completed
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-2-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6b8d7c9f5-lm3no",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6b8d7c9f5-lm3no_portals-amp-backend.log",
+    content: "{\"level\":\"info\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/doesRefundExist\",\"type\":\"EXECUTION_COMPLETED\",\"request_id\":\"a7b8c9d0-1e2f-4a3b-8c4d-5e6f7a8b9c0d\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "doesRefundExist") and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #26 — AMP Backend isPolicyCancelAvailable Completed One Week
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-2-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6b8d7c9f5-lm3no",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6b8d7c9f5-lm3no_portals-amp-backend.log",
+    content: "{\"level\":\"info\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/isPolicyCancelAvailable\",\"type\":\"EXECUTION_COMPLETED\",\"request_id\":\"5d6e7f80-91a2-4b3c-8d4e-f5a6b7c8d9e0\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "isPolicyCancelAvailable") and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #27 — AMP Backend isPolicyCancelAvailable Completed One Day
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-2-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6b8d7c9f5-lm3no",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6b8d7c9f5-lm3no_portals-amp-backend.log",
+    content: "{\"level\":\"info\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/isPolicyCancelAvailable\",\"type\":\"EXECUTION_COMPLETED\",\"request_id\":\"0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "isPolicyCancelAvailable") and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #28 — Claim Customer applySimplePayment Errors
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-60-3-31.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-claim-customer-backend-8f7e6d5c4-rs7tu",
+    k8s.container.name: "portals-claim-customer-backend",
+    log.source: "/var/log/containers/portals-claim-customer-backend-8f7e6d5c4-rs7tu_portals-claim-customer-backend.log",
+    content: "{\"level\":\"ERROR\",\"message\":{\"url\":\"https://portals-api-gateway.example.internal/customer/exposure/applySimplePayment\",\"type\":\"CAUGHT_EXCEPTION_ON_BACKEND\",\"request_id\":\"b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e\"}}"
+  )
+| filter contains(k8s.container.name, "portals-claim-customer-frontend") or contains(k8s.pod.name, "portals-claim-customer-frontend") or contains(log.source, "portals-claim-customer-frontend")
+    or contains(k8s.container.name, "portals-claim-customer-backend") or contains(k8s.pod.name, "portals-claim-customer-backend") or contains(log.source, "portals-claim-customer-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd level = toString(j[level]), msg_url = toString(j[message][url])
+| filter lower(level) == "error" and contains(msg_url, "/customer/exposure/applySimplePayment")
+| sort timestamp desc
+| fields timestamp, k8s.pod.name, level, msg_url, raw
+
+// ============================================================
+// Verify #29 — Inssuite BadInputException ContactName
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "pc-api-inssuite-prod-03",
+    log.source: "/opt/guidewire/logs/pc-api.log",
+    content: "2026-10-15 09:12:34,567 ERROR [RestHandler-12] gw.api.rest.exceptions.BadInputException: ContactName: <JP_TEXT>"
+  )
+| filter contains(host.name, "-inssuite-prod-", caseSensitive:false) or contains(k8s.pod.name, "-inssuite-prod-", caseSensitive:false)
+| filter contains(content, "gw.api.rest.exceptions.BadInputException: ContactName:", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+// ============================================================
+// Verify #30 — PC2 UI Metaspace Exhausted
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-40-1-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "pc2-ui-6c8d9f7b5-mn4pq",
+    k8s.container.name: "pc2-ui",
+    log.source: "/var/log/containers/pc2-ui-6c8d9f7b5-mn4pq_pc2-ui.log",
+    content: "[2026-10-15T09:12:34.567+0900] JVMDUMP039I Processing dump event \"systhrow\", detail \"java/lang/OutOfMemoryError\" - Posting Resource Exhausted event: Metaspace"
+  )
+| filter contains(k8s.container.name, "pc2-ui") or contains(k8s.pod.name, "pc2-ui") or contains(log.source, "pc2-ui")
+| filter contains(content, "Posting Resource Exhausted event: Metaspace", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+// ============================================================
+// Verify #31 — Alfrescoacr Failed To Get Lock
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "alfrescoacr-6d8f7b9c4-q7wzt",
+    log.source: "/var/log/containers/alfrescoacr-6d8f7b9c4-q7wzt_alfresco_repo.log",
+    content: "2026-10-15 09:12:34,567 WARN [org.alfresco.repo.lock.JobLockServiceImpl] [DefaultScheduler_Worker-4] Failed to get lock 'ContentStoreCleaner' after 3 retries"
+  )
+| filter contains(host.name, "alfrescoacr", caseSensitive:false) or contains(k8s.namespace.name, "alfrescoacr", caseSensitive:false) or contains(k8s.pod.name, "alfrescoacr", caseSensitive:false) or contains(dt.system.bucket, "alfrescoacr", caseSensitive:false)
+| filter contains(content, "Failed to get lock", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+// ============================================================
+// Verify #32 — Network Errors Counted Per App
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-7] GmoClient - Read timeout after 30000 ms calling payment gateway"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter matchesValue(src, array(
+    "accounting*", "agrex*", "alfrescoaca*", "alfrescoacr*", "alfrescoacr-batch*", "alfrescoaev*",
+    "alfrescocollabsrv*", "batch_server*", "bc-batch*", "bc-ui*", "bc2-batch*", "bc2-ui*",
+    "bcsubledger*", "cc-batch*", "cc-ui*", "cm-ui*", "cm2-ui*", "ebroker*", "esb*", "hulft*",
+    "legacybridge*", "mailservice*", "pc-batch*", "pc-ui*", "portals*", "sonpovan*", "staging*",
+    "temp-receipt-accounting*", "tts*"))
+| filter matchesPhrase(content, "SSL")
+    or matchesPhrase(content, "timeout")
+    or matchesPhrase(content, "socket")
+    or matchesPhrase(content, "connect")
+| summarize record_count = count(), by:{ index = coalesce(k8s.namespace.name, k8s.workload.name, src) }
+| sort record_count desc
+
+// ============================================================
+// Verify #33 — PC2 Batch Cancellation Waiting For Midnight
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "pc2-batch-84d6c7b5f-r9lqv",
+    log.source: "/var/log/containers/pc2-batch-84d6c7b5f-r9lqv_pc2_batch.log",
+    content: "2026-10-15 09:12:34,567 INFO [WorkQueue-2] Workflow step bcCancellationFinished_Adj is in state WaitForMidNight for policy PC-000481"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "pc2-batch")
+| filter matchesPhrase(content, "bcCancellationFinished_Adj") and matchesPhrase(content, "WaitForMidNight")
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #34 — BC2 GMO SEARCHTRADE Exception
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-3] GmoClient - Exception during GMO call SEARCHTRADE:<JP_TEXT> OrderID=ORD-20261015-0091"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter contains(content, "Exception during GMO call SEARCHTRADE", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #35 — BC2 Batch DirectDebit PaymentDueDate Mismatch
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 WARN Server.BatchProcess.DirectDebitBatchProcess - Record with ID DD-000917 has different PaymentDueDate value 2026-10-27 than previous rows"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-batch")
+| filter contains(content, "Server.BatchProcess.DirectDebitBatchProcess", caseSensitive:false)
+| filter contains(content, "Record with ID ", caseSensitive:false)
+    and contains(content, " has different PaymentDueDate value ", caseSensitive:false)
+    and contains(content, " than previous rows", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #36 — BC2 Concurrent Data Change In Delinquency Process
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [PolicyDlnqProcess:bc] com.guidewire.pl.system.exception.ConcurrentDataChangeException: Bean PolicyPeriod:2048 was changed by another user"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-")
+| filter contains(content, "com.guidewire.pl.system.exception.ConcurrentDataChangeException", caseSensitive:false)
+    and contains(content, "PolicyDlnqProcess:bc", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #37 — Bcsubledger Exception Error Or Warn
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-35-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bcsubledger-7b5d9c6f8-t2xkn",
+    log.source: "/var/log/containers/bcsubledger-7b5d9c6f8-t2xkn_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [LedgerWorker-3] SubledgerPostingService - Posting failed for journal JRN-20261015-0042"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bcsubledger")
+| filter matchesPhrase(content, "Exception")
+    or matchesPhrase(content, "ERROR")
+    or matchesPhrase(content, "WARN")
+| sort timestamp desc
+| fields timestamp, src, loglevel, content
+
+// ============================================================
+// Verify #38 — BC2 UI GMO Error Code E01050004
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 WARN [http-nio-8080-exec-5] GmoClient - EntryTran response: errcode=E01&errinfo=E01050004&OrderID=ORD-20261015-0103"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui")
+| filter contains(content, "errcode=E01&errinfo=E01050004", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #39 — BC2 CVS Offline Payment Notification Exception
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR Integration.CVS [CvsNotifyWorker-2] Exception caught while processing item [entity.CvsOfflinePaymentNotification_Adj:pc:10482]"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter matchesPhrase(content, "ERROR")
+    and contains(content, "Integration.CVS", caseSensitive:false)
+    and contains(content, "Exception caught while processing item [entity.CvsOfflinePaymentNotification_Adj:", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #40 — BC2 Multiple Matches On ContactID
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-9] gw.api.database.MultipleMatchesException: More than one row found for query on Contact where ContactID_Adj = ? Values: [C-000123]"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter contains(content, "gw.api.database.MultipleMatchesException", caseSensitive:false)
+    and matchesPhrase(content, "ContactID_Adj")
+    and matchesPhrase(content, "Values")
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #41 — BC2 Batch Duplicate CVS Offline Quick Records
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-14 02:10:05,120 INFO [CvsImport-1] PaymentRecordType=Quick record for CVS Offline, Identifier=CVS-000731, Amount=12800, PaymentDate=Wed Oct 14 10:00:00 JST 2026, RunID=R-0101"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-batch")
+| filter contains(content, "PaymentRecordType=Quick record for CVS Offline", caseSensitive:false)
+| dedup content
+| parse content, "LD 'Identifier=' LD:Identifier ','"
+| parse content, "LD 'Amount=' LD:Amount ','"
+| parse content, "LD 'PaymentDate=' LD:PaymentDate ','"
+| summarize count = count(), by:{ Identifier, Amount, PaymentDate }
+| filter count > 1
+| fieldsAdd pd_clean = replaceString(PaymentDate, " JST ", " ")
+| parse pd_clean, "TIMESTAMP('EEE MMM dd HH:mm:ss yyyy'):PaymentDateForSort"
+| sort PaymentDateForSort asc
+| fields Identifier, Amount, PaymentDate
+
+// ============================================================
+// Verify #42 — API Exception When Executing In Three BC2 Apps
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-35-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bcsubledger-7b5d9c6f8-t2xkn",
+    log.source: "/var/log/containers/bcsubledger-7b5d9c6f8-t2xkn_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [ApiWorker-1] RestGateway - API - Exception when executing POST /ledger/v1/postings: java.net.SocketTimeoutException"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "API - Exception when executing", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #43 — GMO EXECTRAN Exception In Three BC2 Apps
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [CardChargeWorker-4] GmoClient - Exception during GMO call EXECTRAN: java.net.SocketTimeoutException: Read timed out OrderID=ORD-20261015-0120"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #44 — BC2 UI GMO Error Code E01050004
+// sample from match-examples (same DQL as #38)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 WARN [http-nio-8080-exec-5] GmoClient - EntryTran response: errcode=E01&errinfo=E01050004&OrderID=ORD-20261015-0103"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui")
+| filter contains(content, "errcode=E01&errinfo=E01050004", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #45 — BC2 CVS Offline Payment Notification Exception
+// sample from match-examples (same DQL as #39)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR Integration.CVS [CvsNotifyWorker-2] Exception caught while processing item [entity.CvsOfflinePaymentNotification_Adj:pc:10482]"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter matchesPhrase(content, "ERROR")
+    and contains(content, "Integration.CVS", caseSensitive:false)
+    and contains(content, "Exception caught while processing item [entity.CvsOfflinePaymentNotification_Adj:", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #46 — BC2 Multiple Matches On ContactID
+// sample from match-examples (same DQL as #40)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-9] gw.api.database.MultipleMatchesException: More than one row found for query on Contact where ContactID_Adj = ? Values: [C-000123]"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter contains(content, "gw.api.database.MultipleMatchesException", caseSensitive:false)
+    and matchesPhrase(content, "ContactID_Adj")
+    and matchesPhrase(content, "Values")
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #47 — BC2 Batch Duplicate CVS Offline Quick Records
+// sample from match-examples (same DQL as #41)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-14 02:10:05,120 INFO [CvsImport-1] PaymentRecordType=Quick record for CVS Offline, Identifier=CVS-000731, Amount=12800, PaymentDate=Wed Oct 14 10:00:00 JST 2026, RunID=R-0101"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-batch")
+| filter contains(content, "PaymentRecordType=Quick record for CVS Offline", caseSensitive:false)
+| dedup content
+| parse content, "LD 'Identifier=' LD:Identifier ','"
+| parse content, "LD 'Amount=' LD:Amount ','"
+| parse content, "LD 'PaymentDate=' LD:PaymentDate ','"
+| summarize count = count(), by:{ Identifier, Amount, PaymentDate }
+| filter count > 1
+| fieldsAdd pd_clean = replaceString(PaymentDate, " JST ", " ")
+| parse pd_clean, "TIMESTAMP('EEE MMM dd HH:mm:ss yyyy'):PaymentDateForSort"
+| sort PaymentDateForSort asc
+| fields Identifier, Amount, PaymentDate
+
+// ============================================================
+// Verify #48 — API Exception When Executing In Three BC2 Apps
+// sample from match-examples (same DQL as #42)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-35-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bcsubledger-7b5d9c6f8-t2xkn",
+    log.source: "/var/log/containers/bcsubledger-7b5d9c6f8-t2xkn_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [ApiWorker-1] RestGateway - API - Exception when executing POST /ledger/v1/postings: java.net.SocketTimeoutException"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "API - Exception when executing", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #49 — GMO EXECTRAN Exception In Three BC2 Apps
+// sample from match-examples (same DQL as #43)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [CardChargeWorker-4] GmoClient - Exception during GMO call EXECTRAN: java.net.SocketTimeoutException: Read timed out OrderID=ORD-20261015-0120"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #50 — BC2 UI Error Code E01 Minus Known Codes
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 INFO [http-nio-8080-exec-2] GmoClient - Map returned by method call EntryTran: errcode=E01&errinfo=E01170006&OrderID=ORD-20261015-0144"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui")
+| filter contains(content, "Map returned by method call", caseSensitive:false)
+| parse content, "LD 'errcode=' ALNUM:errcode"
+| filter errcode == "E01"
+| filter not matchesPhrase(content, "E01390002")
+| filter not matchesPhrase(content, "E01260010")
+| filter not matchesPhrase(content, "E01110002")
+| sort timestamp desc
+| fields timestamp, src, errcode, content
+
+// ============================================================
+// Verify #51 — BC2 Batch SaveCardWithOrderID Errors On Writer 54
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [MW-Writer-[54]] CardSaveWriter - Errors in saveCardWithOrderID call for OrderID=ORD-20261015-0137"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-batch")
+| filter contains(content, "Errors in saveCardWithOrderID call", caseSensitive:false)
+| filter contains(content, "MW-Writer-[54]", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #52 — GMO SearchTrade Used To Confirm ExecTran
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 INFO [http-nio-8080-exec-6] GmoClient - GMO SearchTrade used to confirm ExecTran status with OrderID ORD-20261015-0152: status=CAPTURE"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "GMO SearchTrade used to confirm ExecTran status with OrderID", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #53 — GMO EXECTRAN Exception In Three BC2 Apps
+// sample from match-examples (same DQL as #43)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [CardChargeWorker-4] GmoClient - Exception during GMO call EXECTRAN: java.net.SocketTimeoutException: Read timed out OrderID=ORD-20261015-0120"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-ui") or startsWith(src, "bc2-batch") or startsWith(src, "bcsubledger")
+| filter contains(content, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #54 — Operation Failed For A Producer
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-36-14.ap-northeast-1.compute.internal",
+    k8s.pod.name: "pc2-ui-6c7d8e-h3nvb",
+    log.source: "/var/log/containers/pc2-ui-6c7d8e-h3nvb_pc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-1] ProducerService - Operation failed: ProducerCode <JP_TEXT_1> (code=AG-00417)"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "pc2-ui") or startsWith(src, "bc2-ui")
+| filter contains(content, "Operation failed", caseSensitive:false)
+| filter contains(content, "ProducerCode <JP_TEXT_1>", caseSensitive:false)
+    or contains(content, "Producer <JP_TEXT_2>", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #55 — BC2 Producer Contact Missing
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 WARN [CommissionWorker-2] ProducerSync - Producer Contact is missing for Producer AG-00417"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter contains(content, "Producer Contact is missing for Producer", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #56 — BC2 Producer Contact Missing
+// sample from match-examples (same DQL as #55)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-17.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-batch-5c8d7f-m4tzr",
+    log.source: "/var/log/containers/bc2-batch-5c8d7f-m4tzr_bc2_batch.log",
+    content: "2026-10-15 09:12:34,567 WARN [CommissionWorker-2] ProducerSync - Producer Contact is missing for Producer AG-00417"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2")
+| filter contains(content, "Producer Contact is missing for Producer", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #57 — BC2 Server RunLevel Ready
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bc2-ui-7f9c6d-x2kqp",
+    log.source: "/var/log/containers/bc2-ui-7f9c6d-x2kqp_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 INFO Server.RunLevel Server run level MULTIUSER is ready"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bc2-")
+| filter matchesPhrase(content, "Server.RunLevel")
+| filter matchesPhrase(content, "ready")
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #58 — Bcsubledger Japanese Text Search
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-35-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "bcsubledger-7b5d9c6f8-t2xkn",
+    log.source: "/var/log/containers/bcsubledger-7b5d9c6f8-t2xkn_bc2_app.log",
+    content: "2026-10-15 09:12:34,567 ERROR [LedgerWorker-1] SubledgerImportService - <JP_TEXT> file=SL_20261015_01.csv"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "bcsubledger")
+| filter contains(content, "<JP_TEXT>", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #59 — PC2 Batch Payment Request Creation Failure
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "pc2-batch-84d6c7b5f-r9lqv",
+    log.source: "/var/log/containers/pc2-batch-84d6c7b5f-r9lqv_pc2_batch.log",
+    content: "2026-10-15 09:12:34,567 ERROR [PaymentRequestWorker-3] Creation of a payment request for transaction TXN-20261015-0077 ended in failure"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "pc2-batch")
+| filter contains(content, "Creation of a payment request for transaction", caseSensitive:false)
+| filter matchesPhrase(content, "failure")
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #60 — CC RemoveDocumentChain Execution Duration
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-37-09.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-batch-6f5b8d9c7-w8jzm",
+    log.source: "/var/log/containers/cc-batch-6f5b8d9c7-w8jzm_cc_batch.log",
+    content: "2026-10-15 09:12:34,567 INFO [DocWorker-2] RemoveDocumentChain Execution Duration: 1234 ms"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-ui") or startsWith(src, "cc-batch")
+| filter contains(src, "cc-")
+| filter matchesPhrase(content, "RemoveDocumentChain")
+| filter matchesPhrase(content, "Execution")
+| filter matchesPhrase(content, "Duration")
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #61 — Cc-Batch ERROR Lines For EnqueteWorkItem
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-batch-0",
+    k8s.container.name: "cc-batch",
+    content: "2026-10-15 09:12:34,567 ERROR [worker-3] c.e.cc.batch.EnqueteWorkItem_Adj - Work item failed for enquete id 48213"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-batch")
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "EnqueteWorkItem_Adj", caseSensitive:false)
+| summarize loglevel = collectDistinct(loglevel), log = collectDistinct(content), by:{ timestamp }
+| sort timestamp desc
+
+// ============================================================
+// Verify #62 — Cc-Batch MessageQueueMonitor ERROR With Detail Lines
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-batch-2",
+    k8s.container.name: "cc-batch",
+    content: "2026-10-15 09:12:34,567 ERROR [monitor-1] c.e.cc.batch.MessageQueueMonitor_Adj - [MQ] Found 2 stuck messages in queue CC_OUT"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter contains(src, "cc-batch")
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "MessageQueueMonitor_Adj", caseSensitive:false)
+| filter not contains(content, "Sonpovan <JP_TEXT>", caseSensitive:false)
+| filter contains(content, "Found ")
+| fieldsAdd queueMessage = substring(content, from: indexOf(content, "Found "))
+| fieldsAdd line = splitString(content, "\n")
+| expand line
+| parse line, "(DIGIT{10} SPACE LD):detail"
+| filter isNotNull(detail)
+| summarize details = collectArray(detail), by:{ timestamp, src, queueMessage }
+| sort timestamp desc
+| fields timestamp, src, queueMessage, details
+
+// ============================================================
+// Verify #63 — Cc-Batch DocNotif Work Item Failed
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-batch-0",
+    k8s.container.name: "cc-batch",
+    content: "2026-10-15 09:12:34,567 INFO [worker-1] c.e.cc.batch.WorkItemRunner - Work item processed \"DocNotif_Adj\" id=48213 failed=true elapsedMs=1520"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-batch")
+| filter contains(content, "Work item processed \"DocNotif_Adj\"", caseSensitive:false)
+| filter contains(content, "failed=true", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #64 — Cc-Batch FinancialsEsc Work Item Failed
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-batch-1",
+    k8s.container.name: "cc-batch",
+    content: "2026-10-15 09:12:34,567 INFO [worker-2] c.e.cc.batch.WorkItemRunner - Work item processed \"FinancialsEscalation_Adj\" id=77120 failed=true elapsedMs=3011"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-batch")
+| filter contains(content, "Work item processed \"FinancialsEsc", caseSensitive:false)
+| filter contains(content, "failed=true", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #65 — Sonpovan Account Statement Tasklet Warnings
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "sonpovan-batch-7d9f8c6b5-x2k4q",
+    k8s.container.name: "sonpovan-batch",
+    content: "2026-10-15 09:12:34,567 WARN [step-1] j.c.s.batch.VanTRecvAccountStatementCallApiTasklet - claim 2026/004512 Message : <400 characters of response text>ERR-STMT-0042-API"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter contains(src, "sonpov")
+| filter matchesPhrase(content, "WARN")
+| filter contains(content, "VanTRecvAccountStatementCallApiTasklet", caseSensitive:false)
+| filter contains(content, "Message")
+| parse content, "LD (DIGIT+ '/' DIGIT+):claimNumber"
+| parse content, "LD 'Message : ' LD:message"
+| fieldsAdd suffix = if(stringLength(message) > 400, substring(message, from:400, to:417))
+| sort timestamp desc
+| fields timestamp, src, claimNumber, message, suffix, content
+
+// ============================================================
+// Verify #66 — Cc Apps NoUpdatePaymentError
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-ui-6f8d9c7b4-abcde",
+    k8s.container.name: "cc-ui",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-5] c.e.cc.payment.PaymentService - NoUpdatePaymentError: payment record 88123 is locked by another process"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-")
+| filter contains(content, "NoUpdatePaymentError", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #67 — Sonpov And Temp Receipt ERROR Lines
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-32-11.ap-northeast-1.compute.internal",
+    k8s.pod.name: "temp-receipt-accounting-5c8d7f9b6-m3n7p",
+    k8s.container.name: "temp-receipt-accounting",
+    content: "2026-10-15 09:12:34 ERROR [main] j.c.t.receipt.ReceiptJob - Receipt export failed for batch 3021"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter contains(src, "sonpov") or contains(src, "temp-receipt-accounting")
+| parse content, "INT '-' INT '-' INT SPACE INT ':' INT ':' INT SPACE ALPHA:loglevel_parsed"
+| filter loglevel_parsed == "ERROR"
+| summarize loglevel = collectDistinct(loglevel_parsed), log = collectDistinct(content), podname = collectDistinct(src), by:{ timestamp }
+| sort timestamp desc
+
+// ============================================================
+// Verify #68 — Cc-Ui RemoveDocument Called
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-31-45.ap-northeast-1.compute.internal",
+    k8s.pod.name: "cc-ui-6f8d9c7b4-abcde",
+    k8s.container.name: "cc-ui",
+    content: "2026-10-15 09:12:34,567 INFO [http-nio-8080-exec-9] c.e.cc.docs.DocumentService - removeDocument called for document with DocUID DOC-000731"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "cc-ui")
+| filter contains(content, "removeDocument called for document with DocUID", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #69 — Esbv4 Call To Ebroker Failed With 503
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-4] c.e.esb.ErrorHandler - Error(esb.xml) error payload: HTTP POST on resource 'https://ebroker-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/ebroker/api/policy/issue' failed: service unavailable (503)."
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Error(esb.xml) error payload: HTTP POST on resource 'https://ebroker-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/", caseSensitive:false)
+    and contains(content, "' failed: service unavailable (503).", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #70 — Ebroker Address Conversion Failures
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "ebroker-api-5b7c9d8f6-q8w2r",
+    k8s.container.name: "ebroker-api",
+    content: "2026-10-15 09:12:34,567 WARN [http-nio-8080-exec-3] c.e.ebroker.address.AddressService - Address conversion failed.Request to agrex Zipcode: 1000001"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "ebroker")
+| filter contains(content, "Address conversion failed.Request to agrex Zipcode:", caseSensitive:false)
+    or contains(content, "Address conversion failed.Status code", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #71 — Ebroker Startup Lines
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "ebroker-api-5b7c9d8f6-q8w2r",
+    k8s.container.name: "ebroker-api",
+    content: "2026-10-15 09:12:34,567 INFO [main] c.e.ebroker.ApiMain - Starting ApiMain on ebroker-api-5b7c9d8f6-q8w2r with PID 1"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "ebroker")
+| filter contains(content, "Starting ApiMain on ebroker", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #72 — Esbv4 Ebroker Requests That Hit An Interceptor Exception
+// sample from match-examples; lookup simplified (outer filters + parse only — no live fetch in lookup)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:35,101 WARN [http-nio-8080-exec-7] o.a.c.p.PhaseInterceptorChain - [requestId=3f9a2c1e-7b4d-4e8a-9c21-0d5e6f7a8b9c] Interceptor for {http://ebroker.example/}QuoteService has thrown exception, unwinding now"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Interceptor for", caseSensitive:false)
+    and contains(content, "has thrown exception", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// ============================================================
+// Verify #73 — Ebroker POST Request Ottif Started
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-34-21.ap-northeast-1.compute.internal",
+    k8s.pod.name: "ebroker-api-5b7c9d8f6-q8w2r",
+    k8s.container.name: "ebroker-api",
+    content: "2026-10-15 09:12:34,567 INFO [http-nio-8080-exec-2] c.e.ebroker.web.RequestLogFilter - Started: POST /request/ottif"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "ebroker")
+| filter contains(content, "Started: POST /request/ottif", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #74 — Esbv4 Call To Pc Quote Failed
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-6] c.e.esb.ErrorHandler - Error(esb-ebroker.xml) description: HTTP POST on resource 'https://pc-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/pc/service/edge/ebroker/quote' failed: Read timed out"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Error(esb-ebroker.xml) description: HTTP POST on resource 'https://pc-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/pc/service/edge/ebroker/quote' failed: ", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #75 — Esbv4 Cannot Reach Localhost 8082
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-1] c.e.esb.HttpClient - Error sending HTTP request to http://localhost:8082/api/token: Connection refused"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Error sending HTTP request to http://localhost:8082", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// ============================================================
+// Verify #76 — Apps That Stopped Logging
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-35-02.ap-northeast-1.compute.internal",
+    k8s.pod.name: "mailservice-6b8c9d7f5-t4r2w",
+    k8s.container.name: "mailservice",
+    content: "2026-10-15 06:00:00,000 INFO [scheduler-1] c.e.mail.MailQueue - Mail queue drained, 0 messages pending"
+  )
+| fieldsAdd app = lower(coalesce(k8s.workload.name, k8s.container.name, host.name))
+| filter matchesValue(app, array("agrex*", "alfresco*", "bcsubledger*", "ebroker*", "esbv4*", "jobscheduler*",
+                                 "legacybridge*", "mailservice*", "portals*", "tts"))
+| filter not in(app, array("ebroker_batch", "alfrescoaev", "portals-claim-vendor-backend", "portals-claim-vendor-frontend"))
+| summarize count = count(), first_event = min(timestamp), last_event = max(timestamp), by:{ app }
+| fieldsAdd last_seen_sec = (toLong(now()) - toLong(last_event)) / 1000000000
+| filter last_seen_sec > 3600
+| fieldsAdd minutes_behind = round(toDouble(last_seen_sec) / 60, decimals:0),
+            hours_behind   = round(toDouble(last_seen_sec) / 3600, decimals:1),
+            days_behind    = round(toDouble(last_seen_sec) / 86400, decimals:1),
+            last_event_jst = formatTimestamp(last_event, format:"EEE MMM dd HH:mm:ss yyyy", timezone:"Asia/Tokyo")
+| sort minutes_behind desc
+| fields app, last_event_jst, minutes_behind, hours_behind, days_behind
+
+// ============================================================
+// Verify #77 — Bangauto Quote Requests That Hit The Pc Quote Timeout
+// sample from match-examples; lookup simplified (outer filters + parse only — no live fetch in lookup)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:04,210 INFO [http-nio-8080-exec-3] c.e.esb.EbrokerRouter - [requestId=a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d] Sending request to /esb/ebroker/bangauto/online/_quote"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Sending request to /esb/ebroker/bangauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// ============================================================
+// Verify #78 — Inswebauto Quote Requests That Hit The Pc Quote Timeout
+// sample from match-examples; lookup simplified (outer filters + parse only — no live fetch in lookup)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:04,210 INFO [http-nio-8080-exec-8] c.e.esb.EbrokerRouter - [requestId=5d6e7f80-91a2-4b3c-8d4e-5f6a7b8c9d0e] Sending request to /esb/ebroker/inswebauto/online/_quote"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Sending request to /esb/ebroker/inswebauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// ============================================================
+// Verify #79 — Inswebbike Quote Requests That Hit The Pc Quote Timeout
+// sample from match-examples; lookup simplified (outer filters + parse only — no live fetch in lookup)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:04,210 INFO [http-nio-8080-exec-2] c.e.esb.EbrokerRouter - [requestId=7e8f9a0b-1c2d-4e3f-9a4b-5c6d7e8f9a0b] Sending request to /esb/ebroker/inswebbike/online/_quote"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Sending request to /esb/ebroker/inswebbike/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// ============================================================
+// Verify #80 — Kakakucomauto Quote Requests That Hit The Pc Quote Timeout
+// sample from match-examples; lookup simplified (outer filters + parse only — no live fetch in lookup)
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-33-08.ap-northeast-1.compute.internal",
+    k8s.pod.name: "esbv4-7c9d8b6f5-k2m4p",
+    k8s.container.name: "esbv4",
+    content: "2026-10-15 09:12:04,210 INFO [http-nio-8080-exec-5] c.e.esb.EbrokerRouter - [requestId=b4c5d6e7-f809-4a1b-9c2d-3e4f5a6b7c8d] Sending request to /esb/ebroker/kakakucomauto/online/_quote"
+  )
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name))
+| filter startsWith(src, "esbv4")
+| filter contains(content, "Sending request to /esb/ebroker/kakakucomauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// ============================================================
+// Verify #81 — Ebroker SSL Certificate Expiring Within 30 Days
+// Dummy: certify expiry math without sslcert_lookup ingest
+// Pass: one row with days_left < 30
+// ============================================================
+data record(
+    host: "ebroker.example.internal",
+    expiry: toTimestamp("2026-10-25T00:00:00+09:00"),
+    now_ts: toTimestamp("2026-10-15T09:12:34.567+09:00")
+  )
+| fieldsAdd days_left = (toLong(expiry) - toLong(now_ts)) / 86400000000000
+| filter days_left < 30
+| fields host, expiry, days_left
+
+// ============================================================
+// Verify #82 — Portals-Amp-Backend Errors On Save, Coverages, Quote, Bind
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-36-14.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6d7c8b9a5-h5j6k",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6d7c8b9a5-h5j6k_amp_portals-amp-backend.log",
+    content: "{\"level\":\"error\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/quote\",\"type\":\"CAUGHT_EXCEPTION_ON_BACKEND\",\"request_id\":\"req-20261015-000417\",\"target_system\":\"pc\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), level = toString(j[level])
+| filter endsWith(msg_url, "/save") or endsWith(msg_url, "/ampupdateCoverages") or endsWith(msg_url, "/quote") or endsWith(msg_url, "/bind")
+| filter lower(level) == "error"
+| sort timestamp desc
+| fields timestamp, msg_url, level, raw
+
+// ============================================================
+// Verify #83 — PayWithCreditCard Caught Exception On Backend
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-36-14.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6d7c8b9a5-h5j6k",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6d7c8b9a5-h5j6k_amp_portals-amp-backend.log",
+    content: "{\"level\":\"error\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/payment/payWithCreditCard_Adj\",\"type\":\"CAUGHT_EXCEPTION_ON_BACKEND\",\"request_id\":\"req-20261015-000512\",\"target_system\":\"payment-gateway\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "payWithCreditCard_Adj") and msg_type == "CAUGHT_EXCEPTION_ON_BACKEND"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #84 — PayWithCreditCard Execution Completed One Day
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-36-14.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6d7c8b9a5-h5j6k",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6d7c8b9a5-h5j6k_amp_portals-amp-backend.log",
+    content: "{\"level\":\"info\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/payment/payWithCreditCard_Adj\",\"type\":\"EXECUTION_COMPLETED\",\"request_id\":\"req-20261015-000513\",\"target_system\":\"payment-gateway\"}}"
+  )
+| filter contains(k8s.container.name, "portals-amp-backend") or contains(k8s.pod.name, "portals-amp-backend") or contains(log.source, "portals-amp-backend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]), msg_type = toString(j[message][type])
+| filter contains(msg_url, "payWithCreditCard_Adj") and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, raw
+
+// ============================================================
+// Verify #85 — PayWithCreditCard Execution Completed One Hour
+// sample from match-examples
+// Pass: >=1 row (or expected summarize/group row). Fail: 0 rows.
+// ============================================================
+data record(
+    timestamp: toTimestamp("2026-10-15T09:12:34.567+09:00"),
+    host.name: "ip-10-20-36-14.ap-northeast-1.compute.internal",
+    k8s.pod.name: "portals-amp-backend-6d7c8b9a5-h5j6k",
+    k8s.container.name: "portals-amp-backend",
+    log.source: "/var/log/containers/portals-amp-backend-6d7c8b9a5-h5j6k_amp_portals-amp-backend.log",
+    content: "{\"level\":\"info\",\"message\":{\"url\":\"https://portals-amp-backend.example.internal/api/payment/payWithCreditCard_Adj\",\"type\":\"EXECUTION_COMPLETED\",\"request_id\":\"req-20261015-000514\",\"target_system\":\"payment-gateway\"}}"
+  )
+| filter contains(content, "payWithCreditCard_Adj")
+| filter contains(k8s.container.name, "portals-amp")
+    or contains(k8s.pod.name, "portals-amp")
+    or contains(log.source, "portals-amp")
+    or contains(host.name, "portals-amp")
+| fieldsAdd raw = replaceString(content, "\\\"", "\"")
+| parse raw, "JSON:j"
+| fieldsAdd msg_url = toString(j[message][url]),
+            msg_type = toString(j[message][type]),
+            request_id = toString(j[message][request_id]),
+            target_system = toString(j[message][target_system])
+| filter contains(msg_url, "payWithCreditCard_Adj")
+| filter msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_type, request_id, target_system, msg_url, raw
+
