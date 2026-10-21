@@ -1,0 +1,27 @@
+// #25 live — doesRefundExist EXECUTION_COMPLETED
+fetch logs, from:now()-1d
+| filter contains(k8s.container.name, "portals-amp-backend")
+    or contains(k8s.pod.name, "portals-amp-backend")
+    or contains(log.source, "portals-amp-backend")
+| parse content, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd msg_url = coalesce(toString(msg[url]), toString(j[message][url])),
+            msg_type = coalesce(toString(msg[type]), toString(j[message][type]))
+| filter contains(msg_url, "doesRefundExist")
+    and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, host.name, msg_url, msg_type, content
+
+// #25 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "{\"timestamp\":\"2026-10-21T08:33:22.916Z\",\"level\":\"info\",\"message\":\"{\\\"request_id\\\":\\\"req-1\\\",\\\"service\\\":\\\"backendExpress\\\",\\\"type\\\":\\\"EXECUTION_COMPLETED\\\",\\\"url\\\":\\\"https://portals-api-gateway.example.internal/doesRefundExist\\\",\\\"method\\\":\\\"post\\\"}\"}"
+| fields dummy
+| parse dummy, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd msg_url = toString(msg[url]), msg_type = toString(msg[type])
+| filter contains(msg_url, "doesRefundExist")
+    and msg_type == "EXECUTION_COMPLETED"
+| fields msg_url, msg_type, msg_raw
