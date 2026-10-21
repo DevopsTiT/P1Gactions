@@ -1,0 +1,62 @@
+// ============================================================
+// Verify: BILoss keywords — same style as afterBind_Adj
+// (fetch logs + fieldsAdd dummy — NOT data record)
+// Pass: row remains; matched_keywords = ["CC Error"]
+// ============================================================
+fetch logs
+| fieldsAdd dummy = "[main] ERROR jp.co.axa.api.ClaimCenterClient - CC Error while trying to call CC Financial judgement API - Error type: SocketTimeoutException, Message: timeout"
+| fields dummy
+| filter matchesPhrase(dummy, "CC Error")
+    or matchesPhrase(dummy, "Camunda Error")
+    or matchesPhrase(dummy, "callCamundaProcess error")
+    or matchesPhrase(dummy, "RuntimeException")
+    or matchesPhrase(dummy, "failed to initialize clients")
+    or matchesPhrase(dummy, "PSQLException")
+    or matchesPhrase(dummy, "IllegalArgumentException")
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(matchesPhrase(dummy, "CC Error"), "CC Error"),
+    if(matchesPhrase(dummy, "Camunda Error"), "Camunda Error"),
+    if(matchesPhrase(dummy, "callCamundaProcess error"), "callCamundaProcess error"),
+    if(matchesPhrase(dummy, "RuntimeException"), "RuntimeException"),
+    if(matchesPhrase(dummy, "failed to initialize clients"), "failed to initialize clients"),
+    if(matchesPhrase(dummy, "PSQLException"), "PSQLException"),
+    if(matchesPhrase(dummy, "IllegalArgumentException"), "IllegalArgumentException")
+  ))
+| fields dummy, matched_keywords
+
+// ============================================================
+// Verify (minimal) — only phrase check, like afterBind lines 50-54
+// ============================================================
+fetch logs
+| fieldsAdd dummy = "[main] ERROR jp.co.axa.api.ClaimCenterClient - CC Error while trying to call CC Financial judgement API - Error type: SocketTimeoutException, Message: timeout"
+| fields dummy
+| filter contains(dummy, "CC Error", caseSensitive:false)
+
+// ============================================================
+// Live filter — real logs (content + hosts)
+// ============================================================
+fetch logs, from:now()-24h
+| filter host.name == "BILoss-processing-prod"
+    or host.name == "BILoss-pre-processing-prod"
+    or host.name == "BILoss-link-data-to-cc-prod"
+    or contains(aws.log_group, "BILoss-", caseSensitive:false)
+    or contains(log.source, "BILoss-", caseSensitive:false)
+| filter matchesPhrase(content, "CC Error")
+    or matchesPhrase(content, "Camunda Error")
+    or matchesPhrase(content, "callCamundaProcess error")
+    or matchesPhrase(content, "RuntimeException")
+    or matchesPhrase(content, "failed to initialize clients")
+    or matchesPhrase(content, "PSQLException")
+    or matchesPhrase(content, "IllegalArgumentException")
+| fieldsAdd matched_keywords = arrayRemoveNulls(array(
+    if(matchesPhrase(content, "CC Error"), "CC Error"),
+    if(matchesPhrase(content, "Camunda Error"), "Camunda Error"),
+    if(matchesPhrase(content, "callCamundaProcess error"), "callCamundaProcess error"),
+    if(matchesPhrase(content, "RuntimeException"), "RuntimeException"),
+    if(matchesPhrase(content, "failed to initialize clients"), "failed to initialize clients"),
+    if(matchesPhrase(content, "PSQLException"), "PSQLException"),
+    if(matchesPhrase(content, "IllegalArgumentException"), "IllegalArgumentException")
+  ))
+| fieldsAdd time = formatTimestamp(timestamp, format:"yyyy-MM-dd HH:mm:ss.SSS", timezone:"Asia/Tokyo")
+| sort timestamp desc
+| fields time, host.name, matched_keywords, content
