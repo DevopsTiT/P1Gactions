@@ -1,4 +1,0 @@
-{"timestamp":"2026-10-19T00:00:01.000Z","log.source":"portals-amp-backend","k8s.container.name":"portals-amp-backend","content":"{\"level\":\"error\",\"message\":{\"url\":\"save\",\"type\":\"T\"}}"}
-{"timestamp":"2026-10-19T00:00:02.000Z","log.source":"portals-amp-backend","k8s.container.name":"portals-amp-backend","content":"{\"level\":\"error\",\"message\":{\"url\":\"payWithCreditCard_Adj\",\"type\":\"CAUGHT_EXCEPTION_ON_BACKEND\"}}"}
-{"timestamp":"2026-10-19T00:00:03.000Z","log.source":"portals-amp-backend","k8s.container.name":"portals-amp-backend","content":"{\"level\":\"info\",\"message\":{\"url\":\"payWithCreditCard_Adj\",\"type\":\"EXECUTION_COMPLETED\"}}"}
-{"timestamp":"2026-10-19T00:00:04.000Z","log.source":"other-app","content":"{\"level\":\"error\",\"message\":{\"url\":\"save\",\"type\":\"T\"}}"}
