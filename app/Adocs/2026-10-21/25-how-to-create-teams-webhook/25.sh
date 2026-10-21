@@ -1,5 +1,0 @@
-curl -X POST -H "Content-Type: application/json" -d "{\"text\":\"WF-A Teams webhook test\"}" "YOUR_TEAMS_WEBHOOK_URL_HERE"
-mkdir -p "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-21/25-how-to-create-teams-webhook"
-mkdir -p "/Users/k/Work/AIProjects/Files/2026-10-21/25-how-to-create-teams-webhook"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-21/25-how-to-create-teams-webhook/." "/Users/k/Codes/Pra/P1GithubActions/P1Gactions/app/Adocs/2026-10-21/25-how-to-create-teams-webhook/"
-cp -R "/Users/k/Learnings/AIProject/CursorFiles/Daily Files/2026-10-21/25-how-to-create-teams-webhook/." "/Users/k/Work/AIProjects/Files/2026-10-21/25-how-to-create-teams-webhook/"
