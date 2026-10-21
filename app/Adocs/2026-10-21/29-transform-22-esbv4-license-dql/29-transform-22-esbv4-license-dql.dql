@@ -1,0 +1,31 @@
+// #22 live — esbv4 license expiring within 100 days
+fetch logs, from:now()-7d
+| filter contains(host.name, "esbv4", caseSensitive:false)
+    or contains(k8s.namespace.name, "esbv4", caseSensitive:false)
+    or contains(k8s.pod.name, "esbv4", caseSensitive:false)
+| filter contains(content, "Valid license key --> Evaluation = false, Expiration Date = ")
+| fieldsAdd after_label = trim(substring(content, from:indexOf(content, "Expiration Date = ") + 18))
+| fieldsAdd expiration_date = if(contains(after_label, ","),
+      trim(substring(after_label, from:0, to:indexOf(after_label, ","))),
+      after_label)
+| fieldsAdd exp_clean = replaceString(expiration_date, " JST ", " ")
+| parse exp_clean, "TIMESTAMP('EEE MMM dd HH:mm:ss yyyy'):exp_as_utc"
+| fieldsAdd expiration_epoch = exp_as_utc - 9h
+| filter expiration_epoch < now() + 100d
+| sort expiration_epoch asc
+| fields timestamp, host.name, expiration_date, expiration_epoch, content
+
+// #22 verify dummy — date inside 100d window; Contact Name trimmed
+fetch logs
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 INFO [LicenseCheck] Valid license key --> Evaluation = false, Expiration Date = Mon Dec 14 23:59:59 JST 2026, Contact Name = N/A, Contact Email Address = N/A"
+| fields dummy
+| filter contains(dummy, "Valid license key --> Evaluation = false, Expiration Date = ")
+| fieldsAdd after_label = trim(substring(dummy, from:indexOf(dummy, "Expiration Date = ") + 18))
+| fieldsAdd expiration_date = if(contains(after_label, ","),
+      trim(substring(after_label, from:0, to:indexOf(after_label, ","))),
+      after_label)
+| fieldsAdd exp_clean = replaceString(expiration_date, " JST ", " ")
+| parse exp_clean, "TIMESTAMP('EEE MMM dd HH:mm:ss yyyy'):exp_as_utc"
+| fieldsAdd expiration_epoch = exp_as_utc - 9h
+| filter expiration_epoch < now() + 100d
+| fields expiration_date, expiration_epoch, dummy

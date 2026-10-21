@@ -1,0 +1,51 @@
+// ============================================================
+// RIGHT SYNTAX — message is a JSON STRING (matches your Notebook)
+// Pass: msg_type = EXECUTION_COMPLETED
+// ============================================================
+fetch logs
+| fieldsAdd dummy = "{\"timestamp\":\"2026-10-20T05:46:14.825Z\",\"level\":\"info\",\"message\":\"{\\\"request_id\\\":\\\"d7afbd20-7144-4d9b-b318-23d13929f62d\\\",\\\"account_number\\\":\\\"A123\\\",\\\"type\\\":\\\"EXECUTION_COMPLETED\\\",\\\"url\\\":\\\"/amp/typelist/getTypeList\\\",\\\"service\\\":\\\"frontendExpress\\\"}\"}"
+| fields dummy
+| fieldsAdd raw = replaceString(replaceString(dummy, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd level = toString(j[level]),
+            msg_type = toString(msg[type]),
+            msg_url = toString(msg[url]),
+            request_id = toString(msg[request_id])
+| filter msg_type == "EXECUTION_COMPLETED"
+    and contains(msg_url, "getTypeList")
+| fields level, msg_type, msg_url, request_id, raw
+
+// ============================================================
+// Alternate — message is already a JSON OBJECT
+// ============================================================
+fetch logs
+| fieldsAdd dummy = "{\"timestamp\":\"2026-10-21T06:41:15.539Z\",\"level\":\"info\",\"message\":{\"type\":\"EXECUTION_COMPLETED\",\"url\":\"/amp/typelist/getTypeList\",\"service\":\"frontendExpress\"}}"
+| fields dummy
+| fieldsAdd raw = replaceString(replaceString(dummy, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd level = toString(j[level]),
+            msg_type = toString(j[message][type]),
+            msg_url = toString(j[message][url])
+| filter msg_type == "EXECUTION_COMPLETED"
+    and contains(msg_url, "getTypeList")
+| fields level, msg_type, msg_url, raw
+
+// ============================================================
+// LIVE — string message shape (same as Notebook)
+// ============================================================
+fetch logs, from:now()-24h
+| filter contains(k8s.container.name, "portals-amp-frontend")
+    or contains(k8s.pod.name, "portals-amp-frontend")
+    or contains(log.source, "portals-amp-frontend")
+| fieldsAdd raw = replaceString(replaceString(content, "\\\"", "\""), "\\", "")
+| parse raw, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd level = toString(j[level]),
+            msg_type = toString(msg[type]),
+            msg_url = toString(msg[url])
+| filter msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, host.name, level, msg_type, msg_url, raw
