@@ -1,0 +1,67 @@
+// #54 live — Operation failed + ProducerCode/Producer 見つかりません
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "pc2-ui")
+    or startsWith(src, "bc2-ui")
+    or contains(log.source, "pc2-ui", caseSensitive:false)
+    or contains(log.source, "bc2-ui", caseSensitive:false)
+| filter contains(content, "Operation failed", caseSensitive:false)
+| filter contains(content, "ProducerCode は見つかりませんでした。", caseSensitive:false)
+    or contains(content, "Producer は見つかりませんでした。", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #54 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 ERROR [http-nio-8080-exec-1] ProducerService - Operation failed: ProducerCode は見つかりませんでした。"
+| fieldsAdd pod = "pc2-ui-6c7d8e-h3nvb"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "pc2-ui") or startsWith(src, "bc2-ui")
+| filter contains(dummy, "Operation failed", caseSensitive:false)
+| filter contains(dummy, "ProducerCode は見つかりませんでした。", caseSensitive:false)
+    or contains(dummy, "Producer は見つかりませんでした。", caseSensitive:false)
+| fields src, dummy
+
+// #55 / #56 live — Producer Contact missing (identical)
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "bc2")
+    or contains(log.source, "bc2", caseSensitive:false)
+| filter contains(content, "Producer Contact is missing for Producer", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #55 / #56 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 WARN [CommissionWorker-2] ProducerSync - Producer Contact is missing for Producer AG-00417"
+| fieldsAdd pod = "bc2-batch-5c8d7f-m4tzr"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "bc2")
+| filter contains(dummy, "Producer Contact is missing for Producer", caseSensitive:false)
+| fields src, dummy
+
+// #57 live — Server.RunLevel ready
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "bc2-")
+    or contains(log.source, "bc2-", caseSensitive:false)
+| filter contains(content, "Server.RunLevel", caseSensitive:false)
+| filter contains(content, "ready", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #57 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 INFO Server.RunLevel Server run level MULTIUSER is ready"
+| fieldsAdd pod = "bc2-ui-7f9c6d-x2kqp"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "bc2-")
+| filter contains(dummy, "Server.RunLevel", caseSensitive:false)
+| filter contains(dummy, "ready", caseSensitive:false)
+| fields src, dummy
