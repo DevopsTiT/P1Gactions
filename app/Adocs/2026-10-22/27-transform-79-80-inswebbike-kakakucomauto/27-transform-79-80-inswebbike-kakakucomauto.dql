@@ -1,0 +1,89 @@
+// #79 live — inswebbike list
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/inswebbike/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// #79 count — inswebbike
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/inswebbike/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| summarize requests = count(), timed_out = countIf(isNotNull(err.query))
+| fieldsAdd channel = "inswebbike",
+            timeout_pct = if(requests > 0, round(toDouble(timed_out) / requests * 100, decimals:2), else: 0.0)
+| fields channel, requests, timed_out, timeout_pct
+
+// #80 live — kakakucomauto list
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/kakakucomauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// #80 count — kakakucomauto
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/kakakucomauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| summarize requests = count(), timed_out = countIf(isNotNull(err.query))
+| fieldsAdd channel = "kakakucomauto",
+            timeout_pct = if(requests > 0, round(toDouble(timed_out) / requests * 100, decimals:2), else: 0.0)
+| fields channel, requests, timed_out, timeout_pct

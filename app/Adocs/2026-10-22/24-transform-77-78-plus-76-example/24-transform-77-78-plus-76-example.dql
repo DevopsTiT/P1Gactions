@@ -1,0 +1,126 @@
+// #76 example shape — mailservice silent (data record)
+data record(
+    timestamp: toTimestamp("2026-10-15T06:00:00.000+09:00"),
+    k8s.workload.name: "mailservice",
+    k8s.pod.name: "mailservice-6b8c9d7f5-t4r2w",
+    k8s.container.name: "mailservice",
+    content: "2026-10-15 06:00:00,000 INFO [scheduler-1] Mail queue drained, 0 messages pending"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-15T03:30:00.000+09:00"),
+    k8s.workload.name: "mailservice",
+    k8s.pod.name: "mailservice-6b8c9d7f5-t4r2w",
+    k8s.container.name: "mailservice",
+    content: "2026-10-15 03:30:00,000 INFO [scheduler-1] Mail queue tick"
+  ),
+  record(
+    timestamp: toTimestamp("2026-10-14T22:10:00.000+09:00"),
+    k8s.workload.name: "mailservice",
+    k8s.pod.name: "mailservice-6b8c9d7f5-t4r2w",
+    k8s.container.name: "mailservice",
+    content: "2026-10-14 22:10:00,000 INFO [scheduler-1] Mail queue tick"
+  )
+| fieldsAdd app = lower(coalesce(k8s.workload.name, k8s.container.name, host.name))
+| filter matchesValue(app, array("agrex*", "alfresco*", "bcsubledger*", "ebroker*", "esbv4*", "jobscheduler*",
+                                 "legacybridge*", "mailservice*", "portals*", "tts"))
+| filter not in(app, array("ebroker_batch", "alfrescoaev", "portals-claim-vendor-backend", "portals-claim-vendor-frontend"))
+| summarize count = count(), first_event = min(timestamp), last_event = max(timestamp), by:{ app }
+| fieldsAdd run_at = toTimestamp("2026-10-15T09:30:00.000+09:00")
+| fieldsAdd last_seen_sec = (toLong(run_at) - toLong(last_event)) / 1000000000
+| filter last_seen_sec > 3600
+| fieldsAdd minutes_behind = round(toDouble(last_seen_sec) / 60, decimals:0),
+            hours_behind   = round(toDouble(last_seen_sec) / 3600, decimals:1),
+            days_behind    = round(toDouble(last_seen_sec) / 86400, decimals:1),
+            last_event_jst = formatTimestamp(last_event, format:"EEE MMM dd HH:mm:ss yyyy", timezone:"Asia/Tokyo")
+| sort minutes_behind desc
+| fields app, last_event_jst, minutes_behind, hours_behind, days_behind
+
+// #77 live — bangauto list
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/bangauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// #77 count — bangauto
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/bangauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| summarize requests = count(), timed_out = countIf(isNotNull(err.query))
+| fieldsAdd channel = "bangauto",
+            timeout_pct = if(requests > 0, round(toDouble(timed_out) / requests * 100, decimals:2), else: 0.0)
+| fields channel, requests, timed_out, timeout_pct
+
+// #78 live — inswebauto list
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/inswebauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| filter isNotNull(err.query)
+| sort timestamp desc
+| fields timestamp, src, query, content
+
+// #78 count — inswebauto
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "esbv4")
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Sending request to /esb/ebroker/inswebauto/online/_quote", caseSensitive:false)
+| parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+| lookup [
+    fetch logs, from:now()-24h
+    | fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+    | filter startsWith(src, "esbv4")
+        or contains(log.source, "esbv4", caseSensitive:false)
+    | filter contains(content, "/pc/service/edge/ebroker/quote' failed: Timeout exceeded.", caseSensitive:false)
+    | parse content, "LD ([0-9a-z]{8} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{4} '-' [0-9a-z]{12}):query"
+    | filter isNotNull(query)
+    | dedup query
+    | fields query
+  ], sourceField:query, lookupField:query, prefix:"err."
+| summarize requests = count(), timed_out = countIf(isNotNull(err.query))
+| fieldsAdd channel = "inswebauto",
+            timeout_pct = if(requests > 0, round(toDouble(timed_out) / requests * 100, decimals:2), else: 0.0)
+| fields channel, requests, timed_out, timeout_pct

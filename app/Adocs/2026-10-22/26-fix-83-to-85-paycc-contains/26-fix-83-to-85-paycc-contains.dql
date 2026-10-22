@@ -1,0 +1,44 @@
+// #83 live
+fetch logs, from:now()-1d
+| filter contains(k8s.container.name, "portals-amp-backend", caseSensitive:false)
+    or contains(k8s.pod.name, "portals-amp-backend", caseSensitive:false)
+    or contains(log.source, "portals-amp-backend", caseSensitive:false)
+| parse content, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd msg_url = coalesce(toString(msg[url]), toString(j[message][url])),
+            msg_type = coalesce(toString(msg[type]), toString(j[message][type]))
+| filter contains(msg_url, "payWithCreditCard_Adj", caseSensitive:false)
+    and msg_type == "CAUGHT_EXCEPTION_ON_BACKEND"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, content
+
+// #84 live
+fetch logs, from:now()-1d
+| filter contains(k8s.container.name, "portals-amp-backend", caseSensitive:false)
+    or contains(k8s.pod.name, "portals-amp-backend", caseSensitive:false)
+    or contains(log.source, "portals-amp-backend", caseSensitive:false)
+| parse content, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd msg_url = coalesce(toString(msg[url]), toString(j[message][url])),
+            msg_type = coalesce(toString(msg[type]), toString(j[message][type]))
+| filter contains(msg_url, "payWithCreditCard_Adj", caseSensitive:false)
+    and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, content
+
+// #85 live
+fetch logs, from:now()-1h
+| filter contains(k8s.container.name, "portals-amp-backend", caseSensitive:false)
+    or contains(k8s.pod.name, "portals-amp-backend", caseSensitive:false)
+    or contains(log.source, "portals-amp-backend", caseSensitive:false)
+| parse content, "JSON:j"
+| fieldsAdd msg_raw = toString(j[message])
+| parse msg_raw, "JSON:msg"
+| fieldsAdd msg_url = coalesce(toString(msg[url]), toString(j[message][url])),
+            msg_type = coalesce(toString(msg[type]), toString(j[message][type]))
+| filter contains(msg_url, "payWithCreditCard_Adj", caseSensitive:false)
+    and msg_type == "EXECUTION_COMPLETED"
+| sort timestamp desc
+| fields timestamp, msg_url, msg_type, content
