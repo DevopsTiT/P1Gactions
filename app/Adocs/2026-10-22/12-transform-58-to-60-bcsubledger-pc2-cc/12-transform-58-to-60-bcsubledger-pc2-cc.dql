@@ -1,0 +1,72 @@
+// #58 live — bcsubledger Japanese skip message
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "bcsubledger")
+    or startsWith(src, "bc2subledger")
+    or contains(log.source, "bcsubledger", caseSensitive:false)
+    or contains(log.source, "bc2subledger", caseSensitive:false)
+| filter contains(content, "適合するルールが無いため、当該メッセージの処理をスキップします", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #58 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-20 17:04:12.975 INFO 適合するルールが無いため、当該メッセージの処理をスキップします"
+| fieldsAdd pod = "bcsubledger-7b5d9c6f8-t2xkn"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "bcsubledger")
+| filter contains(dummy, "適合するルールが無いため、当該メッセージの処理をスキップします", caseSensitive:false)
+| fields src, dummy
+
+// #59 live — pc2-batch payment request creation failure
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "pc2-batch")
+    or contains(log.source, "pc2-batch", caseSensitive:false)
+    or contains(k8s.pod.name, "pc2-batch", caseSensitive:false)
+| filter contains(content, "Creation of a payment request for transaction", caseSensitive:false)
+| filter contains(content, "failure", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #59 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 ERROR [PaymentRequestWorker-3] Creation of a payment request for transaction TXN-20261015-0077 ended in failure"
+| fieldsAdd pod = "pc2-batch-84d6c7b5f-r9lqv"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "pc2-batch")
+| filter contains(dummy, "Creation of a payment request for transaction", caseSensitive:false)
+| filter contains(dummy, "failure", caseSensitive:false)
+| fields src, dummy
+
+// #60 live — CC RemoveDocumentChain Execution Duration
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "cc-ui")
+    or startsWith(src, "cc-batch")
+    or contains(log.source, "cc-ui", caseSensitive:false)
+    or contains(log.source, "cc-batch", caseSensitive:false)
+| filter contains(src, "cc-", caseSensitive:false)
+| filter contains(content, "RemoveDocumentChain", caseSensitive:false)
+| filter contains(content, "Execution", caseSensitive:false)
+| filter contains(content, "Duration", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #60 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 INFO [DocWorker-2] RemoveDocumentChain Execution Duration: 1234 ms"
+| fieldsAdd pod = "cc-batch-6f5b8d9c7-w8jzm"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "cc-ui") or startsWith(src, "cc-batch")
+| filter contains(src, "cc-", caseSensitive:false)
+| filter contains(dummy, "RemoveDocumentChain", caseSensitive:false)
+| filter contains(dummy, "Execution", caseSensitive:false)
+| filter contains(dummy, "Duration", caseSensitive:false)
+| fields src, dummy
