@@ -1,0 +1,73 @@
+// #63 live — DocNotif_Adj failed
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "cc-batch")
+    or contains(log.source, "cc-batch", caseSensitive:false)
+| filter contains(content, "Work item processed \"DocNotif_Adj\"", caseSensitive:false)
+| filter contains(content, "failed=true", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #63 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 INFO [worker-1] Work item processed \"DocNotif_Adj\" id=48213 failed=true elapsedMs=1520"
+| fieldsAdd pod = "cc-batch-0"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "cc-batch")
+| filter contains(dummy, "Work item processed \"DocNotif_Adj\"", caseSensitive:false)
+| filter contains(dummy, "failed=true", caseSensitive:false)
+| fields src, dummy
+
+// #64 live — FinancialsEsc* failed
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "cc-batch")
+    or contains(log.source, "cc-batch", caseSensitive:false)
+| filter contains(content, "Work item processed \"FinancialsEsc", caseSensitive:false)
+| filter contains(content, "failed=true", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #64 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 INFO [worker-2] Work item processed \"FinancialsEscalation_Adj\" id=77120 failed=true elapsedMs=3011"
+| fieldsAdd pod = "cc-batch-1"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "cc-batch")
+| filter contains(dummy, "Work item processed \"FinancialsEsc", caseSensitive:false)
+| filter contains(dummy, "failed=true", caseSensitive:false)
+| fields src, dummy
+
+// #65 live — Sonpovan account statement WARN
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter contains(src, "sonpov", caseSensitive:false)
+    or contains(log.source, "sonpov", caseSensitive:false)
+| filter contains(content, "WARN", caseSensitive:false)
+| filter contains(content, "Van7RecvAccountStatementCallApiTasklet", caseSensitive:false)
+| filter contains(content, "Message", caseSensitive:false)
+| parse content, "LD (DIGIT+ '/' DIGIT+):claimNumber"
+| parse content, "LD 'Message : ' LD:message"
+| fieldsAdd suffix = if(stringLength(message) > 400, substring(message, from:400, to:417), "")
+| sort timestamp desc
+| fields timestamp, src, claimNumber, message, suffix, content
+
+// #65 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 WARN [step-1] Van7RecvAccountStatementCallApiTasklet - claim 2026/004512 Message : AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAERR-STMT-0042-API"
+| fieldsAdd pod = "sonpovan-batch-7d9f8c6b5-x2k4q"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter contains(src, "sonpov", caseSensitive:false)
+| filter contains(dummy, "WARN", caseSensitive:false)
+| filter contains(dummy, "Van7RecvAccountStatementCallApiTasklet", caseSensitive:false)
+| filter contains(dummy, "Message", caseSensitive:false)
+| parse dummy, "LD (DIGIT+ '/' DIGIT+):claimNumber"
+| parse dummy, "LD 'Message : ' LD:message"
+| fieldsAdd suffix = if(stringLength(message) > 400, substring(message, from:400, to:417), "")
+| fields src, claimNumber, suffix, dummy
