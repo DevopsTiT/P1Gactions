@@ -1,0 +1,89 @@
+// #66 live — cc-* NoUpdatePaymentError
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "cc-")
+    or contains(log.source, "cc-", caseSensitive:false)
+| filter contains(content, "NoUpdatePaymentError", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #66 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 ERROR PaymentService - NoUpdatePaymentError: payment record 88123 is locked"
+| fieldsAdd pod = "cc-ui-6f8d9c7b4-abcde"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "cc-")
+| filter contains(dummy, "NoUpdatePaymentError", caseSensitive:false)
+| fields src, dummy
+
+// #67 live — sonpov / temp-receipt-accounting ERROR
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter contains(src, "sonpov", caseSensitive:false)
+    or contains(src, "temp-receipt-accounting", caseSensitive:false)
+    or contains(log.source, "sonpov", caseSensitive:false)
+    or contains(log.source, "temp-receipt-accounting", caseSensitive:false)
+| parse content, "INT '-' INT '-' INT SPACE INT ':' INT ':' INT SPACE ALPHA:loglevel_parsed"
+| filter loglevel_parsed == "ERROR"
+| summarize loglevel = collectDistinct(loglevel_parsed),
+            log = collectDistinct(content),
+            podname = collectDistinct(src),
+            by:{ timestamp }
+| sort timestamp desc
+
+// #67 verify
+fetch logs
+| limit 1
+| fieldsAdd content = "2026-10-15 09:12:34 ERROR [main] ReceiptJob - Receipt export failed for batch 3021"
+| fieldsAdd pod = "temp-receipt-accounting-5c8d7f9b6-m3n7p"
+| fields content, pod
+| fieldsAdd src = lower(pod)
+| filter contains(src, "temp-receipt-accounting", caseSensitive:false)
+| parse content, "INT '-' INT '-' INT SPACE INT ':' INT ':' INT SPACE ALPHA:loglevel_parsed"
+| filter loglevel_parsed == "ERROR"
+| summarize loglevel = collectDistinct(loglevel_parsed), log = collectDistinct(content), podname = collectDistinct(src), by:{ timestamp }
+| fields timestamp, loglevel, podname, log
+
+// #68 live — cc-ui removeDocument DocUID
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "cc-ui")
+    or contains(log.source, "cc-ui", caseSensitive:false)
+| filter contains(content, "removeDocument called for document with DocUID", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #68 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 INFO DocumentService - removeDocument called for document with DocUID DOC-000731"
+| fieldsAdd pod = "cc-ui-6f8d9c7b4-abcde"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "cc-ui")
+| filter contains(dummy, "removeDocument called for document with DocUID", caseSensitive:false)
+| fields src, dummy
+
+// #69 live — esbv4 ebroker 503
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter contains(src, "esbv4", caseSensitive:false)
+    or contains(log.source, "esbv4", caseSensitive:false)
+| filter contains(content, "Error(esb.xml) error payload: HTTP POST on resource 'https://ebroker-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/", caseSensitive:false)
+    and contains(content, "failed: service unavailable (503).", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #69 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-15 09:12:34,567 ERROR Error(esb.xml) error payload: HTTP POST on resource 'https://ebroker-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/ebroker/api/policy/issue' failed: service unavailable (503)."
+| fieldsAdd pod = "esbv4-7c9d8b6f5-k2m4p"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter contains(src, "esbv4", caseSensitive:false)
+| filter contains(dummy, "Error(esb.xml) error payload: HTTP POST on resource 'https://ebroker-inssuite-prod.op-prod-lpl.axa-direct-jp.intraxa:443/", caseSensitive:false)
+    and contains(dummy, "failed: service unavailable (503).", caseSensitive:false)
+| fields src, dummy
