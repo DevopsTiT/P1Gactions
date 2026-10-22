@@ -1,0 +1,64 @@
+// #61 live — cc-batch ERROR EnqueteWorkItem_Adj
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "cc-batch")
+    or contains(log.source, "cc-batch", caseSensitive:false)
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "EnqueteWorkItem_Adj", caseSensitive:false)
+| summarize loglevel = collectDistinct(loglevel), log = collectDistinct(content), by:{ timestamp }
+| sort timestamp desc
+
+// #61 verify
+fetch logs
+| limit 1
+| fieldsAdd content = "2026-10-15 09:12:34,567 ERROR [worker-3] c.e.cc.batch.EnqueteWorkItem_Adj - Work item failed for enquete id 48213"
+| fieldsAdd pod = "cc-batch-0"
+| fields content, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "cc-batch")
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "EnqueteWorkItem_Adj", caseSensitive:false)
+| summarize loglevel = collectDistinct(loglevel), log = collectDistinct(content), by:{ timestamp }
+| fields timestamp, loglevel, log
+
+// #62 live — MessageQueueMonitor_Adj ERROR + 10-digit details
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter contains(src, "cc-batch", caseSensitive:false)
+    or contains(log.source, "cc-batch", caseSensitive:false)
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "MessageQueueMonitor_Adj", caseSensitive:false)
+| filter not contains(content, "Sonpovan", caseSensitive:false)
+| filter contains(content, "Found ", caseSensitive:false)
+| fieldsAdd queueMessage = substring(content, from:indexOf(content, "Found "))
+| fieldsAdd line = splitString(content, "\n")
+| expand line
+| parse line, "(DIGIT{10} SPACE LD):detail"
+| filter isNotNull(detail)
+| summarize details = collectArray(detail), by:{ timestamp, src, queueMessage }
+| sort timestamp desc
+| fields timestamp, src, queueMessage, details
+
+// #62 verify
+fetch logs
+| limit 1
+| fieldsAdd content = "2026-10-15 09:12:34,567 ERROR [monitor-1] c.e.cc.batch.MessageQueueMonitor_Adj - [MQ] Found 2 stuck messages in queue CC_OUT\n1234567890 stuck message one\n9876543210 stuck message two"
+| fieldsAdd pod = "cc-batch-2"
+| fields content, pod
+| fieldsAdd src = lower(pod)
+| filter contains(src, "cc-batch", caseSensitive:false)
+| parse content, "LD DIGIT+ '-' DIGIT+ '-' DIGIT+ ' ' DIGIT+ ':' DIGIT+ ':' DIGIT+ ',' DIGIT+ SPACE+ WORD:loglevel"
+| filter loglevel == "ERROR"
+| filter contains(content, "MessageQueueMonitor_Adj", caseSensitive:false)
+| filter not contains(content, "Sonpovan", caseSensitive:false)
+| filter contains(content, "Found ", caseSensitive:false)
+| fieldsAdd queueMessage = substring(content, from:indexOf(content, "Found "))
+| fieldsAdd line = splitString(content, "\n")
+| expand line
+| parse line, "(DIGIT{10} SPACE LD):detail"
+| filter isNotNull(detail)
+| summarize details = collectArray(detail), by:{ timestamp, src, queueMessage }
+| fields timestamp, src, queueMessage, details
