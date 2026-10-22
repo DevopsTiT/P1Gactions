@@ -1,0 +1,17 @@
+// #29 live — inssuite-prod BadInputException ContactName
+fetch logs, from:now()-24h
+| filter contains(host.name, "-inssuite-prod-", caseSensitive:false)
+    or contains(k8s.pod.name, "-inssuite-prod-", caseSensitive:false)
+| filter contains(content, "gw.api.rest.exceptions.BadInputException: ContactName:", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, host.name, k8s.pod.name, content
+
+// #29 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "gw.api.rest.exceptions.BadInputException: ContactName: これは必須フィールドです"
+| fieldsAdd host_name = "pc2-ui-inssuite-prod-0"
+| fields dummy, host_name
+| filter contains(host_name, "-inssuite-prod-", caseSensitive:false)
+| filter contains(dummy, "gw.api.rest.exceptions.BadInputException: ContactName:", caseSensitive:false)
+| fields host_name, dummy
