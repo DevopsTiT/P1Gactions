@@ -1,0 +1,46 @@
+// #43 live — Exception during GMO call EXECTRAN
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "bc2-ui")
+    or startsWith(src, "bc2-batch")
+    or startsWith(src, "bcsubledger")
+    or startsWith(src, "bc2subledger")
+    or contains(log.source, "bc2-ui", caseSensitive:false)
+    or contains(log.source, "bc2-batch", caseSensitive:false)
+    or contains(log.source, "bcsubledger", caseSensitive:false)
+    or contains(log.source, "bc2subledger", caseSensitive:false)
+| filter contains(content, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #43 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-20 16:49:31,702 ERROR [https-jsse-nio-8443-exec-15] Exception during GMO call EXECTRAN: timeout"
+| fieldsAdd pod = "bc2-ui-inssuite-prod-0"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "bc2-ui")
+| filter contains(dummy, "Exception during GMO call EXECTRAN", caseSensitive:false)
+| fields src, dummy
+
+// #44 live — errcode=E01&errinfo=E01050004 on bc2-ui
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter startsWith(src, "bc2-ui")
+    or contains(log.source, "bc2-ui", caseSensitive:false)
+    or contains(k8s.pod.name, "bc2-ui", caseSensitive:false)
+| filter contains(content, "errcode=E01&errinfo=E01050004", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// #44 verify
+fetch logs
+| limit 1
+| fieldsAdd dummy = "2026-10-20 16:50:23,151 INFO [http-nio-8080-exec-15] errcode=E01&errinfo=E01050004"
+| fieldsAdd pod = "bc2-ui-inssuite-prod-0"
+| fields dummy, pod
+| fieldsAdd src = lower(pod)
+| filter startsWith(src, "bc2-ui")
+| filter contains(dummy, "errcode=E01&errinfo=E01050004", caseSensitive:false)
+| fields src, dummy
