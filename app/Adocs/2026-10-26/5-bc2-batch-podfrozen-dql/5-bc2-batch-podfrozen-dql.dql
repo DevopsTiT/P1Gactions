@@ -1,0 +1,19 @@
+// #6 live — Message != 2
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "bc2-batch", caseSensitive:false)
+    or contains(log.source, "bc2-batch", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 2
+| fieldsAdd host = "Total"
+| fields host, Message
+
+// #6 host list
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "bc2-batch", caseSensitive:false)
+    or contains(log.source, "bc2-batch", caseSensitive:false)
+| summarize events = count(), by:{ host }
+| sort host asc
+| fields host, events

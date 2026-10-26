@@ -1,0 +1,31 @@
+// #7 pc2-batch Message != 2
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "pc2-batch", caseSensitive:false)
+    or contains(log.source, "pc2-batch", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 2
+| fieldsAdd host = "Total"
+| fields host, Message
+
+// BAU-4058
+fetch logs, from:now()-24h
+| fieldsAdd src = lower(coalesce(k8s.pod.name, host.name, log.source))
+| filter contains(src, "bc2-batch", caseSensitive:false)
+    or contains(log.source, "bc2-batch", caseSensitive:false)
+| filter contains(content, "Creation of payment request in BC has thrown an exception", caseSensitive:false)
+| sort timestamp desc
+| fields timestamp, src, content
+
+// bc2-ui Message != 2
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "bc2-ui", caseSensitive:false)
+    or contains(log.source, "bc2-ui", caseSensitive:false)
+| filter not contains(lower(host), "bc2-batch", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 2
+| fieldsAdd host = "Total"
+| fields host, Message

@@ -1,0 +1,21 @@
+// #5 live — Message != 1
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "alfrescocollabsrv", caseSensitive:false)
+    or contains(log.source, "alfrescocollabsrv", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 1
+| fieldsAdd host = "Total"
+| fields host, Message
+
+// #6 live — Message != 2
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "bc2-batch", caseSensitive:false)
+    or contains(log.source, "bc2-batch", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 2
+| fieldsAdd host = "Total"
+| fields host, Message

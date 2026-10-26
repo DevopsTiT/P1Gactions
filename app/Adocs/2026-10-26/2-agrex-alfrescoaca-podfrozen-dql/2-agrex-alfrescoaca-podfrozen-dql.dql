@@ -1,0 +1,31 @@
+// #3 live — Prod_PnC_Agrex_PODFrozen_High (Message != 1)
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "agrex", caseSensitive:false)
+    or contains(log.source, "agrex", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 1
+| fieldsAdd host = "Total"
+| fields host, Message
+
+// #3 host list
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "agrex", caseSensitive:false)
+    or contains(log.source, "agrex", caseSensitive:false)
+| summarize events = count(), by:{ host }
+| sort host asc
+| fields host, events
+
+// #4 live — Prod_PnC_Alfrescoaca_PODFrozen_High (template Message != 4; confirm N)
+fetch logs, from:now()-15m
+| fieldsAdd host = coalesce(k8s.pod.name, host.name)
+| filter contains(lower(host), "alfrescoaca", caseSensitive:false)
+    or contains(log.source, "alfrescoaca", caseSensitive:false)
+| filter not contains(lower(host), "alfrescoacr-batch", caseSensitive:false)
+| summarize by:{ host }
+| summarize Message = count()
+| filter Message != 4
+| fieldsAdd host = "Total"
+| fields host, Message
