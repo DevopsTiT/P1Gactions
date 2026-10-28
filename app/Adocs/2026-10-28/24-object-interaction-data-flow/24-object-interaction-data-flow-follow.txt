@@ -1,0 +1,29 @@
+Object interaction map — the data-flow slide
+
+File: 24-object-interaction-data-flow.pptx
+
+Primary replaces the root-cause draft with confirmed evidence before the PIR is published.
+
+[Dynatrace Problem P-88421]
+        |
+        v
+[PagerDuty INC-48291] --page--> [Primary]
+        |
+        +--notify--> [Teams: monitoring-2026-prod]
+        |
+        v
+[Primary] --prompt--> [PagerDuty AI Assistant]
+        |
+        v
+AI reply objects: summary, causes, status, Scribe wrap-up
+        |
+        v
+[Primary] --fact-check--> [PagerDuty actions: escalate or resolve]
+        |
+        v
+[PIR draft object] --edit--> [Final PIR]
+
+INC-48291 and P-88421 are sample ids, not a live ticket.
+The red dot is Primary, the on-call employee.
+Causes is a draft until Primary replaces it with confirmed evidence.
+A person sends the status. Scribe wrap-up is text.
