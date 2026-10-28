@@ -1,0 +1,51 @@
+PagerDuty AI — Value Creation paste
+
+AI ADOPTION KPI
+
+Business volume for this use case is the number of PagerDuty incidents where a linked person asks PagerDuty AI in Microsoft Teams.
+
+It is not customer calls, claims documents, or a training completion count.
+
+Current amount: 0. The assist is not in the live path.
+
+PoC amount: the five test incidents agreed with the on-call lead, on a test service.
+
+People in the volume: the pilot rota that is linked to Teams (Primary, Secondary, and Application Support on the test channel). Write the headcount only after that rota is counted.
+
+Production amount, later: a count of real incidents where a Teams question was asked. Take the count from PagerDuty and the Teams thread. Do not estimate it on this form.
+
+AI IMPACT KPI
+
+Main KPI: minutes saved to a usable catch-up.
+
+How it is calculated, on each test incident:
+- Clock A: minutes for a person to write the catch-up by hand from PagerDuty, Dynatrace, and Splunk, until a second reviewer accepts it.
+- Clock B: minutes from the Teams question until that reviewer accepts the AI reply. Accepted means the incident id and the open or acknowledged state match PagerDuty.
+- Minutes saved = Clock A minus Clock B.
+- The reported KPI is the median of those five differences.
+
+Current amount: minutes saved = 0, because no assist is in the path. Clock A has not been measured. The time study records Clock A. Do not type a minute baseline before that.
+
+Target amount: no minute number on this form. PoC passes if the median of Clock B is lower than the median of Clock A on the same five incidents, and the section 8 checks pass. Write the minute target only after Clock A is known.
+
+Other KPIs, after the main one:
+- Usable SRE catch-up on 5 of 5 test incidents.
+- A status draft is produced and a person sends it.
+- If Scribe is enabled, the note matches one fact from the test bridge.
+FTE is not calculated until the minute saving and the real incident count both exist.
+
+HOW THE KPI WILL BE MEASURED
+
+[ ] A-B Test
+[X] Time study
+[ ] Other
+
+PoC: paired time study on the five scripted test incidents. The same reviewer rule is used for Clock A and Clock B. Do not page the production rota.
+
+Production, if the pilot is accepted: the same clocks, on a sample of real incidents. Real incidents differ from the script, so the production figure is a sample median, not a repeat of the five test cases.
+
+Source of the numbers:
+- PagerDuty: incident id, created time, acknowledged or open state.
+- Microsoft Teams: time of the question and time of the reply.
+- Reviewer sheet: start, stop, and usable yes or no.
+The manual clock comes only from the reviewer sheet. The Teams clock comes from the thread plus that sheet.
