@@ -1,0 +1,50 @@
+Data Flow detail — two PowerPoint pages
+File: 23-pagerduty-ai-data-flow-detail.pptx
+
+PAGE 1 — eight hops
+
+1 Detector to PagerDuty
+Dynatrace, Splunk, Selenium/Jenkins, or a network tool sends the critical event.
+Fields: service name, alert text, problem id.
+No red dot.
+
+2 Page to BAM-India
+PagerDuty creates the incident, then places the call and SMS under the escalation policy.
+The on-call number stays in the notification. It is not prompt text.
+
+3 PagerDuty to the assist
+Reads id, title, priority, status, service, timeline, and the linked runbook.
+Red dot: assignee display name.
+
+4 Person to Teams
+One question. Optional one technical line from Dynatrace or Splunk.
+The full log store is not connected.
+Red dot: Teams identity of the person who asks.
+
+5 Bridge to Scribe
+Spoken words in. A text note in the channel out.
+Red dot: an employee name spoken on the bridge.
+
+6 Insights, if enabled
+One question plus past incidents this user can see.
+Red dot: the asker’s Teams identity.
+
+7 Assist back to Teams
+SRE catch-up, status draft, or bridge note.
+A person sends any status.
+Red dot if the note repeats an employee name.
+
+8 Person, then ServiceNow / Silva
+The person checks the text, acts in PagerDuty, and files the correlation.
+The assist does not write this hop.
+
+Shift is not a hop. Customer date of birth, My Number, financial fields, and health fields are not on this flow.
+
+PAGE 2 — each agent
+
+SRE reads the open incident, the linked runbook, the Teams question, and at most one technical line. It writes a catch-up.
+Scribe reads bridge audio. It writes a text note.
+Insights, only if enabled, reads history the user can see and writes one sentence.
+Shift is not sent and has no output.
+
+Sample, not a live ticket: INC-48291, ebroker-api, P2, acknowledged, Dynatrace P-88421 on the event. The runbook says check the upstream dependency, then the last deploy.
