@@ -1,0 +1,33 @@
+PagerDuty AI — Security Pre-Questionnaire
+
+1) MFA or SSO
+[X] MFA
+[X] SSO
+[ ] No
+
+SSO is SAML 2.0 to the company identity provider (Microsoft Entra ID).
+MFA is required on that identity provider before the SAML login succeeds.
+After SSO is tested, turn off username-and-password login on the PagerDuty account.
+The account owner configures SSO under Account Settings → Single Sign-On.
+SSO is available on Professional, Business, and Enterprise plans. Confirm the current plan includes it.
+
+2) Does the AI service store AXA data in the vendor environment
+[X] Yes
+[ ] No
+
+PagerDuty is SaaS. The incident record and the text sent to PagerDuty AI are processed and stored in PagerDuty’s cloud, in the service region configured on the account.
+Confirm that region with the account owner before the meeting.
+Model providers used by the assist are named in the PagerDuty Advance AI Disclosure. Attach that document. PagerDuty states it does not train its models on customer data.
+
+3) Is the network used for storing data encrypted
+[ ] TLS 1.3
+[ ] No
+
+Do not tick No. The path is encrypted.
+Do not tick TLS 1.3. PagerDuty’s public statement is encryption in transit using at least TLS 1.2 or above, not TLS 1.3 only.
+Write this sentence in the cell: Transit encryption is TLS 1.2 or higher (PagerDuty security statement).
+
+4) Are storage and databases encrypted
+[X] Yes
+Algorithm: AES-256. PagerDuty states encryption at rest of at least AES-256.
+[ ] No
