@@ -1,0 +1,59 @@
+PPT notes for 18 and 19
+
+Show 19 first, then 18.
+19 says which box does the job.
+18 says which facts move, and where the red dot goes.
+
+SLIDE 19 — NOTES PANE
+
+This slide is the business picture for the 24x7 war room.
+Read it the same way you read the EIP architecture page: zones as boxes, one hub in the center, and a label on every line.
+
+The detection zone on the left provides the signal. Dynatrace, Splunk, Selenium, and the network, VM, and cloud tools stay there. Each tool keeps its current owner.
+
+PagerDuty is the hub. It already creates the incident, places the call and SMS, and runs the escalation policy. Technology DevOps owns that hub.
+
+The call and SMS go to BAM-India. They escalate into the war room.
+
+The war room is Microsoft Teams. Technology SREs and Application Support consume the briefing. A late joiner from DBA, Network, Axa GO, or Cloud Broker reads that same briefing, then opens the one tool their team owns.
+
+PagerDuty AI is the thicker box inside Teams. That is the only new box. It writes a catch-up, a status draft, or a bridge note. A person checks the text, then acts back in PagerDuty.
+
+ServiceNow and Silva stay at the bottom. Correlation happens after the person has acted.
+
+Yellow note: Shift is not drawn, because schedule data is not sent. If the assist is down, the incident is still created and the escalation policy still runs.
+
+If asked "why is the AI inside Teams?": the pilot reads and writes in the war-room channel.
+If asked "is this the EIP mediator picture?": this slide uses that layout. The mediators stay on the EIP page.
+
+SLIDE 18 — NOTES PANE
+
+This slide is the same path, drawn as data.
+Use case: 24x7 critical-incident catch-up in Microsoft Teams, for ALJ and ADJ (P&C), after PagerDuty has opened the incident.
+
+Detector hop: service name, alert text, and the problem id when the monitor put it on the event.
+
+PagerDuty hop: incident id, title, priority, status, service, timeline, and the linked runbook.
+Red dot: assignee display name.
+
+The on-call number stays in the PagerDuty notification. It is not copied into the prompt.
+
+Teams hop: the question, and at most one technical line.
+Red dot: Teams identity of the person who asks.
+
+Scribe hop: spoken words on the bridge. The kept result is a text note.
+Red dot: any employee name spoken on the bridge. Keep the dot if the note repeats that name.
+
+Insights: only if enabled. Past incidents this user can see, plus one question.
+
+Shift: no arrow. The schedule is not sent.
+
+A person checks the text before they acknowledge, escalate, or send a status.
+ServiceNow and Silva are filed by that person.
+
+Customer date of birth, My Number, financial fields, and health fields are not on this picture.
+
+THREE RED DOTS
+1. Assignee display name on the incident.
+2. Teams identity of the person who asks.
+3. Employee name spoken on the bridge, and on the note if the name is repeated.

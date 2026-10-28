@@ -1,0 +1,66 @@
+Data Flow — paste onto the blank slide
+
+USE CASE
+24x7 critical-incident catch-up in Microsoft Teams
+ALJ and ADJ (P&C), after PagerDuty has opened the incident
+
+LEGEND
+🔴 personal information
+   employee display name, Teams identity, or a name spoken on the bridge
+   Customer date of birth, My Number, financial fields, and health fields are not on this flow.
+
+PICTURE
+
+Detector
+  Dynatrace, Splunk, Selenium/Jenkins, or a network tool
+  data: service name, alert text, problem id
+        |
+        v
+PagerDuty
+  incident id, title, priority, status, service, timeline
+  🔴 assignee display name
+  call and SMS use the on-call number inside PagerDuty
+  that number is not copied into the AI prompt
+        |
+        +----> BAM-India receives the call and SMS
+        |
+        v
+Microsoft Teams
+  🔴 identity of the person who asks
+  question text
+  optional one technical line from Dynatrace or Splunk
+        |
+        +----> runbook linked on the service (procedure text)
+        |
+        v
+PagerDuty AI
+  SRE    incident fields + 🔴 assignee name + runbook + question
+  Scribe bridge audio, which can include 🔴 a spoken name
+         kept result is a text note
+  Insights, only if enabled
+         past incidents this user can see, plus one question
+  Shift  no data sent
+        |
+        v
+Text back in the Teams channel
+  catch-up, status draft, or bridge note
+  a spoken name can be repeated, so keep 🔴 on that note
+        |
+        v
+A person checks the text
+  then acknowledges, escalates, or sends the status
+        |
+        v
+ServiceNow and Silva
+  correlation after the person acts
+  the assist does not write this hop
+
+HOPS
+1. Detector → PagerDuty. Service name, alert text, problem id. No red dot.
+2. PagerDuty keeps the call and SMS number. That number is not prompt text.
+3. PagerDuty → assist. Incident fields and the linked runbook. Red dot on the assignee display name.
+4. Person → Teams. The question, and at most one technical line. Red dot on the asker’s Teams identity.
+5. Bridge → Scribe. Spoken words. Red dot if an employee name is spoken.
+6. Insights, only if enabled. Past incidents this user can see, plus one question. Red dot on the asker.
+7. Assist → Teams. Text reply. Red dot if the note repeats an employee name.
+8. A person checks the text, acts in PagerDuty, then the correlation goes to ServiceNow and Silva.
