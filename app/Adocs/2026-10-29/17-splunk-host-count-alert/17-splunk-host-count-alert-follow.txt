@@ -1,0 +1,31 @@
+This Splunk search is the alert Prod_PnC_Alfrescoacr_BatchPODFrozen_High.
+
+It counts how many different hosts wrote to index alfrescoacr-batch. It keeps one row only when that count is not 4.
+
+index="alfrescoacr-batch"
+| stats count by host
+| fields - count
+| appendpipe [|stats count as Message | eval host="Total"]
+| where host="Total"
+| where NOT Message=4
+
+What each line does:
+
+- index takes events from alfrescoacr-batch for the selected time.
+- stats count by host makes one row per host. The count column is how many events that host wrote.
+- fields - count deletes that event-count column. One row per host remains.
+- appendpipe runs the bracketed commands on those rows and adds the result underneath.
+- stats count as Message counts the rows. That number is the number of hosts.
+- eval host="Total" labels the summary row Total.
+- where host="Total" throws away the individual hosts and keeps the summary.
+- where NOT Message=4 keeps the summary only when the host count is not 4.
+
+Four hosts: the last line deletes the row. Statistics shows 0. The alert stays quiet.
+
+Three hosts: one row remains, host Total, Message 3. An alert search treats that row as something to send. Five, two, or one host do the same.
+
+No events in the window: stats has no host rows, so the search also ends with no row. An empty index and a healthy count of 4 look the same unless the event count is there too. The earlier run had 176,642 events and Statistics (0), so that empty table meant 4 hosts.
+
+appendpipe counts the rows already in the pipeline. It does not search the index again.
+
+The agrex block is the same pattern. The index is agrex. The last line is where NOT Message=1. It stays quiet when exactly one host sent logs.

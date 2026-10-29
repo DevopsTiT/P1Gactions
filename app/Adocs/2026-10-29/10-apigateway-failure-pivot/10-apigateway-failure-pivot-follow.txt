@@ -1,0 +1,37 @@
+The Edit Search dialog is the real search behind APIGateway FAILURE.
+
+Title: APIGateway FAILURE
+
+Search:
+
+| pivot APIGW1015_Failure_count RootObject count(RootObject) AS "Count of 1600951249.6968_7EF4ECD2-84C5-40F9-B50C-B2D3D93AB3B9" ROWSUMMARY 0 COLSUMMARY 0 SHOWOTHER 1
+
+What each piece does:
+
+- pivot counts a data model for the selected time.
+- APIGW1015_Failure_count is the data model. The failure selection is inside that model. Open Settings → Data models to see it.
+- RootObject is the object being counted.
+- count(RootObject) is the one number the big digit shows.
+- AS "Count of ..." is the column name Splunk generated. The chart uses the number.
+- ROWSUMMARY 0 means no total row.
+- COLSUMMARY 0 means no total column.
+- SHOWOTHER 1 allows an OTHER group. This search has no split, so you still get one number.
+
+Time Range: Shared Time Picker (searchByTimer). The panel uses the time selected on the dashboard.
+
+Auto Refresh Delay: 1 minute.
+
+Refresh Indicator: Progress bar.
+
+Apply saves the panel. Cancel leaves it unchanged. Convert to Report is optional.
+
+The green 20,049 behind the dialog is APIGateway SUCCESS. The 0 beside it is another panel. This dialog does not display the failure count.
+
+To make the next box:
+
+1. Clone this panel.
+2. Change the title.
+3. Change the data model name in the pivot. Copy the SUCCESS name from that panel’s Edit Search.
+4. Keep Shared Time Picker (searchByTimer), 1 minute refresh, and Progress bar.
+5. Apply.
+6. Set the number color on the chart. Red for a failure count. Green for a success count.

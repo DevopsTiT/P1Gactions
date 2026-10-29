@@ -1,0 +1,25 @@
+Logs 0 on this page means Dynatrace has no log line linked to alfrescoacr-batch-innsuite-prod-0 in the last 2 hours.
+
+It does not mean the process wrote nothing to disk.
+
+The page is Last 2 hours, app-only mode, and Not analyzed. CPU, memory, and network are empty for the same reason. Dynatrace still sees 1 process, 4 services, and 5 connected entities.
+
+The 4 under Services is four services on this one host. The Splunk 4 was four hosts in the index.
+
+Splunk counted 176,642 events for index alfrescoacr-batch over a longer window. Those lines are not on this host page.
+
+Confirm:
+
+fetch logs, from: now()-2h
+| filter contains(host.name, "alfrescoacr-batch-innsuite-prod-0", caseSensitive:false)
+| summarize log_count = count()
+
+fetch logs, from: now()-24h
+| filter contains(host.name, "alfrescoacr-batch-innsuite-prod-0", caseSensitive:false)
+| summarize log_count = count()
+
+fetch logs, from: now()-24h
+| filter contains(content, "alfrescoacr-batch-innsuite-prod-0", caseSensitive:false)
+| summarize log_count = count()
+
+log_count 0 on all three means the lines are not in Dynatrace for this host.

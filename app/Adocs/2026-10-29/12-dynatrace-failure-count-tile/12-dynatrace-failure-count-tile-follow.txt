@@ -1,0 +1,47 @@
+The Splunk APIGateway FAILURE box counts mediator logs with Status=FAILURE for the last 15 minutes. In Dynatrace that is one dashboard tile.
+
+First check the log is in Dynatrace. Notebooks → DQL. Time picker Last 15 minutes.
+
+fetch logs
+| filter contains(log.source, "apigw5500/server.log", caseSensitive:false)
+| limit 5
+
+No rows means the file is not ingested yet. Add a log ingest rule for /opt/softwareag/log/1015/apigw5500/server.log on the mediator hosts, then run it again.
+
+Build the page:
+
+1. Dashboards → create a dashboard. Name it EIP DIS Incident Helper.
+2. Time picker: Last 15 minutes.
+3. Auto-refresh: 1 minute.
+4. Add a DQL tile. Paste the failure query.
+5. Visualization: Single value, field failure_count.
+6. Title: APIGateway FAILURE.
+7. Color: 1 and above is red. 0 stays calm.
+8. Save.
+
+Failure query:
+
+data record(failure_count = 0)
+| append [
+    fetch logs
+    | filter contains(log.source, "apigw5500/server.log", caseSensitive:false)
+    | filter contains(content, "Status: FAILURE", caseSensitive:false)
+    | summarize failure_count = count()
+  ]
+| summarize failure_count = sum(failure_count)
+
+Leave from: out of fetch logs so the tile follows the dashboard time picker. The planted 0 keeps the tile at 0 when no failure line matches.
+
+Success tile: duplicate it, title APIGateway SUCCESS, change the text to Status: SUCCESS and the field to success_count. Color it green.
+
+Host table:
+
+fetch logs
+| filter contains(log.source, "apigw5500/server.log", caseSensitive:false)
+| filter contains(content, "Status: FAILURE", caseSensitive:false)
+| summarize failure_count = count(), by: { host.name }
+| sort failure_count desc
+
+If host.name is empty, the machine name is only inside the log line. The Splunk hosts were WPLALJ2BF, WPLALJ2CB, WPLALJ2BC, and WPLALJ2BB.
+
+IS Success, IS Failure, and ND Mode need their own Splunk constraints. Duplicate the tile and change the filter after you open those Edit Search dialogs.

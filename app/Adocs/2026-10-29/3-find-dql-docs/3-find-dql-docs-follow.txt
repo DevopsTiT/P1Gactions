@@ -1,0 +1,32 @@
+How to find DQL writing help on the Dynatrace website
+
+DQL is Dynatrace Query Language. It reads data stored in Grail: logs, events, metrics.
+
+On the website
+1. Open https://docs.dynatrace.com
+2. Search DQL
+3. Open Dynatrace Query Language
+   https://docs.dynatrace.com/docs/platform/grail/dynatrace-query-language
+4. Open How to use DQL first
+   https://docs.dynatrace.com/docs/platform/grail/dynatrace-query-language/dql-guide
+
+Then, as needed
+- Commands: https://docs.dynatrace.com/docs/platform/grail/dynatrace-query-language/commands
+- Language reference: https://docs.dynatrace.com/docs/platform/grail/dynatrace-query-language/dql-reference
+- Best practices: https://docs.dynatrace.com/docs/platform/grail/dynatrace-query-language/dql-best-practices
+
+Inside the product
+Notebooks → Add → DQL (Shift+D)
+Ctrl+Space suggests the next word
+Run with Ctrl+Enter, or Cmd+Enter on a Mac
+
+If you do not want to write the first query yourself, use Explore on Logs, then Show DQL. Dynatrace shows the query your clicks created.
+
+First shape from the lesson
+fetch logs
+| filter loglevel == "ERROR"
+| summarize numErr = count()
+
+When you filter with contains, add caseSensitive:false
+fetch logs
+| filter contains(content, "ebroker-api", caseSensitive:false)

@@ -1,0 +1,37 @@
+The red APIGateway FAILURE number counts the data model APIGW1015_Failure_count.
+
+The constraint on that model is:
+
+index=eip1015 sourcetype=eip_mediator_serverlog Status=FAILURE
+
+Only events that match all three parts are counted. RootObject is the name of that set. The long dataset id is 1600951249.6968_7EF4ECD2-84C5-40F9-B50C-B2D3D93AB3B9. The pivot column “Count of” that id is the big number. The dashboard runs it for the shared time picker, Last 15 minutes, and refreshes every minute.
+
+The search that is open is:
+
+index=eip1015 sourcetype=eip_mediator_serverlog
+
+Status=FAILURE is not in that search. It is paused. The Events tab shows 259,387. A visible row is Status SUCCESS at 13:25 JST on Oct 29. That 259,387 is the wider log, including successes, over a long window.
+
+One log file is on the source field:
+
+/opt/softwareag/log/1015/apigw5500/server.log
+
+Four hosts are on the host field, domain prprivngt.intraxa:
+
+- WPLALJ2BF.prprivngt.intraxa — 123,387
+- WPLALJ2CB.prprivngt.intraxa — 119,712
+- WPLALJ2BC.prprivngt.intraxa — 15,410
+- WPLALJ2BB.prprivngt.intraxa — 11,386
+
+The source popup count and these host counts do not add up to 259,387. The job is paused, so resume it before you treat a popup count as finished.
+
+To match the red box, set the time picker to Last 15 minutes and run:
+
+index=eip1015 sourcetype=eip_mediator_serverlog Status=FAILURE
+| stats count
+
+Failures by host:
+
+index=eip1015 sourcetype=eip_mediator_serverlog Status=FAILURE
+| stats count by host
+| sort - count

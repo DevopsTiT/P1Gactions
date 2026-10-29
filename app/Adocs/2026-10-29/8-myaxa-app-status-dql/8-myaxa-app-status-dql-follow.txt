@@ -1,0 +1,29 @@
+My Axa checks one application: agj-myaxa.
+
+It loads CUSTOM_INFO events, keeps the newest one, and sets status to NG when the jobs text contains "NG :". Otherwise it sets OK. limit 1 returns that one status.
+
+This run returned 0 records, from 09:28:29 to 11:28:29. The query ran (0.03 GiB scanned) and found no matching event. A blank tile is not OK.
+
+If the job reports less often than every two hours, widen the timeframe and run again.
+
+See which application names exist in the current window:
+
+fetch events
+| filter event.type == "CUSTOM_INFO"
+| filter isNotNull(application)
+| summarize event_count = count(), by: { application }
+| sort application asc
+
+One status for every application that sent an event:
+
+fetch events
+| filter event.type == "CUSTOM_INFO"
+| filter isNotNull(application)
+| fieldsAdd application_status = if(contains(jobs, "NG :", caseSensitive:false), "NG", else: "OK")
+| sort timestamp desc
+| summarize status = takeFirst(application_status), last_seen = takeFirst(timestamp), by: { application }
+| sort application asc
+
+takeFirst after the descending sort is the newest event for that application. An application with no event in the window is missing. Missing is not OK.
+
+Only agj-myaxa is on this tile. Do not add other application names until the count query shows them.

@@ -1,0 +1,26 @@
+What RAG means on this slide
+
+RAG means retrieval-augmented generation.
+
+Two steps:
+1. Retrieve. Get the material that belongs to this question.
+2. Generate. Write the sentences from that material.
+
+The form uses RAG as the example of "field or domain specific structure." The reader expects a catch-up, a list of angles to verify, a status draft, or a bridge note. The sentences change with the incident.
+
+For these war-room questions, the retrieved material is:
+- the open PagerDuty incident
+- the runbook linked on that service
+- the question Primary typed in Teams
+- for Scribe, the bridge audio, with a text note as the result
+
+The full Splunk or Dynatrace store is not connected.
+
+Catch me up retrieves the incident and writes the story plus starter checks.
+Likely root causes retrieves the same incident and writes angles to verify. The cause stays a draft until Primary confirms it.
+Draft a status writes stakeholder wording. A person sends it.
+Wrap me up turns the bridge into a timed note.
+The 14-day P2 question is Insights, only if that agent is enabled. It retrieves incidents this user can see and writes one sentence.
+
+Primary still checks the note before acknowledge, escalate, resolve, or PIR publish.
+INC-48291 and P-88421 on the slide are sample ids.

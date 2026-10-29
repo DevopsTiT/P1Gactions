@@ -1,0 +1,60 @@
+This page is a Splunk dashboard. The title is EIP/DIS Incident Helper Dashboard. Search by Time is Last 15 minutes, and auto-refresh is on.
+
+Each box is one search and one picture. A count or the letter A is a Single value. Host and status is a Table. Every box uses the same time range.
+
+How to build it:
+
+1. Dashboards → Create dashboard → Dashboard Studio → Grid.
+2. Name it EIP/DIS Incident Helper Dashboard.
+3. Add a Time range input. Label it Search by Time. Default Last 15 minutes.
+4. Turn on auto-refresh. One minute is a practical incident refresh.
+5. Add the panels. Save.
+
+To copy the live page, open it, Edit, then Clone. The real SPL is inside each panel: Edit, select the box, Open in search.
+
+Count panel:
+
+index=YOUR_INDEX sourcetype=YOUR_SOURCE FAILURE
+| stats count
+
+English failed count, using the host names in that title:
+
+index=YOUR_INDEX sourcetype=YOUR_SOURCE (WPLALJ2CO OR WPLALJ2BF) FAILURE
+| stats count
+
+Kappa uses the same shape with WPLALJ2BC and WPLALJ2BB.
+
+ND Mode panel:
+
+index=YOUR_INDEX sourcetype=YOUR_SOURCE
+| stats latest(nd_mode) AS mode
+
+Use the real field from the existing panel. Caption: EIP ND Mode. This screen shows the letter A. Confirm what A means in that search.
+
+Mediator table:
+
+index=YOUR_INDEX sourcetype=YOUR_SOURCE (host="WPLALJ2BF.axajp.intraxa" OR host="WPLALJ2CO.axajp.intraxa")
+| stats latest(MS_ResultMS_Status) AS MS_ResultMS_Status by host
+
+Integration table:
+
+index=YOUR_INDEX sourcetype=YOUR_SOURCE (host="WPLALJ2C1.axajp.intraxa" OR host="WPLALJ2BO.axajp.intraxa")
+| stats latest(IS_ResultIS_Status) AS IS_ResultIS_Status by host
+
+Colors are set on the box. Failure boxes stay red. Success boxes stay green. A red 0 is the failure counter at zero. On this screen IS Success and IS Failure are both 0, so neither counter had an event in 15 minutes.
+
+Replace YOUR_INDEX and YOUR_SOURCE with the values from the live panel.
+
+What this screen shows for the last 15 minutes:
+
+- APIGateway FAILURE 538, red.
+- APIGateway SUCCESS 19,187, green.
+- IS Success 0, green. IS Failure 0, red.
+- Kappa API GW failed count: no events for WPLALJ2BC and WPLALJ2BB.
+- English API GW failed count: 536 for WPLALJ2CO and WPLALJ2BF.
+- Both ND Mode boxes: A.
+- Right mediator table: two hosts, both EIP_UP.
+- Right integration table: two hosts, both EIP_UP.
+- Left mediator table and left integration table: No results found.
+
+No results found means that search matched zero events. Open it, run Last 24 hours, and compare the host filter with the box that has rows.

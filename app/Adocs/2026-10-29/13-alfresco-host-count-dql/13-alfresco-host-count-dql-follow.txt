@@ -1,0 +1,35 @@
+This Splunk search counts distinct hosts in index alfrescoacr-batch. It returns a row only when that count is not 4.
+
+The window is 10/28/2026 1:00 PM to 10/29/2026 1:43 PM. It scanned 176,642 events. Statistics (0) means the host count is 4, so the last filter removed the row.
+
+Set the Dynatrace time picker to that same window.
+
+DQL that returns a row only when the count is not 4:
+
+fetch logs
+| filter contains(log.source, "alfrescoacr-batch", caseSensitive:false)
+| summarize by: { host.name }
+| summarize Message = count()
+| fieldsAdd host = "Total"
+| filter Message != 4
+| fields host, Message
+
+0 records means the same thing as Statistics (0). Four hosts were seen.
+
+DQL that always shows the number:
+
+fetch logs
+| filter contains(log.source, "alfrescoacr-batch", caseSensitive:false)
+| summarize Message = countDistinct(host.name)
+| fieldsAdd host = "Total"
+| fields host, Message
+
+Message 4 matches the quiet Splunk result.
+
+If the filter returns no logs, run this and use the field that actually names the Alfresco batch logs:
+
+fetch logs
+| filter contains(log.source, "alfresco", caseSensitive:false)
+| limit 5
+
+host.name must be the same machine name Splunk stores in host. If host.name is empty, the count will not match 4.

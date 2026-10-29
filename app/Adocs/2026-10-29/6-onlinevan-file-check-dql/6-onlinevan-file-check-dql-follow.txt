@@ -1,0 +1,27 @@
+OnlineVAN file-check query
+
+The tile holds 16 expected Windows paths, then checks the last 24 hours of logs.
+
+Part 1. data + record
+Each record is one file, for example:
+D:\OnlineVAN\data\sonpo7\inbox\562006060100.txt
+Folders visible: sonpo7, sonpo5, sonpo3, sonpo15. Each path is inbox or outbox.
+16 records means 16 expected files.
+
+Part 2. lookup
+fetch logs, from:now() - 24h
+filter contains(log.source, "OnlineVAN")
+summarize last_seen = max(timestamp), log_count = count(), by source
+Join when the expected path equals the log source path.
+
+Part 3. status
+Log found: status OK, last date, last time, and the line count.
+No log: status NG, last date "No log found", last time "-", log count 0.
+
+This run: 16 records, 10/29/2026 11:28:41, previous 24 hours, scanned 81.35 GiB.
+The scan is large because the inner query reads OnlineVAN logs for a full day. The outer list is still only 16 files.
+
+A file stays NG when the path string does not match, including different slashes or different capital letters.
+The contains in this query does not set caseSensitive:false.
+
+The right edge of the editor is cut off, so formatTimestamp and the center/business expressions are only partly visible. The sort is by center.

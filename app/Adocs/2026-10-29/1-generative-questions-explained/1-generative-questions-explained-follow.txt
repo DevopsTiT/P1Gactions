@@ -1,0 +1,38 @@
+Generative questions on the Output slide
+
+These are the questions Primary types after @PagerDuty. The assistant writes text. That is why the slide ticks Generative and Text.
+
+INC-48291, Dynatrace P-88421, and INC-47102 are the example story on the slide. They are not live tickets.
+
+1. Catch me up on INC-48291
+Someone just joined, or just got the page, and wants the story in one note.
+The sample answer says: ebroker-api, P2, acknowledged by Primary at 16:05 JST, source Dynatrace P-88421, related past incident INC-47102.
+Starter checks: agrex and zipcode dependency, a recent deploy or config change, and whether the log line is "Address conversion failed…" or a broad 5xx.
+Primary still opens Dynatrace and compares the note.
+
+2. What are some likely root causes?
+This asks for angles to verify. It does not close the incident.
+The sample angles are:
+- agrex zipcode dependency latency, 5xx, or timeout
+- unusual zip input volume
+- ebroker address-service config or URL change after deploy
+- network path to the intraxa host
+Causes stay a draft. Primary replaces that draft with confirmed evidence before the PIR is published.
+
+3. Draft an internal status update for INC-48291
+This asks for stakeholder wording: title, impact, start time, status, evidence so far, next update, owner.
+The sample status is Investigating. Next update is 30 minutes. Owner is Primary.
+A person sends it. The tool only drafts it.
+
+4. Wrap me up, including Scribe notes for INC-48291
+The bridge audio is the input. The output is a timed text note.
+16:08 bridge opened. 16:10 upstream timed out. 16:12 next check is the last deploy. 16:14 finish those two checks before the next status.
+A spoken employee name can appear in that note.
+
+5. Which service has the most P2 incidents in the last 14 days?
+This is the Insights question. The sample answer is one sentence: among the services this user can see, ebroker-api has the most P2 incidents.
+Ask it only if Insights is enabled.
+
+Where they sit on the form
+They match "field or domain specific structure." The reader expects a catch-up, a verify-list, a status draft, a bridge note, or one history sentence. The sentences are generated from the incident, the runbook, the question, and, for Scribe, the bridge audio.
+They are not a fixed name-and-address extract, and they are not an open blog post.
