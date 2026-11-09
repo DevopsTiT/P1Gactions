@@ -1,0 +1,46 @@
+Confirm the four checks in order. Stop at the first no.
+
+1. Purpose
+Open the host page for CEAA9026. That host already collects the path. Note the ICM app.
+Open the host page for CEAA20F7.
+If you see the same ICM path, continue.
+If you see FileNet and no /app/ICM_CPW, leave this host group out.
+
+2. File
+In a Notebook, Last 2 hours (widen to 7 days if the known hosts are quiet):
+
+fetch logs
+| filter contains(log.source, "/app/ICM_CPW/log/ap/default.log", caseSensitive:false)
+| summarize lines = count(), by: { host.name }
+| sort host.name asc
+
+Rows for CEAAI016, CEAA9026, and CEAA9027 mean the query works.
+No row for CEAA20F7 means Dynatrace is not storing that file for this host. The file can still be on disk.
+
+On CEAA20F7 itself:
+
+ls -l /app/ICM_CPW/log/ap/default.log
+
+No such file, or an old date: stop.
+File exists and the date is recent: continue.
+
+3. Host group
+On CEAA20F7, Properties, read Host group.
+It must say HOST_GROUP-9034BF4FC7D158B2.
+Then Infrastructure, Hosts, filter that group, and write down every hostname.
+
+fetch dt.entity.host
+| filter dt.entity.host_group == "HOST_GROUP-9034BF4FC7D158B2"
+| fields entity.name, id
+| sort entity.name asc
+
+If any member should not send this file, do not use this group.
+
+4. Mask
+Settings, Log Monitoring, Sensitive data masking.
+An enabled rule must cover this host group, or a scope that includes CEAA20F7.
+Its matcher must cover log.source /app/ICM_CPW/log/ap/default.log, or be a content rule that applies inside that scope.
+If that rule is missing, leave send_to_storage off.
+If the rule is there, add the custom log source and the log storage block in one change.
+
+The photo of the custom source stops after scope. Read the live rule for the three claim-payment hosts and match that path matcher.

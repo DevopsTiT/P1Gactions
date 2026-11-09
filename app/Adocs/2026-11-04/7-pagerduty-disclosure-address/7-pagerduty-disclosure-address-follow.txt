@@ -1,0 +1,18 @@
+The model versions are in a file on this site:
+
+https://assurance.pagerduty.com/documents
+
+Search for: PagerDuty Advance AI Disclosure
+Download the latest row.
+
+The four company names in the sentence are on this page:
+
+https://www.pagerduty.com/subprocessors/
+
+Use the section "Additional service-specific subprocessors that may also be used in generative AI features".
+
+PagerDuty's own steps are here:
+
+https://docs.pagerduty.com/ai-automation/advance
+
+There is no single permanent PDF link. The download is the latest row after the search.

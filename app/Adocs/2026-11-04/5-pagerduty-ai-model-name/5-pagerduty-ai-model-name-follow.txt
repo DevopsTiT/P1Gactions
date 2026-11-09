@@ -1,0 +1,23 @@
+There is no single public PagerDuty AI model name, and no public version.
+
+The yellow cell is the right answer. You can expand it with the companies PagerDuty lists in public.
+
+Paste this in row 4:
+
+No single public model name. Generative AI features may use Amazon Web Services, Google, Microsoft, and OpenAI. Model versions are in the latest PagerDuty Advance AI Disclosure.
+
+Those four companies are on the generative AI subprocessor list. The page was last modified on 2026-07-13. It names companies. It does not name a GPT version or a Claude version.
+
+Hyperdoc is on the same list for video and audio transcription. Leave Hyperdoc off the chat-model line.
+
+An AWS case study says one PagerDuty Advance build used Amazon Bedrock, Anthropic Claude, and Amazon Q index. That page gives no Claude version. The subprocessor table does not list Anthropic as its own row. Do not write Claude as the only model.
+
+PagerDuty AI is the product name. The account may call the same product PagerDuty Advance.
+
+To get the version:
+1. Open PagerDuty's Assurance Profile.
+2. Search for PagerDuty Advance AI Disclosure.
+3. Download the latest file.
+4. Copy the model names and versions from that file into row 4.
+
+Until that file is open, keep the sentence above. The form says to leave an unknown model blank rather than guess one.

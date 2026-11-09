@@ -1,0 +1,16 @@
+The red banner means a box failed. The two red lines are under 姓 and 名.
+
+Leave the kana boxes as they are.
+セイ: クイ
+メイ: シュゲ
+
+Change the kanji boxes.
+姓: delete 金, enter 逵, press Enter. The green mark means the input method has not finished.
+名: delete 书, enter 树格, press Enter.
+
+书 is simplified Chinese. This form rejects it and shows 全角で入力してください.
+逵 is in the Japanese character set, so the 全角 check can store it.
+
+Submit again.
+If 名 is red again, the site refused the simplified character 树. 格 can stay.
+If 姓 is red again, press Enter in that box and remove any half-width letter still in it.

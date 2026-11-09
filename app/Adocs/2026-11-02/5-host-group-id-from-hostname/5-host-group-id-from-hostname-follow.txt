@@ -1,0 +1,25 @@
+Get the host group id from a hostname in a Dynatrace Notebook.
+
+fetch dt.entity.host
+| filter contains(entity.name, "CEAA20F7", caseSensitive:false)
+| fieldsAdd host_group_id = instance_of[dt.entity.host_group]
+| fieldsAdd host_group_name = entityName(instance_of[dt.entity.host_group])
+| fields entity.name, id, host_group_id, host_group_name
+
+host_group_id starts with HOST_GROUP-. That value is Terraform scope.
+host_group_name is the label on the host page.
+id starts with HOST-. That is the host, not the group.
+
+HOST_GROUP-9034BF4FC7D158B2 means the note matches CEAA20F7.
+A different HOST_GROUP- value means the snippet is aimed at another group. Use the id from this row.
+An empty host_group_id means this host has no host group.
+Several rows means the short name matched more than one host. Keep the entity.name you meant.
+
+Same answer on screen:
+Search the hostname.
+Open the host.
+Properties, Host group.
+Click the group name.
+Read the HOST_GROUP- id on that page.
+
+This query reads the host record. It still works when the host has sent no logs.
