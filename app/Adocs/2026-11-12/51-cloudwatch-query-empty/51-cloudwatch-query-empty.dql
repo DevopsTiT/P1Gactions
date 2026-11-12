@@ -1,0 +1,2 @@
+timeseries errors = sum(log.lambda_errors), by: {aws.log_group}
+| fields aws.log_group

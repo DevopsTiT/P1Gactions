@@ -1,0 +1,16 @@
+Set the notebook picker to Last 365 days. Run:
+
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log_group}
+
+A line means the query works.
+Last 2 hours is empty because no new error was stored.
+
+If it is still 0 records, run:
+
+timeseries errors = sum(log.lambda_errors), by: {aws.log_group}
+| fields aws.log_group
+
+Do not put Last 365 days on the alert.
+A short alert window still sees the flat end and will not open a problem.
