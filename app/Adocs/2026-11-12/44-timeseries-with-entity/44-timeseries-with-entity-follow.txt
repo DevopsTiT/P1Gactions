@@ -1,0 +1,15 @@
+Paste this in the Timeseries box:
+
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log_group}
+| fieldsAdd dt.entity.host = "HOST-00026D8D201D203A"
+
+dt.source_entity = {dt.entity.host}
+event.type = CUSTOM_ALERT
+
+Keep the braces. Do not put dt.entity.host in by. Do not add isNotNull.
+
+If Affected entities is empty, set dt.source_entity to HOST-00026D8D201D203A with no braces.
+
+Condition above 0. It waits for a new error point.

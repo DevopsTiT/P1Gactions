@@ -1,0 +1,21 @@
+Data type stays Timeseries.
+
+Paste this:
+
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log_group, dt.smartscape_source.id}
+
+Do not add isNotNull.
+
+If the preview is blank, use:
+
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log_group}
+
+Condition: above 0.
+It stays quiet until a new error point. The recent chart is flat.
+
+If there is no smartscape id, set dt.source_entity to HOST-00026D8D201D203A with no braces.
+Leave the query grouped by the log group only.
