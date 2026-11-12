@@ -1,9 +1,0 @@
-Prefix: ALJ_CCL
-
-Last 6 minutes. Any line with Task timed out, except lines that contain 10DEBUG:.
-The rest of the 10DEBUG exclusion is cut off on the form.
-
-Mail: alj_jp_di_oog_to@axa.co.jp
-A second To line is cut off. Paste it before apply.
-PagerDuty is on. pagerduty.enabled is 1. The integration key is not visible.
-Index ccl-fa-comm-calc is not in the query yet.

@@ -1,9 +1,0 @@
-Prefix: ALJ_MSGBOX
-
-Index message-box-api. Error or warn. Last 5 minutes. More than 5 lines.
-This does not use the ALJ_EMMA profile.
-
-The To address is cut off. It starts with e23bcf34.axa365.onmicrosoft.com.
-Replace paste-the-teams-address-from-the-form with the full address.
-
-No PagerDuty. pagerduty.enabled is 0.
