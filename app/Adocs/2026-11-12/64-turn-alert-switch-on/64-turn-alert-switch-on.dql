@@ -1,4 +1,0 @@
-fetch events, from: now()-30m
-| filter contains(event.name, "TESTDUMMY", caseSensitive:false)
-| fields timestamp, event.name, event.type
-| sort timestamp desc

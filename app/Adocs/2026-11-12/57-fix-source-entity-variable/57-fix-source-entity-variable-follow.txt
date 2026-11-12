@@ -1,9 +1,0 @@
-Change dt.source_entity from {dt.entity.custom_device} to {dt.entity.host}.
-
-Keep the braces.
-Delete the dt.smartscape_source.id row.
-Leave event.type as CUSTOM_ALERT.
-
-The query adds dt.entity.host. The problem was asking for a different name, so the entity stayed empty.
-
-This alert still will not open a problem today. The last 2 hours of this metric has 0 records.

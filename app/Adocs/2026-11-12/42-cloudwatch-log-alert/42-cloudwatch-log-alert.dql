@@ -1,9 +1,0 @@
-timeseries errors = sum(log.lambda_errors),
-  default: 0,
-  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
-  by: {aws.log_group}
-fetch logs, from: now()-24h
-| filter contains(aws.log_group, "/aws/", caseSensitive:false)
-| summarize log_count = count()
-| filter log_count > 0
-| fieldsAdd alert_key = "testdummy-cloudwatch"

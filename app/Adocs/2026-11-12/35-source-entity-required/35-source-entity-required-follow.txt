@@ -1,9 +1,0 @@
-dt.source_entity is not required.
-
-The form requires the title and the event name. Keep event.type as CUSTOM_ALERT.
-
-The value on the screen is {dt.entity.custom_device}. That only attaches an entity when the query returns one. The log alerts return a count and an alert_key, so leave this row empty.
-
-dt.smartscape_source.id is optional in the same way. You can delete that row too.
-
-Add dt.source_entity later only when you want the problem to show on a real host, service, or custom device.

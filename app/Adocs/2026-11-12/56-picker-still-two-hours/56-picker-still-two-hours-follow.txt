@@ -1,7 +1,0 @@
-The query is fine. The picker is still Last 2 hours. The run was 14:25 to 16:26. That is why it is 0 records.
-
-Click Last 2 hours. Choose Last 365 days. Run the same query again.
-
-Do not change the query.
-Do not remove fieldsAdd.
-A line means it works.

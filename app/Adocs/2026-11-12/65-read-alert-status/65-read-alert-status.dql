@@ -1,9 +1,0 @@
-timeseries cpu = avg(dt.host.cpu.usage), interval:1m,
-  filter: {dt.entity.host == "HOST-00026D8D201D203A"},
-  by: {dt.entity.host}
-
-fetch events, from: now()-2h
-| search "TESTDUMMY"
-| fields timestamp, event.name, event.type
-| sort timestamp desc
-| limit 20
