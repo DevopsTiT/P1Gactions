@@ -1,0 +1,14 @@
+Preview worked. The red line is the threshold at 101. The CPU line stays under it for the whole chart, including the newest minutes on the right. That means "below 101" is already true.
+
+The red line is not the alarm. Preview does not open a problem.
+
+1. Close Preview.
+2. Click Save.
+3. On the alerts list, switch TESTDUMMY host entity on.
+4. Wait about 3 minutes.
+5. Open Problems. Set the time to the last 30 minutes. Search TESTDUMMY.
+6. Disable the alert after the problem shows.
+
+Before Save, the query should still contain interval:1m, query offset should be 2, and violating samples should be 1. The dt.smartscape_source.id row should be gone.
+
+This alert sends no email.

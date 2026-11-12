@@ -1,0 +1,3 @@
+timeseries cpu = avg(dt.host.cpu.usage), interval:1m,
+  filter: {dt.entity.host == "HOST-00026D8D201D203A"},
+  by: {dt.entity.host}
