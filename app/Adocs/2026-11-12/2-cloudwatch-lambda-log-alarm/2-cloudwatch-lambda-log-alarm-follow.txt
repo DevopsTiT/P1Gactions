@@ -1,0 +1,28 @@
+Create the CloudWatch alarm in the console, in the region where the Lambda runs, in account 031682695384.
+
+The error text is on this log group:
+/aws/lambda/light-digital-api-dev-confirm-e-signature
+
+1. CloudWatch, Logs, Log groups.
+2. Open that log group.
+3. Metric filters, Create metric filter.
+4. Filter pattern: "Failed to handle"
+5. Test pattern on a log stream from today.
+6. Filter name: failed-to-handle
+7. Metric namespace: LambdaAppLogs
+8. Metric name: FailedToHandleCount
+9. Metric value: 1
+10. Default value: 0
+11. Create metric filter.
+12. Create alarm on that filter.
+13. Statistic: Sum
+14. Period: 1 minute
+15. Condition: Greater than 0
+16. Missing data: Treat missing data as not breaching
+17. SNS topic with your email. Confirm the email.
+18. Alarm name: light-digital-api-dev-confirm-e-signature Failed to handle
+19. Create alarm.
+
+CloudWatch matching is case-sensitive. "Failed to handle" matches the words on the error row.
+
+A successful invocation that only writes that line does not increase the built-in Lambda Errors metric. Use Lambda, By Function Name, metric Errors, Sum greater than 0, when the invocation itself failed.

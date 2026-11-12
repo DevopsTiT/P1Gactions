@@ -1,0 +1,39 @@
+Create the alert by hand in Settings. The notebook table is the search. The alert needs a count per minute.
+
+Test this query first. Time picker: Last 2 hours.
+
+fetch logs
+| filter contains(aws.log.group, "/aws/lambda/", caseSensitive:false)
+| filter loglevel == "ERROR"
+| makeTimeseries error_count = count(), interval:1m
+
+The 819 rows include INFO lines such as START and END. Those stay out. ERROR lines stay in, including "Failed to handle" on light-digital-api-dev-confirm-e-signature.
+
+Clicks:
+1. Settings
+2. Analyze and alert
+3. Alerts
+4. All alerts
+5. Custom alerts
+6. New alert
+7. Create your own custom alert
+8. Paste the query under Set scope
+9. Define alert condition
+10. Static threshold
+11. Threshold 0
+12. Alert if metric is above
+13. Preview
+14. Title: Lambda log ERROR
+15. Event name: Lambda log ERROR
+16. Create
+
+This opens a Dynatrace problem. PagerDuty still uses your existing problem notification.
+
+Only the e-signature function:
+
+fetch logs
+| filter contains(aws.log.group, "light-digital-api-dev-confirm-e-signature", caseSensitive:false)
+| filter loglevel == "ERROR"
+| makeTimeseries error_count = count(), interval:1m
+
+The bottom query, timeseries { log_count = count() }, reads a metric. These rows are logs. Use makeTimeseries.
