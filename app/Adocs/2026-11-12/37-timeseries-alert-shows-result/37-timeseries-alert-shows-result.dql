@@ -1,0 +1,3 @@
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log.group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log.group}

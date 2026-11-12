@@ -1,0 +1,8 @@
+timeseries errors = sum(log.lambda_errors)
+timeseries errors = sum(log.lambda_errors), by: {aws.log_group}
+| fields aws.log_group
+fetch logs, from: now()-24h
+| filter contains(aws.log.group, "gov-inquiry-system", caseSensitive:false)
+| summarize count = count(), by: {aws.log.group}
+| sort count desc
+| limit 20

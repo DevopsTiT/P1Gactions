@@ -1,0 +1,20 @@
+The query works. The dev log group is correct.
+
+The spikes are old, around October and November 2025. The recent part of the chart is flat. Last 2 hours was empty because no new errors were stored.
+
+Keep this query:
+
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log_group}
+
+Alert condition: errors above 0.
+Window: a few minutes.
+
+The alert stays quiet today. A new error point opens the problem.
+
+Set the notebook picker to Last 2 hours to see what the alert sees.
+
+Do not add dt.entity.custom_device back into the query.
+Put the CUSTOM_DEVICE id in dt.source_entity if you want the problem on a device.
+Do not stretch the alert window back to 2025.

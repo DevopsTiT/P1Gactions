@@ -1,0 +1,28 @@
+0 records means the query ran and found no metric points. Last 2 hours was 12:54 to 14:55.
+
+Step 1. Set the picker to Last 7 days.
+
+timeseries errors = sum(log.lambda_errors)
+
+Still 0: the metric is empty. Go to step 3.
+A line: the metric exists. Go to step 2.
+
+Step 2. Last 7 days.
+
+timeseries errors = sum(log.lambda_errors), by: {aws.log_group}
+| fields aws.log_group
+
+If the dimension errors, use aws.log.group instead.
+Copy a real path from that list. Do not keep the dev path if it is not listed.
+
+Step 3. Last 24 hours.
+
+fetch logs, from: now()-24h
+| filter contains(aws.log.group, "gov-inquiry-system", caseSensitive:false)
+| summarize count = count(), by: {aws.log.group}
+| sort count desc
+| limit 20
+
+If the field errors, use aws.log_group.
+Count greater than 0: build the alert with fetch logs.
+Count 0: this notebook's environment does not have those Lambda logs.

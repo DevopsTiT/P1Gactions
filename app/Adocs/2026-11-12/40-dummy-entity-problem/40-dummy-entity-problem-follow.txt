@@ -1,0 +1,28 @@
+This opens a real problem on one real host. Disable it after you see the problem.
+
+1. Notebook, last 30 minutes. Copy one HOST- id.
+
+timeseries cpu = avg(dt.host.cpu.usage), by: {dt.entity.host}
+| filter isNotNull(dt.entity.host)
+| limit 5
+| fields dt.entity.host
+
+0 records means this environment has no host CPU metric. Stop.
+
+2. Alert query. Paste your id.
+
+timeseries cpu = avg(dt.host.cpu.usage),
+  filter: {dt.entity.host == "HOST-PASTE_ONE_ID"},
+  by: {dt.entity.host}
+
+3. Condition: cpu below 101. Window: a few minutes.
+
+4. Title and event name: TESTDUMMY host entity
+event.type: CUSTOM_ALERT
+dt.source_entity: {dt.entity.host}
+
+Delete {dt.entity.custom_device}. Do not add email.
+
+5. Wait about 3 minutes. Problems, search TESTDUMMY. The host is under Affected entities.
+
+6. Disable the alert.

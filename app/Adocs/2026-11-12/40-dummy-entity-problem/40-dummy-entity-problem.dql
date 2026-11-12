@@ -1,0 +1,7 @@
+timeseries cpu = avg(dt.host.cpu.usage), by: {dt.entity.host}
+| filter isNotNull(dt.entity.host)
+| limit 5
+| fields dt.entity.host
+timeseries cpu = avg(dt.host.cpu.usage),
+  filter: {dt.entity.host == "HOST-PASTE_ONE_ID"},
+  by: {dt.entity.host}
