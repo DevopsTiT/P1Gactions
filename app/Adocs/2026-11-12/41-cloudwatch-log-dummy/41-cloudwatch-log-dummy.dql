@@ -1,0 +1,11 @@
+fetch logs, from: now()-2h
+| filter contains(aws.log_group, "/aws/", caseSensitive:false)
+| summarize log_count = count(), by: {aws.log_group}
+| filter log_count > 0
+| sort log_count desc
+| limit 5
+fetch logs, from: now()-2h
+| filter contains(aws.log_group, "/aws/", caseSensitive:false)
+| summarize log_count = count()
+| filter log_count > 0
+| fieldsAdd alert_key = "testdummy-cloudwatch"
