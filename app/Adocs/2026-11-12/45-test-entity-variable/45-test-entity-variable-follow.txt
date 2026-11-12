@@ -1,0 +1,16 @@
+The lambda query is 0 records from 13:31 to 15:32. There is no row, so {dt.entity.host} cannot be filled from it.
+
+Test with host CPU. Last 2 hours:
+
+timeseries cpu = avg(dt.host.cpu.usage),
+  filter: {dt.entity.host == "HOST-00026D8D201D203A"},
+  by: {dt.entity.host}
+
+Condition: cpu below 101
+dt.source_entity: {dt.entity.host}
+event.type: CUSTOM_ALERT
+Title: TESTDUMMY host entity
+
+Keep the braces. One row should show dt.entity.host.
+
+Wait about 3 minutes. Problems, search TESTDUMMY. Then disable the alert.
