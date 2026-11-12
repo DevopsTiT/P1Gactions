@@ -1,0 +1,34 @@
+Still no problem, because the query on the screen was not changed.
+
+The four lines are still:
+
+timeseries errors = sum(log.lambda_errors),
+  filter: {aws.log_group == "/aws/lambda/gov-inquiry-system-dev-logFailure"},
+  by: {aws.log_group}
+| fieldsAdd dt.entity.host = "HOST-00026D8D201D203A"
+
+That query returned 0 records in the last 2 hours. Clicking Save keeps it quiet. This form also sends no email. A problem shows on the Problems page.
+
+Do this:
+
+1. Click Discard. Do not click Save.
+2. On the alerts list, create a new alert.
+3. Data type: Timeseries.
+4. Paste this query:
+
+timeseries cpu = avg(dt.host.cpu.usage),
+  filter: {dt.entity.host == "HOST-00026D8D201D203A"},
+  by: {dt.entity.host}
+
+5. Read line 1. It must start with "timeseries cpu".
+6. Condition: line cpu, below 101, window a few minutes.
+7. Title: TESTDUMMY host entity
+   Event name: TESTDUMMY host entity
+   event.type: CUSTOM_ALERT
+   dt.source_entity: {dt.entity.host}
+8. Save the new alert.
+9. Wait about 3 minutes.
+10. Open Problems and search TESTDUMMY.
+11. Disable the new alert after it shows.
+
+The old CloudWatch alert can fire later, after a new error point is stored and the condition is above 0.
