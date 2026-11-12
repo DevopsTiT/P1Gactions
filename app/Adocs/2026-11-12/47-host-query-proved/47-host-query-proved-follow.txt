@@ -1,0 +1,12 @@
+The notebook proof passed. 1 record for HOST-00026D8D201D203A from 13:37 to 15:38. The line stays under 20, so below 101 is true.
+
+Paste the same query into the Timeseries alert.
+
+Condition: cpu below 101
+Title and event name: TESTDUMMY host entity
+event.type: CUSTOM_ALERT
+dt.source_entity: {dt.entity.host}
+
+Keep the braces. No email.
+
+Save. Wait about 3 minutes. Problems, search TESTDUMMY. Then disable the alert.
