@@ -1,0 +1,7 @@
+Prefix: ALJ_BRE
+
+Index innorules*. The rex reads a loglevel word and keeps ERROR.
+Last 5 minutes. Any matching line.
+
+PagerDuty is the only action. pagerduty.enabled is 1. The integration key is not visible.
+There is no Send email action, so there is no email resource.

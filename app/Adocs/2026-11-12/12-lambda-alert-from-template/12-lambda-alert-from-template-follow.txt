@@ -1,0 +1,20 @@
+The happy-future files are the template.
+
+The detector opens a problem only when all of these are true:
+- the query returns a row
+- event.type is CUSTOM_ALERT
+- the event name starts with ALJ_OCP4
+
+The profile then sends mail when:
+- severity level is ERROR
+- the title begins with ALJ_OCP4
+
+pagerduty.enabled is 0. Mail is the notification in the photo.
+
+The Edit alert form does not do this yet. Its query matches INFO INIT_START lines, and Define alert condition is not completed. There is no CUSTOM_ALERT event, so Problems stays empty.
+
+The Lambda detector is in 12-lambda-log-alert.tf.
+It keeps the same analyzer, the 5-minute window, CUSTOM_ALERT, alert.severity medium, and the ALJ_OCP4 title prefix.
+The query is loglevel == ERROR on /aws/lambda/light-digital-api-dev-confirm-e-signature.
+The identity field is aws.log.group.
+Do not add a second profile with the same ALJ_OCP4 filter. The email in the photo already matches that prefix.

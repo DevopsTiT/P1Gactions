@@ -1,0 +1,11 @@
+Prefix: ALJ_EMMA
+
+Last 5 minutes. More than 1 matching line. Trigger once.
+Exceptions: CustomerNotFound, InvalidCustomerData, CustomerDuplicate, PolicyNotFound, CifService, VonageSms Failed to send SMS, MyPageException during registration, Unexpected exception during AGPortal registration.
+
+Email:
+thuphuong.nguyen@axa.co.jp
+regoire.homassel@axa.co.jp
+
+Confirm the second spelling. No PagerDuty on this form, so pagerduty.enabled is 0.
+Index myaxabackend-prod-axa-11-jp is not in the query yet.

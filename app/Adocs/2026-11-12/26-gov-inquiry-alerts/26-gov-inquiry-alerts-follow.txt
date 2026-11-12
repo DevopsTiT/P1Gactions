@@ -1,0 +1,16 @@
+The first two screens are the E-Tool alerts already written.
+
+Seven Gov Inquiry alerts. Prefix ALJ_GOV. One email.
+
+Mail: alj_jp_di_maintenance_operation_digital@axa.co.jp
+Last 5 minutes. Any matching line. No PagerDuty.
+
+MDM summary: parseMdmResponseAndUpdateDb, Biz file summary, MDM_SEARCH_RESULT_FILE
+ND summary: parseNdAndUpdateDb, Biz file summary, ND_SEARCH_RESULT_FILE
+Answer summary: buildAnswerFile, Biz file summary, ANSWER_FILE
+Request summary: validateAndComputeAnswer, Biz file summary, REQUEST_FILE
+General error: logFailure, level:ERROR
+PipItLinq: parseErrorFileAndUpdateDb, ParseErrorFileAndUpdateDb
+SYSERROR: parseSysErrorFileAndUpdateDb, parseGatewaySysErrorFileAndUpdateDbEffect
+
+A summary line mails even when the file is normal. The Japanese count table is not rebuilt in the Dynatrace mail.

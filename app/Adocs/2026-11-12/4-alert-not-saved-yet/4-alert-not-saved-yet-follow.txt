@@ -1,0 +1,13 @@
+The alert is not set up. The Edit alert window is still open, and Save is still on the screen.
+
+The Notebook with 144 records is a search. It shows the log group has lines. It does not save an alert.
+
+The draft query matches every line in /aws/lambda/light-digital-api-dev-confirm-e-signature. That includes INFO lines such as START, END, and REPORT, plus the ERROR lines that say Failed to handle.
+
+Before Save, use this query:
+
+fetch logs
+| filter contains(aws.log.group, "/aws/lambda/light-digital-api-dev-confirm-e-signature", caseSensitive:false)
+| filter loglevel == "ERROR"
+
+Then press Save. The alert exists when the editor closes and the alert appears in the custom alert list.

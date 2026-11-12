@@ -1,0 +1,18 @@
+CloudWatch problems stay in AWS. Dynatrace does not import the alarm you created in the CloudWatch console.
+
+The Notebook shows log lines. A log line is not a problem.
+The preview that says CW test logs found is a query result. It does not open a problem.
+The AWS connection polls CloudWatch metrics. Its documented permissions are GetMetricData, GetMetricStatistics, and ListMetrics. Those calls do not read the alarm object.
+
+Check Settings, Cloud and virtualization, AWS, Metric events for alerting.
+No enabled rule for this Lambda means Dynatrace is not turning that metric into a problem.
+
+For the Failed to handle text, save a Timeseries alert:
+
+fetch logs
+| filter contains(aws.log.group, "/aws/lambda/light-digital-api-dev-confirm-e-signature", caseSensitive:false)
+| filter loglevel == "ERROR"
+| makeTimeseries error_count = count(), interval:1m
+
+Threshold above 0. Title Lambda log ERROR. Press Save.
+The CloudWatch alarm can still be ALARM in AWS. Its message goes to the SNS topic, not into Dynatrace Problems.

@@ -1,0 +1,9 @@
+The Splunk alert has Send email. The Terraform email resource is now included.
+
+Name: ALJ_VPN Cisco LDAP connections failing Email
+Profile: the ALJ_VPN alerting profile
+Subject: [Dynatrace] Cisco VPN - LDAP connections failing
+Body: Alert detected: {ProblemDetailsHTML}
+Close mail: on
+
+The Send email row is collapsed. Replace paste-address-from-splunk-send-email with the addresses in that row. The happy-future mail list is not used here.

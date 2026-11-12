@@ -1,0 +1,21 @@
+This alert has a query. It does not have a finished condition, so no problem opens.
+
+Set scope is Completed. That means the query is filled in.
+Define alert condition is collapsed and is not marked Completed. Davis opens a problem from that section.
+Save is still on the screen.
+
+The query matches INFO INIT_START Runtime Version lines. Those are normal startups. Finishing a Records condition on this text would open a problem because the function started, not because it failed.
+
+Expand Define alert condition.
+Expand Add details and set the title and event name.
+Press Save.
+Wait one minute and check Problems for the last 2 hours.
+
+For an error problem, use Timeseries and this query:
+
+fetch logs
+| filter contains(aws.log.group, "/aws/lambda/light-digital-api-dev-confirm-e-signature", caseSensitive:false)
+| filter loglevel == "ERROR"
+| makeTimeseries error_count = count(), interval:1m
+
+Threshold above 0.

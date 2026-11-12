@@ -1,0 +1,16 @@
+The 514 lines prove the logs arrived. They do not open a problem.
+
+Every visible line is INFO. The text is INIT_START Runtime Version. Lambda writes that line on a normal start. The screen is a Notebook search. A search lists logs. It does not write to Problems.
+
+A problem opens when a saved alert condition is met. These startup lines do not meet an error condition.
+
+Use a saved Timeseries alert for the error lines:
+
+fetch logs
+| filter contains(aws.log.group, "/aws/lambda/light-digital-api-dev-confirm-e-signature", caseSensitive:false)
+| filter loglevel == "ERROR"
+| makeTimeseries error_count = count(), interval:1m
+
+Threshold above 0. Press Save.
+A minute of INIT_START lines stays quiet.
+A minute with an ERROR count above 0 opens the problem.

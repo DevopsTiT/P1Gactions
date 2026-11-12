@@ -1,0 +1,10 @@
+The prefix is ALJ_VM.
+
+Title: ALJ_VM Cisco LDAP connections failing
+Profile: ALJ_VM Alerting Profile
+Filter: title begins with ALJ_VM
+Email name: ALJ_VM Cisco LDAP connections failing Email
+Email uses that profile.
+
+Replace paste-address-from-splunk-send-email with the addresses from the Splunk Send email row.
+The search is still Windows_LDAP and FAILED, more than 3 lines in the last minute.

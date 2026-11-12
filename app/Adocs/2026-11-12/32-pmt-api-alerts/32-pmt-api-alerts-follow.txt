@@ -1,0 +1,29 @@
+Nine pmt-api alerts. The five onboarding screens in the same batch are already written.
+
+ALJ_SFDC
+An error occurred while calling sfdc api
+Last 5 minutes
+ALJ_JP_DI_operations@axa.co.jp
+TS_JP_DI_applications@axa.co.jp
+Confirm both. The box is small.
+
+ALJ_PMT mails alj_jp_di_processautomation@axa.co.jp
+Unexpected errors, and the line must not contain sfdc
+Task timed out, last 6 minutes
+SendApprovalReminder handler failed
+Exception in myAxaMailSender
+Error occured during email sending process for this user
+
+ALJ_STP mails koichi.nagamine@axa.co.jp and the process automation mailbox
+Max Memory Used, number after +Used: greater than 480
+Exception in ExportData
+Confirm Koichi's spelling.
+
+ALJ_MAILSENDER is the Emma-named mail-sender alert.
+Same search phrase. Send email is collapsed, so there is no email resource.
+Triggered Alerts Medium is not PagerDuty.
+
+No PagerDuty. pagerduty.enabled is 0.
+Event severity stays medium. Profile severity level stays ERROR.
+Expires 24 hours has no detector field.
+Check the memory parse on one real log line.

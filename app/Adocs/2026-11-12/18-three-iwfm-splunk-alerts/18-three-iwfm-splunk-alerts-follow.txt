@@ -1,0 +1,18 @@
+Three separate alerts.
+
+1. ALJ_EIP EIP006 service failure
+Last 1 minute. More than 2 lines with the GenerateFormImage service and FAILURE.
+Mail: alj_jp_di_infra_mwss@axa.co.jp
+
+2. ALJ_COMPASS IWFMReportException発生
+Last 5 minutes. More than 15 lines.
+Mail: axa.jp_di_compass_it_member@axa.co.jp
+The second address on the form is cut off. Paste it before apply.
+
+3. ALJ_IWFM Errors
+Last 1 hour. Any line with LOGLEVEL Caution or Fatal.
+Mail: rajukolukuluri@axa.co.jp
+Splunk throttle is 1 hour. Dynatrace keeps one open problem while the count stays above 0.
+
+No PagerDuty on these forms. pagerduty.enabled is 0.
+Index and sourcetype are not in the queries yet.

@@ -1,0 +1,16 @@
+Prefix: ALJ_CPA
+
+Last 5 minutes. Any of these phrases in index customer-process-api:
+Task timed out
+An error occurred
+Failed to handle: lifeJData
+Got unexpected investment company code
+The policy is ineligible for creating a request
+1BL0250002
+<StatusCd>EB
+imported a total of 0 data
+Handler Error: Too many connections
+
+Mail: alj_jp_di_adect@axa.co.jp
+No PagerDuty. pagerduty.enabled is 0.
+dedup message does not change a greater-than-0 trigger.

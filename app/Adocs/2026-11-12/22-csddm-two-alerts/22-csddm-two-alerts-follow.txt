@@ -1,0 +1,15 @@
+Two alerts. Different prefixes.
+
+1. ALJ_CLAIMS Claims API call failed
+Prod Lambda log group cs-digital-document-management-prod-
+Message contains claims api call failed.
+The form has no time range. The query uses the last 24 hours.
+Mail: honlun.chan@axa.co.jp and masaya.okuno@axa.co.jp
+A third address starts with alj_jp_di_inoid and is cut off. Paste it before apply.
+
+2. ALJ_CSDDM Document management error
+Last 5 minutes. The event contains error. The message does not contain error. The message does not contain elivery not possible.
+Mail: alj_jp_di_csdigitaldocument@axa.co.jp
+Splunk throttle is 1 hour.
+
+No PagerDuty. pagerduty.enabled is 0.

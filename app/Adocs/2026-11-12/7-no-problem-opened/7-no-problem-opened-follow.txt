@@ -1,0 +1,22 @@
+No problem appeared because the Notebook result is a preview. A problem is opened only by a saved alert whose condition is complete.
+
+1. If Save is still on the Edit alert screen, the alert is not running.
+2. If Data type is Timeseries and the query is only fetch logs, there is no count, so the threshold never trips.
+
+Use this query:
+
+fetch logs
+| filter contains(aws.log.group, "/aws/lambda/light-digital-api-dev-confirm-e-signature", caseSensitive:false)
+| filter loglevel == "ERROR"
+| makeTimeseries error_count = count(), interval:1m
+
+Data type: Timeseries
+Static threshold: above 0
+Title: Lambda log ERROR
+Event name: Lambda log ERROR
+Press Save.
+
+3. Open Problems. Set Last 2 hours. Clear the filter bar. Wait one minute.
+4. If it is still empty, open the custom alert and read the last run.
+
+The 144 rows include healthy START and END lines. This query counts only ERROR lines, including Failed to handle.

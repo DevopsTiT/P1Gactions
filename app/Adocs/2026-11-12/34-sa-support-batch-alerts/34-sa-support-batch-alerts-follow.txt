@@ -1,0 +1,19 @@
+Three alerts. Index sa-support-batches.
+
+ALJ_SABATCH mails the commonins address and maki.kawauchi.ose@axa.co.jp
+The To box is cut off. The first address reads alj_jp_di_bap_commonins@ound2@axa.co.jp and has two @ signs. Confirm both before apply.
+
+Batch error: the word error, last 6 minutes, count greater than 0
+Task timeout: Task timed out, last 6 minutes, count greater than 0
+
+ALJ_ANNUITY mails axa.jp_di_bap_annuitypayments@axa.co.jp
+File import: importFileHandler :: runner :, or importSagaFundGroup, or started
+Last 24 hours. Count less than 2.
+Splunk cron is 08:30 on weekdays. Davis also runs on Saturday and Sunday, about once a minute.
+
+If the index field name is wrong, the file-import count stays 0 and the alert fires all the time.
+The word started can keep the count at 2 or more, so the alert stays quiet.
+
+pagerduty.enabled is 0.
+Event severity stays medium.
+Expires 24 hours has no detector field.
