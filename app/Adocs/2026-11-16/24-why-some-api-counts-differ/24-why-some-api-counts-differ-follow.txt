@@ -1,0 +1,38 @@
+Some API totals match. Some are short in Dynatrace.
+
+customer-info-V2: Splunk 26902, Dynatrace 26991, gap 89
+policy-management-V1: Splunk hosts add to 18637, Dynatrace 18636, gap 1
+premium cash value API: Splunk 15365, Dynatrace 15448, gap 83
+customer-info-V1: Splunk 15451, Dynatrace 13512, gap 1939
+ICMCase: Splunk 1910, Dynatrace 1499, gap 411
+
+The clock can explain a gap of about 100.
+The V1 gap is 1939. Those lines are not all in the shape API: customer-info-V1 API Version.
+
+Split the V1 lines:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "customer-info-V1", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| fieldsAdd nameMatch = if(API == "customer-info-V1", "same name", else: if(isNotNull(API), "other name", else: "not parsed"))
+| summarize eventCount = count(), by: { nameMatch }
+
+same name = counted in the chart
+other name = parsed as a different API
+not parsed = Splunk can still count these
+
+Five lines that did not stay as customer-info-V1:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "customer-info-V1", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| filter isNull(API) or API != "customer-info-V1"
+| fieldsAdd apiAt = indexOf(lower(content), "customer-info-v1")
+| fieldsAdd startAt = if(apiAt > 40, apiAt - 40, else: 0)
+| fieldsAdd apiSnippet = substring(content, from: startAt, to: apiAt + 80)
+| fields host.name, API, apiSnippet
+| limit 5
+
+Paste one apiSnippet.
