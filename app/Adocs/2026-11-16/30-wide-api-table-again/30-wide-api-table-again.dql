@@ -1,0 +1,17 @@
+// Wide table. One API per row. Last 60 minutes.
+// Columns: B9, BC, BF, C0, ALL
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and not(contains(content, "Matching application found for the API:", caseSensitive:false))
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| filter isNotNull(API)
+| summarize {
+    `WPALJA21B9.prprivmgmt.intraxa` = countIf(host.name == "WPALJA21B9.prprivmgmt.intraxa"),
+    `WPALJA21BC.prprivmgmt.intraxa` = countIf(host.name == "WPALJA21BC.prprivmgmt.intraxa"),
+    `WPALJA21BF.prprivmgmt.intraxa` = countIf(host.name == "WPALJA21BF.prprivmgmt.intraxa"),
+    `WPALJA21C0.prprivmgmt.intraxa` = countIf(host.name == "WPALJA21C0.prprivmgmt.intraxa"),
+    ALL = count()
+  }, by: { API }
+| fields API, `WPALJA21B9.prprivmgmt.intraxa`, `WPALJA21BC.prprivmgmt.intraxa`, `WPALJA21BF.prprivmgmt.intraxa`, `WPALJA21C0.prprivmgmt.intraxa`, ALL
+| sort API asc
