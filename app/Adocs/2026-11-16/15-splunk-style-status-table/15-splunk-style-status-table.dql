@@ -1,0 +1,32 @@
+fetch logs, from: now()-24h
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21BC", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21B9", caseSensitive:false)
+    )
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'MG_Status\":\"' LD:checkStatus '\"'"
+| fieldsAdd `MG_Result.MG_Status` = checkStatus
+| fields host, `MG_Result.MG_Status`
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21BC", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21B9", caseSensitive:false)
+    )
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'MG_Status\":\"' LD:checkStatus '\"'"
+| fieldsAdd `MG_Result.MG_Status` = checkStatus
+| fields host, `MG_Result.MG_Status`
+
+fetch logs, from: now()-24h
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21BC", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21B9", caseSensitive:false)
+    )
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'MG_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `MG_Result.MG_Status` = takeFirst(checkStatus) }, by: { host }
