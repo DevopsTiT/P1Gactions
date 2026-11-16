@@ -1,0 +1,33 @@
+The chart works for the last 60 minutes.
+
+Five-row check shows clean names, including policy-management-V1.
+
+Host chart, 13:55:45 to 14:55:45: 146 rows.
+customer-info-V2 on BC 6974
+customer-info-V2 on B9 6734
+customer-info-V2 on BF 6716
+customer-info-V2 on C0 6637
+policy-management-V1 on BF 4875
+policy-management-V1 on BC 4851
+policy-management-V1 on B9 4596
+
+ALL, 13:55:57 to 14:55:57: 38 API names.
+customer-info-V2 26991
+policy-management-V1 18636
+jp-Designing-DesignProduct-CalculatePremiumReserveCashValue-v1-vs 15448
+customer-info-V1 13512
+jp-MarketAccess-DistributionManagement-Commission-v3-vs 6191
+jp-Distributing-Sell-GenerateFormImage-v2-vs 4394
+jp-MarketAccess-DistributionManagement-Commission-v4-vs 3637
+technical-utility-V1 3018
+jp-CoreBusiness-ServiceManagement-ICMCase-v1-vs 1499
+jp-MarketAccess-InteractionManagement-RequestService-v1-vs 1226
+is-CoreBusiness-ServiceManagement-ClaimService-v1-vs 1086
+
+The ALL query started 12 seconds later, so 26991 is not the sum of the host rows from the earlier run.
+Those four host rows add to 27061.
+
+Splunk listed 34 API names on a paused search. This Dynatrace hour has 38.
+The chart counts lines that contain API Version.
+
+Long names are cut off in the grid. Widen the API column.

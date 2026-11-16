@@ -1,0 +1,19 @@
+// Count of API by API and host
+// 146 rows on the 14:55:46 run
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| filter isNotNull(API)
+| summarize `Count of API` = count(), by: { API, host.name }
+| sort `Count of API` desc
+
+// ALL
+// 38 API names on the 14:55:57 run
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| filter isNotNull(API)
+| summarize ALL = count(), by: { API }
+| sort ALL desc
