@@ -1,0 +1,34 @@
+// Count of API by API and host
+// last 60 minutes
+// file /opt/softwareag/log/1015/apigw5590/server.log
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' '"
+| filter isNotNull(API)
+| summarize `Count of API` = count(), by: { API, host.name }
+| sort `Count of API` desc
+
+// ALL column: same API across every host
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' '"
+| filter isNotNull(API)
+| summarize ALL = count(), by: { API }
+| sort ALL desc
+
+// Host check. No API parse.
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| summarize eventCount = count(), by: { host.name }
+| sort eventCount desc
+
+// If API is empty, print three full lines
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "API:", caseSensitive:false)
+| fields timestamp, host.name, content
+| limit 3

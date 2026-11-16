@@ -1,7 +1,0 @@
-fetch logs, from: now()-24h
-| filter log.source == "sql-monitoring"
-    and sql.activemqmode == "A"
-    and sql.mfsubenv == "ND"
-| sort timestamp desc
-| limit 1
-| fields timestamp, host.name, sql.mfsubenv, sql.activemqmode
