@@ -1,0 +1,47 @@
+// DC1 Integration Servers
+// hosts WPALJA21B8 and WPALJA21BB
+// column IS_Result.IS_Status
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21B8", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21BB", caseSensitive:false)
+    )
+    and contains(restapi.job_name, "IS UP", caseSensitive:false)
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'IS_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `IS_Result.IS_Status` = takeFirst(checkStatus) }, by: { host }
+
+// DC2 Mediator Servers
+// hosts WPALJA21BF and WPALJA21C0
+// column MG_Result.MG_Status
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21BF", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21C0", caseSensitive:false)
+    )
+    and contains(restapi.job_name, "MG UP", caseSensitive:false)
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'MG_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `MG_Result.MG_Status` = takeFirst(checkStatus) }, by: { host }
+
+// DC2 Integration Servers
+// hosts WPALJA21C1 and WPALJA21BD
+// column IS_Result.IS_Status
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21C1", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21BD", caseSensitive:false)
+    )
+    and contains(restapi.job_name, "IS UP", caseSensitive:false)
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'IS_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `IS_Result.IS_Status` = takeFirst(checkStatus) }, by: { host }

@@ -1,0 +1,52 @@
+The other three tables use the same shape. One newest row per host.
+
+DC1 Integration Servers. Columns: host and IS_Result.IS_Status.
+Hosts: WPALJA21B8 and WPALJA21BB. Screen value: EIP_UP.
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21B8", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21BB", caseSensitive:false)
+    )
+    and contains(restapi.job_name, "IS UP", caseSensitive:false)
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'IS_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `IS_Result.IS_Status` = takeFirst(checkStatus) }, by: { host }
+
+DC2 Mediator Servers. Columns: host and MG_Result.MG_Status.
+Hosts: WPALJA21BF and WPALJA21C0. Screen value: EIP_UP.
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21BF", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21C0", caseSensitive:false)
+    )
+    and contains(restapi.job_name, "MG UP", caseSensitive:false)
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'MG_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `MG_Result.MG_Status` = takeFirst(checkStatus) }, by: { host }
+
+DC2 Integration Servers. Columns: host and IS_Result.IS_Status.
+Hosts: WPALJA21C1 and WPALJA21BD. Screen value: EIP_UP.
+
+fetch logs, from: now()-3m
+| filter log.source == "restapi-monitoring"
+    and (
+      contains(restapi.job_name, "WPALJA21C1", caseSensitive:false)
+      or contains(restapi.job_name, "WPALJA21BD", caseSensitive:false)
+    )
+    and contains(restapi.job_name, "IS UP", caseSensitive:false)
+| parse restapi.url, "LD '://' LD:host ':'"
+| parse content, "LD 'IS_Status\":\"' LD:checkStatus '\"'"
+| sort timestamp desc
+| summarize { `IS_Result.IS_Status` = takeFirst(checkStatus) }, by: { host }
+
+Empty table: change now()-3m to now()-24h.
+Still empty: delete the IS UP or MG UP line and keep the short host code.
+
+B8, B9, and BC are already proved in Dynatrace.
+BB, BF, C0, C1, and BD are taken from the Splunk panels.
