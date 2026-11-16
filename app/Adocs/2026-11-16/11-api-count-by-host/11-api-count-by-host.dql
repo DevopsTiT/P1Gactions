@@ -1,0 +1,13 @@
+fetch logs
+| filter contains(content, "API:", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' API Version'"
+| filter isNotNull(API)
+| summarize CountOfAPI = count(), by: { API, host.name }
+| sort CountOfAPI desc
+
+fetch logs
+| filter contains(content, "API:", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' API Version'"
+| filter isNotNull(API)
+| summarize CountOfAPI = count(), by: { API }
+| sort CountOfAPI desc

@@ -1,0 +1,20 @@
+fetch logs
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' API Version'"
+| parse content, "LD '][' LD:gatewayHost ']'"
+| filter isNotNull(API)
+| summarize CountOfAPI = count(), by: { API, gatewayHost }
+| sort CountOfAPI desc
+
+fetch logs
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' API Version'"
+| filter isNotNull(API)
+| summarize CountOfAPI = count(), by: { API }
+| sort CountOfAPI desc
+
+fetch logs
+| filter contains(content, "apigw5590/server.log", caseSensitive:false)
+    or contains(log.source, "apigw5590/server.log", caseSensitive:false)
+| fields timestamp, host.name, log.source, content
+| limit 5
