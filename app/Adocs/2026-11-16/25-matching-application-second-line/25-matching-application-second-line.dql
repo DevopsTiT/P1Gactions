@@ -1,9 +1,0 @@
-// Partner sentence only. Leave this out of the host chart.
-
-fetch logs, from: now()-60m
-| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
-    and contains(content, "Matching application found for the API:", caseSensitive:false)
-| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' and Identifier'"
-| filter isNotNull(API)
-| summarize eventCount = count(), by: { API }
-| sort eventCount desc
