@@ -1,0 +1,20 @@
+The path is correct. The check returned 5 records, and log.source is the apigw5590 file. host.name is WPALJA21BC.prprivmgmt.intraxa.
+
+The count is 0 because the parse looks for "API: " and "API Version". That text is not in the start of the line. API stays empty, and isNotNull(API) drops every row.
+
+Count the rows by host:
+
+fetch logs, from: now()-1h
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| summarize eventCount = count(), by: { host.name }
+| sort eventCount desc
+
+Then print three lines that contain API:
+
+fetch logs, from: now()-1h
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "API", caseSensitive:false)
+| fields timestamp, host.name, content
+| limit 3
+
+Send one full content line. The parse has to match the spelling on that line.
