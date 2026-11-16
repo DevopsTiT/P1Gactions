@@ -1,0 +1,25 @@
+The query looked for EIP UP Check inside log.source. In Splunk that text is the source field. The event body is an MG_Result object. Dynatrace log.source is a different field, so the filter matched nothing.
+
+The last 3 minutes is also a short window. Splunk has 992 events across about 25 hours, 496 on each host.
+
+Paste this. It searches the line text for the last 24 hours:
+
+fetch logs, from: now()-24h
+| filter contains(content, "MG_Result", caseSensitive:false)
+    or contains(content, "EIP UP Check", caseSensitive:false)
+    or contains(log.source, "EIP UP Check", caseSensitive:false)
+    or contains(content, "eip_mg_up_check", caseSensitive:false)
+| fields timestamp, host.name, log.source, content
+| sort timestamp desc
+| limit 20
+
+Read log.source and content on the rows that come back.
+
+If this is also 0 records, these up-check events are not in Dynatrace for this window.
+
+After rows exist, the panel window is:
+
+fetch logs, from: now()-3m
+| filter contains(content, "MG_Result", caseSensitive:false)
+| fields timestamp, host.name, log.source, content
+| sort timestamp desc
