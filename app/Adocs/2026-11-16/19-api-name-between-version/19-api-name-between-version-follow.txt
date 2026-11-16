@@ -1,0 +1,33 @@
+The API name sits between "API: " and " API Version".
+
+Names on the five rows:
+jp-Designing-DesignProduct-CalculatePremiumReserveCashValue-v1-vs
+jp-Distributing-Sell-GenerateFormImage-v2-vs
+jp-Distributing-Sell-XUPdateLeadSalesActivityInfo-v2-vs
+policy-management-V1
+technical-utility-V1
+
+The path check is one file:
+/opt/softwareag/log/1015/apigw5590/server.log
+470865 lines from 13:48:52 to 14:48:52.
+
+Splunk's host popup for this file added up to 125733, and that search was paused.
+This chart counts the Dynatrace lines.
+
+Count of API by API and host:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' API Version'"
+| filter isNotNull(API)
+| summarize `Count of API` = count(), by: { API, host.name }
+| sort `Count of API` desc
+
+ALL column:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "LD 'API: ' LD:API ' API Version'"
+| filter isNotNull(API)
+| summarize ALL = count(), by: { API }
+| sort ALL desc
