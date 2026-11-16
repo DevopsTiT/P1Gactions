@@ -1,0 +1,34 @@
+fetch logs
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| summarize ErrorCount = count()
+
+fetch logs, from: now()-15m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| summarize ErrorCount = count()
+
+fetch logs, from: now()-15m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(host.name, "WPALJA21B9", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+      or contains(content, "WPALJA21B9.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| summarize ErrorCount = count(), by: { host.name }
+
+fetch logs, from: now()-15m
+| filter contains(content, "WPALJA21BC", caseSensitive:false)
+    or contains(host.name, "WPALJA21BC", caseSensitive:false)
+| fields timestamp, host.name, log.source, content
+| limit 5

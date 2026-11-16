@@ -1,0 +1,28 @@
+fetch logs
+| filter (
+      contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+      or contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    )
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(host.name, "WPALJA21B9", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+      or contains(content, "WPALJA21B9.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| fieldsAdd Status = "FAILURE"
+| summarize ErrorCount = count(), by: { Status }
+
+fetch logs
+| filter (
+      contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+      or contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    )
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(host.name, "WPALJA21B9", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+      or contains(content, "WPALJA21B9.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| summarize ErrorCount = count(), by: { host.name }

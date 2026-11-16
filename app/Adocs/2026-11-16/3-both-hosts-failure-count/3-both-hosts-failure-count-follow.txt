@@ -1,0 +1,40 @@
+The third panel stacks both hosts, then counts FAILURE lines as ErrorCount.
+
+WPALJA21BC writes /opt/softwareag/log/1015/apigw5500/server.log.
+WPALJA21B9 writes /opt/softwareag/log/1015/apigw5590/server.log.
+Both lines contain status: FAILURE.
+
+The 101 and the 89 came from different time windows. Set the notebook picker to the dashboard range. Do not add 101 and 89 together.
+
+fetch logs
+| filter (
+      contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+      or contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    )
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(host.name, "WPALJA21B9", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+      or contains(content, "WPALJA21B9.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| fieldsAdd Status = "FAILURE"
+| summarize ErrorCount = count(), by: { Status }
+
+You get one row. Status is FAILURE. ErrorCount is the panel number.
+
+Split by host:
+
+fetch logs
+| filter (
+      contains(log.source, "/opt/softwareag/log/1015/apigw5500/server.log", caseSensitive:false)
+      or contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    )
+    and (
+      contains(host.name, "WPALJA21BC", caseSensitive:false)
+      or contains(host.name, "WPALJA21B9", caseSensitive:false)
+      or contains(content, "WPALJA21BC.prprivmgmt.intraxa", caseSensitive:false)
+      or contains(content, "WPALJA21B9.prprivmgmt.intraxa", caseSensitive:false)
+    )
+    and contains(content, "status: failure", caseSensitive:false)
+| summarize ErrorCount = count(), by: { host.name }
