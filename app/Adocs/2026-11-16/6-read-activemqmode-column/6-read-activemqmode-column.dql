@@ -1,0 +1,12 @@
+fetch logs
+| filter contains(sql.query_name, "dc1-nd-mode", caseSensitive:false)
+| fields timestamp, sql.mfsubenv, sql.activemqmode
+| sort timestamp desc
+| limit 1
+
+fetch logs
+| filter contains(sql.query_name, "dc1-nd-mode", caseSensitive:false)
+| parse content, "LD 'ACTIVEMQMODE\", \"' LD:ACTIVEMQMODE '\"'"
+| fields timestamp, ACTIVEMQMODE
+| sort timestamp desc
+| limit 1
