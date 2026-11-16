@@ -1,0 +1,7 @@
+// Three kinds of line that mention API:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "API:", caseSensitive:false)
+| fieldsAdd lineKind = if(contains(content, "API Version", caseSensitive:false), "call line", else: if(contains(content, "Matching application found for the API:", caseSensitive:false), "partner line", else: "other API text"))
+| summarize eventCount = count(), by: { lineKind }

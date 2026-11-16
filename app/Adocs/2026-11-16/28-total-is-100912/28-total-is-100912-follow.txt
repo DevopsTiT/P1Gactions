@@ -1,0 +1,28 @@
+Dynatrace total for 14:30:31 to 15:30:31:
+
+B9 25374
+BC 25000
+BF 24461
+C0 26077
+ALL 100912
+
+25374 + 25000 + 24461 + 26077 = 100912
+
+Splunk photo bottom line at 15:27:
+35089 + 35427 + 39119 + 37329 = 146964
+
+Gap 46052. The hours overlap. The clock does not explain 46000 lines.
+
+The photo is angled, so a Splunk digit can be off. The Dynatrace numbers add up.
+
+Split the lines:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "API:", caseSensitive:false)
+| fieldsAdd lineKind = if(contains(content, "API Version", caseSensitive:false), "call line", else: if(contains(content, "Matching application found for the API:", caseSensitive:false), "partner line", else: "other API text"))
+| summarize eventCount = count(), by: { lineKind }
+
+call line = the 100912 chart
+partner line = Matching application found for the API:
+other API text = API: is present, and neither sentence above is present
