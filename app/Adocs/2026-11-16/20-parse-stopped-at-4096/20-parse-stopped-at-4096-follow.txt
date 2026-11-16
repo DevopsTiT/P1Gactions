@@ -1,0 +1,37 @@
+The count is 1 because LD stops after 4,096 characters and at a line break.
+API Version is farther down the line.
+The picker was Last 24 hours and scanned 97.78 GiB.
+The panel window is the last 60 minutes.
+
+Four rows in that day:
+customer-info-V2 on WPALJA21B9 count 1
+customer-info-V2 on WPALJA21BC count 1
+jp-CoreBusiness-ServiceManagement-ClaimService-v1-vs on WPALJA21C0 count 1
+policy-management-V1 on WPALJA21BF count 1
+
+Five-row check:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+    and contains(content, "API Version", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| fields timestamp, host.name, API
+| limit 5
+
+Count of API by API and host:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| filter isNotNull(API)
+| summarize `Count of API` = count(), by: { API, host.name }
+| sort `Count of API` desc
+
+ALL:
+
+fetch logs, from: now()-60m
+| filter contains(log.source, "/opt/softwareag/log/1015/apigw5590/server.log", caseSensitive:false)
+| parse content, "DATA{0,16000000} 'API: ' DATA{1,2000}:API ' API Version'"
+| filter isNotNull(API)
+| summarize ALL = count(), by: { API }
+| sort ALL desc
